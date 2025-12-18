@@ -405,6 +405,337 @@ Hint: Implement op_Addition on MyType or add to witness hierarchy.
 
 ---
 
+## Part 9: Memory Region Types and Semantics
+
+### 9.1 Memory Region Kinds
+
+NORMATIVE: F# Native defines a closed set of memory region kinds:
+
+| Kind | Volatility | Cache Behavior | Use Case |
+|------|------------|----------------|----------|
+| `Peripheral` | Always volatile | No caching | Hardware registers (memory-mapped I/O) |
+| `SRAM` | Non-volatile | Normal | General-purpose RAM |
+| `Flash` | Non-volatile | Aggressive | Read-only storage |
+| `SystemControl` | Always volatile | Special | ARM system registers |
+| `Arena` | Non-volatile | Scope-bounded | Compiler-managed temporary allocation |
+| `Stack` | Non-volatile | Core-local | Thread-local storage |
+
+```fsharp
+// FNCS type definitions
+type MemoryRegionKind =
+    | Peripheral      // Memory-mapped I/O (volatile, no cache)
+    | SRAM            // General RAM
+    | Flash           // Read-only at runtime
+    | SystemControl   // ARM system registers
+    | Arena           // Compiler-managed temporary
+    | Stack           // Thread-local
+```
+
+### 9.2 Region Type Parameters
+
+NORMATIVE: Region information is carried via measure type parameters using FSharp.UMX phantom types:
+
+```fsharp
+[<Measure>] type peripheral
+[<Measure>] type sram
+[<Measure>] type flash
+[<Measure>] type systemControl
+[<Measure>] type arena
+[<Measure>] type stack
+
+type Ptr<'T, [<Measure>] 'region, [<Measure>] 'access>
+```
+
+NORMATIVE: Region parameters SHALL NOT be erased during type checking. The type checker must preserve region information through all transformations.
+
+NORMATIVE: Region constraints propagate through function calls:
+
+```fsharp
+// Function accepting peripheral-region pointer
+let readRegister (ptr: Ptr<uint32, peripheral, readOnly>) : uint32 = ...
+
+// Attempting to pass wrong region is a type error
+let sramPtr: Ptr<uint32, sram, readWrite> = ...
+readRegister sramPtr  // ERROR FS8003: Memory region mismatch
+```
+
+### 9.3 Volatile Semantics
+
+NORMATIVE: Access to `Peripheral` or `SystemControl` regions SHALL use volatile semantics.
+
+NORMATIVE: Volatile reads SHALL NOT be reordered by the compiler or optimizer. The generated code must preserve the exact sequence of volatile operations.
+
+NORMATIVE: Volatile reads SHALL NOT be eliminated. The compiler SHALL NOT remove "redundant" volatile reads, as hardware register values may change between reads.
+
+NORMATIVE: Volatile writes SHALL NOT be reordered with respect to other volatile operations or memory barriers.
+
+```fsharp
+// Each read is a separate hardware access - NOT combined
+let status1 = !peripheralPtr  // Volatile read
+let status2 = !peripheralPtr  // Separate volatile read - NOT optimized away
+```
+
+### 9.4 Region Compatibility
+
+NORMATIVE: Regions form a subtyping hierarchy for assignment:
+
+```
+                Stack
+                  ↓
+                Arena
+                  ↓
+                SRAM
+               ↙   ↘
+           Flash   Peripheral
+                      ↓
+                SystemControl
+```
+
+A pointer to a "higher" region can be used where a "lower" region is expected in read-only contexts, but not vice versa.
+
+---
+
+## Part 10: Access Kind Enforcement
+
+### 10.1 Access Kinds
+
+F# Native enforces access kinds at the type level:
+
+| Kind | Read | Write | Description |
+|------|------|-------|-------------|
+| `ReadOnly` | YES | NO | Read-only access (immutable view) |
+| `WriteOnly` | NO | YES | Write-only access (output registers) |
+| `ReadWrite` | YES | YES | Full access |
+
+```fsharp
+[<Measure>] type readOnly
+[<Measure>] type writeOnly
+[<Measure>] type readWrite
+```
+
+### 10.2 Enforcement Rules
+
+NORMATIVE: Reading from a `WriteOnly` pointer SHALL produce error FS8001.
+
+```fsharp
+let outputPtr: Ptr<uint32, peripheral, writeOnly> = ...
+let value = !outputPtr  // ERROR FS8001: Cannot read write-only pointer
+```
+
+NORMATIVE: Writing to a `ReadOnly` pointer SHALL produce error FS8002.
+
+```fsharp
+let inputPtr: Ptr<uint32, flash, readOnly> = ...
+inputPtr := 42u  // ERROR FS8002: Cannot write read-only pointer
+```
+
+NORMATIVE: Access kinds are checked at compile time. No runtime overhead is incurred for access enforcement.
+
+### 10.3 CMSIS Qualifier Mapping
+
+F# Native access kinds map directly to CMSIS-standard volatile qualifiers:
+
+| CMSIS Qualifier | C Definition | F# Native |
+|-----------------|--------------|-----------|
+| `__I` | `volatile const` | `readOnly` |
+| `__O` | `volatile` | `writeOnly` |
+| `__IO` | `volatile` | `readWrite` |
+
+This mapping enables Farscape to generate type-safe F# bindings from CMSIS-SVD device descriptions.
+
+### 10.4 Access Covariance and Contravariance
+
+NORMATIVE: `ReadWrite` is a subtype of both `ReadOnly` and `WriteOnly`:
+
+```fsharp
+let rwPtr: Ptr<uint32, sram, readWrite> = ...
+
+// OK: ReadWrite can be used where ReadOnly is expected
+let readValue (p: Ptr<uint32, sram, readOnly>) = !p
+readValue rwPtr  // OK
+
+// OK: ReadWrite can be used where WriteOnly is expected
+let writeValue (p: Ptr<uint32, sram, writeOnly>) v = p := v
+writeValue rwPtr 42u  // OK
+```
+
+---
+
+## Part 11: Peripheral Descriptors and Binding Markers
+
+### 11.1 Platform Bindings Convention
+
+NORMATIVE: Platform bindings SHALL be declared in `Platform.Bindings` modules:
+
+```fsharp
+module Platform.Bindings =
+    let writeBytes (fd: int) (buffer: nativeptr<byte>) (count: int) : int =
+        Unchecked.defaultof<int>
+    let readBytes (fd: int) (buffer: nativeptr<byte>) (maxCount: int) : int =
+        Unchecked.defaultof<int>
+    let getCurrentTicks () : int64 =
+        Unchecked.defaultof<int64>
+    let sleep (milliseconds: int) : unit =
+        ()
+```
+
+NORMATIVE: Function body SHALL be `Unchecked.defaultof<T>` (for non-unit return) or `()` (for unit return) to indicate Alex-provided implementation.
+
+NORMATIVE: Alex SHALL recognize these binding markers and replace them with platform-specific implementations during code generation.
+
+### 11.2 Peripheral Attributes
+
+NORMATIVE: FNCS SHALL recognize these Farscape-generated attributes on peripheral descriptor types:
+
+```fsharp
+[<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct)>]
+type PeripheralDescriptorAttribute(family: string, baseAddress: uint64) =
+    inherit Attribute()
+    member _.Family = family
+    member _.BaseAddress = baseAddress
+
+[<AttributeUsage(AttributeTargets.Field ||| AttributeTargets.Property)>]
+type RegisterAttribute(name: string, offset: uint32, access: string) =
+    inherit Attribute()
+    member _.Name = name
+    member _.Offset = offset
+    member _.Access = access  // "r", "w", "rw"
+
+[<AttributeUsage(AttributeTargets.Field ||| AttributeTargets.Property)>]
+type PeripheralAttribute(instance: string, address: uint64) =
+    inherit Attribute()
+    member _.Instance = instance
+    member _.Address = address
+```
+
+**Example Farscape-generated peripheral:**
+
+```fsharp
+[<PeripheralDescriptor("GPIO", 0x48000000UL)>]
+type GPIO_TypeDef = {
+    [<Register("MODER", 0x00u, "rw")>]
+    MODER: Ptr<uint32, peripheral, readWrite>
+
+    [<Register("IDR", 0x10u, "r")>]
+    IDR: Ptr<uint32, peripheral, readOnly>
+
+    [<Register("ODR", 0x14u, "rw")>]
+    ODR: Ptr<uint32, peripheral, readWrite>
+
+    [<Register("BSRR", 0x18u, "w")>]
+    BSRR: Ptr<uint32, peripheral, writeOnly>
+}
+
+[<Peripheral("GPIOA", 0x48000000UL)>]
+let GPIOA: GPIO_TypeDef = Unchecked.defaultof<GPIO_TypeDef>
+
+[<Peripheral("GPIOB", 0x48000400UL)>]
+let GPIOB: GPIO_TypeDef = Unchecked.defaultof<GPIO_TypeDef>
+```
+
+### 11.3 Units of Measure Preservation
+
+NORMATIVE: Units of measure SHALL be preserved through memory operations:
+
+```fsharp
+[<Measure>] type bytes
+[<Measure>] type offset
+[<Measure>] type address
+
+let bufferSize: int<bytes> = 1024<bytes>
+let registerOffset: int<offset> = 0x10<offset>
+
+// Type error - cannot add incompatible units
+let invalid = bufferSize + registerOffset  // ERROR: int<bytes> + int<offset>
+
+// Explicit conversion required
+let total = bufferSize + int<bytes> registerOffset  // OK with explicit cast
+```
+
+NORMATIVE: Measure types integrate with memory region types:
+
+```fsharp
+type SizedPtr<'T, [<Measure>] 'region, [<Measure>] 'access, [<Measure>] 'unit> =
+    Ptr<'T, 'region, 'access>
+
+let buffer: SizedPtr<byte, sram, readWrite, bytes> = ...
+```
+
+### 11.4 BAREWire Schema Integration
+
+NORMATIVE: BAREWire memory layouts integrate with F# Native types through struct layout attributes:
+
+```fsharp
+[<Struct; StructLayout(LayoutKind.Sequential, Pack = 1)>]
+type MessageHeader = {
+    Version: uint8
+    Type: uint8
+    Length: uint16<bytes>
+    Sequence: uint32
+}
+
+// BAREWire-compatible zero-copy deserialization
+let parseHeader (ptr: Ptr<byte, sram, readOnly>) : MessageHeader =
+    NativePtr.read<MessageHeader> (NativePtr.cast ptr)
+```
+
+---
+
+## Part 12: Ownership and Coeffects (FUTURE)
+
+*This section reserves syntax and semantics for future implementation.*
+
+### 12.1 Reserved Ownership Syntax
+
+The following syntax is reserved for ownership semantics:
+
+```fsharp
+// Ownership wrappers
+Owned<'T>      // Caller receives exclusive ownership
+Borrowed<'T>   // Caller borrows, does not own
+Shared<'T>     // Shared ownership (reference counted)
+
+// Ownership expressions
+move expr      // Transfer ownership
+&expr          // Borrow immutably
+&mut expr      // Borrow mutably
+drop expr      // Explicit drop
+
+// Arena expressions
+arena { expr } // Arena-scoped allocation
+```
+
+### 12.2 Reserved Coeffect Syntax
+
+The following syntax is reserved for coeffect annotations:
+
+```fsharp
+// Coeffect arrow
+type -> type                    // Current syntax (no coeffect)
+type -[coeffect]-> type         // Future: explicit coeffect
+
+// Built-in coeffects
+Pure           // No side effects
+IO             // General I/O
+IO.File        // File I/O specifically
+IO.Network     // Network I/O specifically
+IO.Console     // Console I/O specifically
+Async          // Asynchronous operation
+Unsafe         // Requires unsafe context
+Alloc          // Performs allocation
+```
+
+### 12.3 Future Integration Points
+
+The ownership and coeffect systems are designed to integrate with:
+
+1. **Memory regions** - Ownership transfers preserve region information
+2. **Access kinds** - Mutable borrows require `readWrite` access
+3. **BAREWire** - Zero-copy IPC uses ownership transfer across process boundaries
+4. **Farscape** - Peripheral access requires explicit coeffect declarations
+
+---
+
 ## Appendix A: Type Mapping Reference
 
 ### Primitive Types
@@ -472,12 +803,169 @@ These parse as standard F# (attributes, operators) but have special semantics in
 
 | Section | Status | Implementation |
 |---------|--------|----------------|
-| Native Type Universe | **Specified** | Pending in FNCS |
-| Null-Free Semantics | **Specified** | Pending in FNCS |
-| SRTP Resolution | **Specified** | Pending in FNCS |
-| Memory Semantics | Draft | Future |
-| Coeffects | Draft | Future |
-| Platform Bindings | **Specified** | Implemented in Firefly |
+| Part 1: Native Type Universe | **Specified** | Pending in FNCS |
+| Part 2: Null-Free Semantics | **Specified** | Pending in FNCS |
+| Part 3: SRTP Resolution | **Specified** | Pending in FNCS |
+| Part 4: Memory Semantics | Draft | Future |
+| Part 5: Coeffects | Draft | Future |
+| Part 6: Platform Bindings | **Specified** | Implemented in Firefly |
+| Part 7: Compatibility | **Specified** | Reference |
+| Part 8: Diagnostics | **Specified** | Partial in FNCS |
+| Part 9: Memory Region Types | **Specified** | Pending in FNCS |
+| Part 10: Access Kind Enforcement | **Specified** | Pending in FNCS |
+| Part 11: Peripheral Descriptors | **Specified** | Pending (Farscape integration) |
+| Part 12: Ownership/Coeffects | Reserved | Future |
+
+---
+
+## Appendix D: Native-Specific Diagnostics
+
+### D.1 Error Code Ranges
+
+F# Native reserves the FS8xxx range for native-specific diagnostics:
+
+| Range | Category |
+|-------|----------|
+| FS8001-FS8009 | Memory access violations |
+| FS8010-FS8019 | BCL/native type conflicts |
+| FS8020-FS8029 | SRTP resolution failures |
+| FS8030-FS8039 | Region constraint violations |
+| FS8040-FS8049 | Ownership violations (future) |
+| FS8050-FS8059 | Coeffect violations (future) |
+
+### D.2 Memory Access Errors
+
+**FS8001: Cannot read write-only pointer**
+
+```
+error FS8001: Cannot read write-only pointer.
+  The pointer 'outputReg' has access kind 'writeOnly' which does not permit read operations.
+
+  let value = !outputReg
+              ^~~~~~~~~~
+
+Hint: Write-only pointers (CMSIS __O) are used for output-only hardware registers.
+      Reading from such registers is undefined behavior on most hardware.
+```
+
+**FS8002: Cannot write read-only pointer**
+
+```
+error FS8002: Cannot write read-only pointer.
+  The pointer 'flashData' has access kind 'readOnly' which does not permit write operations.
+
+  flashData := newValue
+  ^~~~~~~~~~~~~~~~~~~~
+
+Hint: Read-only pointers (CMSIS __I) represent hardware inputs or flash memory.
+      To modify the value, you need a pointer with 'readWrite' access.
+```
+
+**FS8003: Memory region mismatch**
+
+```
+error FS8003: Memory region mismatch.
+  Expected pointer with region 'peripheral' but received region 'sram'.
+
+  readPeripheralRegister(sramPtr)
+                         ^~~~~~~
+
+Hint: Peripheral-region pointers require volatile access semantics.
+      SRAM pointers cannot be substituted for peripheral pointers.
+```
+
+**FS8004: Volatile constraint violation**
+
+```
+error FS8004: Volatile constraint violation.
+  The operation on 'statusReg' was optimized or reordered in a context
+  requiring volatile semantics.
+
+Hint: Peripheral and SystemControl regions require volatile semantics.
+      Ensure all accesses use the correct pointer type.
+```
+
+**FS8005: Null assignment to native type**
+
+```
+error FS8005: Cannot assign null to native type 'NativeArray<int>'.
+  F# Native types are non-nullable by design.
+
+  let arr: NativeArray<int> = null
+                              ^~~~
+
+Hint: Use 'voption<NativeArray<int>>' for optional values,
+      or 'NativeArray.empty' for an empty array.
+```
+
+### D.3 BCL/Native Type Conflicts
+
+**FS8010: BCL type in native compilation**
+
+```
+error FS8010: BCL type 'System.String' is not available in native compilation.
+  F# Native uses 'NativeStr' for string values.
+
+  let s: System.String = "hello"
+         ^~~~~~~~~~~~~
+
+Hint: Remove explicit BCL type annotations. String literals automatically
+      have type 'NativeStr' in F# Native.
+```
+
+**FS8011: BCL collection in native compilation**
+
+```
+error FS8011: BCL collection 'System.Collections.Generic.List<T>' is not available.
+  F# Native uses native collection types from Alloy.
+
+Hint: Use 'NativeList<T>', 'NativeArray<T>', or 'NativeMap<K,V>' instead.
+```
+
+### D.4 SRTP Resolution Errors
+
+**FS8020: No native witness found**
+
+```
+error FS8020: No witness found for trait constraint on type 'MyCustomType'.
+  Searched witnesses:
+    - MyCustomType members (not found)
+    - BasicOps (not applicable)
+    - NumericOps (not applicable)
+
+  let result = a + b  // where a, b: MyCustomType
+               ^~~~~
+
+Hint: Implement 'static member (+) : MyCustomType * MyCustomType -> MyCustomType'
+      on type 'MyCustomType', or add it to the Alloy witness hierarchy.
+```
+
+**FS8021: Ambiguous witness resolution**
+
+```
+error FS8021: Ambiguous witness resolution for operator '+' on type 'Number'.
+  Multiple witnesses found:
+    - BasicOps.Add<Number>
+    - Number.op_Addition
+
+Hint: Use explicit type annotation or disambiguate with module qualification.
+```
+
+### D.5 Diagnostic Format
+
+NORMATIVE: All native-specific diagnostics SHALL follow this format:
+
+```
+error FS<code>: <Brief description>
+  <Detailed explanation of the error>
+
+  <Source code snippet with marker>
+  <Caret indicating error location>
+
+Hint: <Actionable guidance for resolution>
+```
+
+NORMATIVE: Hints SHALL provide actionable guidance. Generic "see documentation" hints are insufficient.
 
 ---
 
