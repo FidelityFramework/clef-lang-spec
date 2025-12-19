@@ -11,7 +11,7 @@
 
 ## Overview
 
-fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakez-llc/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, fsnative-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
+fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakeztech/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, fsnative-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
 
 **The F# you write stays the same.** You write `string`, `option`, `int`, `array` - the familiar F# types. fsnative-spec defines what those types *mean* when targeting native compilation. The specification is about semantics, not new syntax.
 
@@ -21,12 +21,12 @@ fsnative-spec is part of the **Fidelity** native F# compilation ecosystem:
 
 | Project | Role |
 |---------|------|
-| **[Firefly](https://github.com/speakez-llc/firefly)** | AOT compiler: F# → PSG → MLIR → Native binary |
-| **[Alloy](https://github.com/speakez-llc/alloy)** | Native standard library with platform bindings |
-| **[BAREWire](https://github.com/speakez-llc/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
-| **[Farscape](https://github.com/speakez-llc/farscape)** | C/C++ header parsing for native library bindings |
-| **[XParsec](https://github.com/speakez-llc/xparsec)** | Parser combinators powering PSG traversal and header parsing |
-| **[fsnative](https://github.com/speakez-llc/fsnative)** | F# Native Compiler Services (FNCS) |
+| **[Firefly](https://github.com/speakeztech/firefly)** | AOT compiler: F# → PSG → MLIR → Native binary |
+| **[Alloy](https://github.com/speakeztech/alloy)** | Native standard library with platform bindings |
+| **[BAREWire](https://github.com/speakeztech/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
+| **[Farscape](https://github.com/speakeztech/farscape)** | C/C++ header parsing for native library bindings |
+| **[XParsec](https://github.com/speakeztech/xparsec)** | Parser combinators powering PSG traversal and header parsing |
+| **[fsnative](https://github.com/speakeztech/fsnative)** | F# Native Compiler Services (FNCS) |
 | **fsnative-spec** | F# Native language specification (this repository) |
 
 The name "Fidelity" reflects the framework's core mission: **preserving type and memory safety** from source code through compilation to native execution.
