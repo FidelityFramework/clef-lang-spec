@@ -119,25 +119,23 @@ Firefly                       <- Will generate code per spec semantics
 Native Binary                 <- Will run with spec-defined behavior
 ```
 
-## Planned Specification Structure
+## Relationship to the F# Language Specification
 
-We're planning to organize the specification as markdown files in the `spec/` folder:
+The [F# Language Specification](https://fsharp.org/specs/language-spec/) is an extensive document covering syntax, type system, name resolution, evaluation semantics, and more. fsnative-spec takes this specification as its starting point, but the relationship is not simply additive.
 
-| Chapter | Description |
-|---------|-------------|
-| `spec/01-introduction.md` | Scope, conformance, notation |
-| `spec/02-types.md` | Native semantics for F# types |
-| `spec/03-ownership.md` | Ownership rules, move semantics |
-| `spec/04-borrowing.md` | Borrow rules, lifetime constraints |
-| `spec/05-memory-regions.md` | Stack, heap, arena, peripheral, flash |
-| `spec/06-drop.md` | Deterministic cleanup semantics |
-| `spec/07-srtp.md` | SRTP resolution against intrinsic types |
+**Revisions**: Sections that assume .NET runtime behavior will be revised to define explicit native semantics. Where the F# spec says "the runtime determines...", fsnative-spec must provide concrete definitions.
 
-*Note: These chapters do not yet exist.*
+**Removals**: Some F# spec content does not apply to native compilation. Sections on .NET interop, reflection, and runtime type discovery have no equivalent in fsnative and will be omitted or replaced.
+
+**Additions**: Entirely new chapters will cover concepts absent from the F# spec: ownership, borrowing, memory regions, access kinds, deterministic cleanup, and lifetime constraints.
+
+**Lock-Step Evolution**: fsnative (the compiler) and fsnative-spec (the specification) are designed to evolve together. As fsnative's implementation reveals edge cases and design decisions, the specification will be updated. As the specification clarifies semantics, fsnative's implementation will conform. Neither document is static.
+
+We expect this to be a multi-year effort. The F# spec took years to reach its current form, and fsnative-spec will require similar sustained attention as native compilation introduces concerns the original specification never needed to address.
 
 ## Status
 
-The specification is not yet started. This README describes our intent and design direction.
+The specification work has not yet started. This README describes our intent and design direction.
 
 ## Contributing
 
