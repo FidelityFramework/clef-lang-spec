@@ -1,38 +1,71 @@
 # F# Native Language Specification
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+<p align="center">
+🚧 <strong>Under Active Development</strong> 🚧<br>
+<em>This project is in early development and not intended for production use.</em>
+</p>
+
 **Toward a normative specification for native F# type semantics and memory management.**
 
----
+## Overview
 
-## What is fsnative-spec?
-
-fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakeztech/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, we plan for fsnative-spec to provide explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
+fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakez-llc/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, fsnative-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
 
 **The F# you write stays the same.** You write `string`, `option`, `int`, `array` - the familiar F# types. fsnative-spec defines what those types *mean* when targeting native compilation. The specification is about semantics, not new syntax.
 
-When complete, this document will serve as the authority for fsnative's behavior.
+## The Fidelity Framework
 
-## Why fsnative-spec Will Contain More Than the F# Specification
+fsnative-spec is part of the **Fidelity** native F# compilation ecosystem:
+
+| Project | Role |
+|---------|------|
+| **[Firefly](https://github.com/speakez-llc/firefly)** | AOT compiler: F# → PSG → MLIR → Native binary |
+| **[Alloy](https://github.com/speakez-llc/alloy)** | Native standard library with platform bindings |
+| **[BAREWire](https://github.com/speakez-llc/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
+| **[Farscape](https://github.com/speakez-llc/farscape)** | C/C++ header parsing for native library bindings |
+| **[XParsec](https://github.com/speakez-llc/xparsec)** | Parser combinators powering PSG traversal and header parsing |
+| **[fsnative](https://github.com/speakez-llc/fsnative)** | F# Native Compiler Services (FNCS) |
+| **fsnative-spec** | F# Native language specification (this repository) |
+
+The name "Fidelity" reflects the framework's core mission: **preserving type and memory safety** from source code through compilation to native execution.
+
+## Specification Flow
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                      Specification Flow                         │
+│                                                                 │
+│   fsnative-spec              fsnative              Firefly      │
+│   ┌───────────┐            ┌───────────┐        ┌───────────┐  │
+│   │           │  specifies │           │  uses  │           │  │
+│   │ NORMATIVE │───────────▶│   FNCS    │───────▶│   Alex    │  │
+│   │   RULES   │            │           │        │           │  │
+│   └───────────┘            └───────────┘        └───────────┘  │
+│        │                         │                    │         │
+│        │                         │                    │         │
+│   "Strings SHALL             Implements            Generates   │
+│    be NativeStr"           type resolution      native code    │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- **fsnative-spec** (this repository): Defines WHAT F# Native means
+- **fsnative**: Implements HOW F# Native works (FNCS compiler services)
+- **Firefly**: Consumes typed trees to produce native binaries
+
+## Why fsnative-spec Contains More Than the F# Specification
 
 The standard F# specification makes extensive use of the .NET runtime as an implicit substrate. Consider what the F# spec does *not* need to define:
 
-**Memory Allocation**: The F# spec never explains where objects live in memory, how allocation works, or when memory is reclaimed. It simply notes that values are created and trusts the CLR's garbage collector.
+- **Memory Allocation**: The F# spec never explains where objects live in memory, how allocation works, or when memory is reclaimed. It simply notes that values are created and trusts the CLR's garbage collector.
+- **Object Layout**: The F# spec doesn't define how a record's fields are arranged in memory, what padding exists between fields, or how discriminated union tags are represented.
+- **Reference Semantics**: The F# spec doesn't distinguish between a value that owns its memory and a value that borrows someone else's memory.
+- **Resource Cleanup**: The F# spec has no drop semantics. Objects are allocated, used, and eventually collected.
+- **Type Identity**: In managed F#, types are identified by their assembly metadata.
 
-**Object Layout**: The F# spec doesn't define how a record's fields are arranged in memory, what padding exists between fields, or how discriminated union tags are represented. These are "implementation details" handled by the runtime.
-
-**Reference Semantics**: The F# spec doesn't distinguish between a value that owns its memory and a value that borrows someone else's memory. In managed F#, all references are equivalent because the GC ensures memory remains valid.
-
-**Resource Cleanup**: The F# spec has no drop semantics. Objects are allocated, used, and eventually collected. The programmer need not think about when cleanup occurs.
-
-**Type Identity**: In managed F#, types are identified by their assembly metadata. `System.String` from one assembly is the same type as `System.String` from another because the runtime resolves these identities.
-
-We plan for fsnative-spec to explicitly define all of these. Native compilation has no runtime to defer to. The specification will need to provide complete, unambiguous definitions for:
-
-- Exact memory layout of every type
-- Ownership semantics for every value
-- Lifetime constraints for every reference
-- Deterministic cleanup timing
-- Type identity independent of assembly metadata
+fsnative-spec explicitly defines all of these. Native compilation has no runtime to defer to.
 
 ## The Core Principle: Same Types, Native Semantics
 
@@ -46,57 +79,70 @@ let numbers = [| 1; 2; 3 |]
 
 You're using `string`, `option`, and `array` - exactly as you would in any F# program. The specification defines what these types mean for native compilation:
 
-- **`string`**: UTF-8 encoded, null-terminated, deterministic lifetime
-- **`option`**: Value type, zero-cost `None`, no heap allocation
-- **`array`**: Contiguous memory, compile-time or runtime size tracking
-- **`int`**, **`float`**, **`bool`**: Native machine representations
+| F# Syntax | Standard F# | F# Native | Why |
+|-----------|-------------|-----------|-----|
+| `"Hello"` | `System.String` | `NativeStr` | UTF-8, fat pointer, no GC |
+| `Some 42` | `int option` (reference) | `int voption` | Value type, non-nullable |
+| `[| 1; 2; 3 |]` | `System.Int32[]` | `NativeArray<int>` | Fat pointer, explicit lifetime |
 
-The specification describes the semantics behind these familiar types. It does not introduce new type names that users need to learn.
+## Key Semantic Additions
 
-## Planned Semantic Additions
-
-Beyond redefining what existing types mean, we're considering semantic concepts that have no equivalent in the F# specification:
+Beyond redefining what existing types mean, fsnative-spec covers concepts that have no equivalent in the F# specification:
 
 ### Ownership and Borrowing
 
-We're designing rules for tracking who owns memory and who borrows it:
-
 - Every value has exactly one owner
 - References can borrow values without taking ownership
-- The compiler would verify borrows don't outlive their owners
+- The compiler verifies borrows don't outlive their owners
 - Ownership can transfer (move semantics) or values can be copied
 
 ### Memory Regions
 
-We plan to define where values can live:
-
-- **Stack**: Automatic lifetime, fastest access, limited size
-- **Heap**: Manual or RAII lifetime, can outlive creating scope
-- **Arena**: Bulk allocation with single deallocation point
-- **Peripheral**: Memory-mapped I/O with volatile semantics
-- **Flash**: Read-only program memory
+| Region | Use Case | Volatile | Cacheable |
+|--------|----------|----------|-----------|
+| `Stack` | Thread-local, automatic lifetime | No | Yes |
+| `Heap` | Manual or RAII lifetime | No | Yes |
+| `Arena` | Bulk allocation, single deallocation | No | Yes |
+| `Peripheral` | Memory-mapped I/O | Yes | No |
+| `Flash` | Read-only program memory | No | Yes |
 
 ### Access Kinds
 
-Pointers would carry access restrictions:
+Pointers carry access permissions:
 
-- **Read-only**: Can read but not write (string literals, flash memory)
-- **Write-only**: Can write but not read (certain DMA buffers)
-- **Read-write**: Full access
+| Kind | Read | Write | CMSIS |
+|------|------|-------|-------|
+| `ReadOnly` | Yes | No | `__I` |
+| `WriteOnly` | No | Yes | `__O` |
+| `ReadWrite` | Yes | Yes | `__IO` |
 
 ### Deterministic Cleanup
 
 When values go out of scope, resources are freed immediately:
-
 - Drop order is reverse declaration order
 - No garbage collector decides when cleanup happens
 - The programmer can reason about exactly when resources are released
+
+### Peripheral Descriptors
+
+Farscape generates type-safe hardware bindings:
+
+```fsharp
+[<PeripheralDescriptor("GPIO", 0x48000000UL)>]
+type GPIO_TypeDef = {
+    [<Register("MODER", 0x00u, "rw")>]
+    MODER: Ptr<uint32, peripheral, readWrite>
+
+    [<Register("IDR", 0x10u, "r")>]
+    IDR: Ptr<uint32, peripheral, readOnly>
+}
+```
 
 ## The Absorption Model
 
 In standard F#, types like `int` and `string` are defined in external assemblies. The compiler discovers their operations by reading assembly metadata.
 
-We plan for fsnative to define these types **intrinsically** - built into the compiler itself. When you write `int`, the compiler knows its representation, operations, and semantics because that knowledge is part of fsnative, not discovered from external sources.
+fsnative defines these types **intrinsically** - built into the compiler itself. When you write `int`, the compiler knows its representation, operations, and semantics because that knowledge is part of fsnative, not discovered from external sources.
 
 This means:
 - Type resolution requires no external assemblies
@@ -105,49 +151,82 @@ This means:
 
 Alloy provides library *functions* that operate on these intrinsic types. The types themselves are defined by fsnative per this specification.
 
-## The Fidelity Ecosystem
+## Document Organization
 
-fsnative-spec is intended to be the normative foundation for the Fidelity native compilation framework:
+### Specification Parts
 
-```
-fsnative-spec (this repo)     <- Will define the semantic rules
-        |
-fsnative (FNCS)               <- Will implement type resolution per spec
-        |
-Firefly                       <- Will generate code per spec semantics
-        |
-Native Binary                 <- Will run with spec-defined behavior
-```
+| Part | Title | Status |
+|------|-------|--------|
+| Part 1 | Native Type Universe | Specified |
+| Part 2 | Null-Free Semantics | Specified |
+| Part 3 | SRTP Resolution | Specified |
+| Part 4 | Memory Semantics | Draft |
+| Part 5 | Coeffects | Draft |
+| Part 6 | Platform Bindings | Specified |
+| Part 7 | Compatibility | Specified |
+| Part 8 | Diagnostics | Specified |
+| Part 9 | Memory Region Types | Specified |
+| Part 10 | Access Kind Enforcement | Specified |
+| Part 11 | Peripheral Descriptors | Specified |
+| Part 12 | Ownership/Coeffects | Reserved (Future) |
+
+### Appendices
+
+| Appendix | Contents |
+|----------|----------|
+| A | Type Mapping Reference |
+| B | Grammar Extensions (Future) |
+| C | Specification Status |
+| D | Native-Specific Diagnostics (FS8xxx) |
+
+See [docs/fidelity/README.md](docs/fidelity/README.md) for detailed specification documentation.
+
+## Normative Language
+
+The specification uses RFC 2119 keywords:
+
+- **SHALL/MUST**: Absolute requirement
+- **SHALL NOT/MUST NOT**: Absolute prohibition
+- **SHOULD**: Recommended but not required
+- **MAY**: Optional
+
+Example:
+> NORMATIVE: String literals SHALL have type `NativeStr`, not `System.String`.
 
 ## Relationship to the F# Language Specification
 
-The [F# Language Specification](https://fsharp.org/specs/language-spec/) is an extensive document covering syntax, type system, name resolution, evaluation semantics, and more. fsnative-spec takes this specification as its starting point, but the relationship is not simply additive.
+The [F# Language Specification](https://fsharp.org/specs/language-spec/) is an extensive document covering syntax, type system, name resolution, evaluation semantics, and more. fsnative-spec takes this specification as its starting point:
 
-**Revisions**: Sections that assume .NET runtime behavior will be revised to define explicit native semantics. Where the F# spec says "the runtime determines...", fsnative-spec must provide concrete definitions.
-
-**Removals**: Some F# spec content does not apply to native compilation. Sections on .NET interop, reflection, and runtime type discovery have no equivalent in fsnative and will be omitted or replaced.
-
-**Additions**: Entirely new chapters will cover concepts absent from the F# spec: ownership, borrowing, memory regions, access kinds, deterministic cleanup, and lifetime constraints.
-
-**Lock-Step Evolution**: fsnative (the compiler) and fsnative-spec (the specification) are designed to evolve together. As fsnative's implementation reveals edge cases and design decisions, the specification will be updated. As the specification clarifies semantics, fsnative's implementation will conform. Neither document is static.
-
-We expect this to be a multi-year effort. The F# spec took years to reach its current form, and fsnative-spec will require similar sustained attention as native compilation introduces concerns the original specification never needed to address.
-
-## Status
-
-The specification work has not yet started. This README describes our intent and design direction.
+- **Revisions**: Sections that assume .NET runtime behavior are revised to define explicit native semantics
+- **Removals**: Content on .NET interop, reflection, and runtime type discovery is omitted
+- **Additions**: New chapters cover ownership, borrowing, memory regions, access kinds, and lifetime constraints
+- **Lock-Step Evolution**: fsnative (the compiler) and fsnative-spec evolve together
 
 ## Contributing
 
-Contributions will be welcome once initial drafts are available. Please open an issue to discuss ideas.
+Specification changes require:
+1. Discussion of semantic implications
+2. Coordination with FNCS implementation
+3. Validation via Firefly compilation
+
+Changes to normative sections must include:
+- Rationale for the change
+- Impact analysis on existing code
+- Implementation plan for FNCS
 
 ## License
 
-MIT License. See [LICENSE.txt](LICENSE.txt) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Contact
 
 fsnative-spec is being developed by [SpeakEZ Technologies](https://speakez.tech) as part of the Fidelity native compilation framework.
+
+## Acknowledgments
+
+- **[F# Language Specification](https://fsharp.org/specs/language-spec/)**: The foundation this specification extends
+- **Don Syme and F# Contributors**: For creating an elegant functional language
+- **Firefly Team**: For the native compilation infrastructure
 
 ---
 
