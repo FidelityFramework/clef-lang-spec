@@ -1772,7 +1772,7 @@ particular:
 - The `&expr` and `&&expr` address-of operators ([§](expressions.md#the-addressof-operators))
 - The `expr && expr` and `expr || expr` shortcut control flow operators ([§](expressions.md#shortcut-operator-expressions))
 - The `%expr` and `%%expr` expression splice operators in quotations ([§](expressions.md#expression-splices))
-- The library-defined operators, such as `+`, `-`, `*`, `/`, `%`, `**`, `<<<`, `>>>`, `&&&`, `|||`, and `^^^` ([§](the-f-library-fsharpcoredll.md#basic-operators-and-functions-fsharpcoreoperators)).
+- The library-defined operators, such as `+`, `-`, `*`, `/`, `%`, `**`, `<<<`, `>>>`, `&&&`, `|||`, and `^^^` ([§](the-native-library-alloy.md#basic-operators-and-functions-fsharpcoreoperators)).
 
 If the operator does not resolve to a user-defined or library-defined operator, the name resolution
 rules ([§](inference-procedures.md#name-resolution)) ensure that the operator resolves to an expression that implicitly uses a static member

@@ -19,7 +19,7 @@
         "lexical-filtering",
         "provided-types",
         "special-attributes-and-types",
-        "the-f-library-fsharpcoredll",
+        "the-native-library-alloy",
         "features-for-ml-compatibility"
     ]
 }
