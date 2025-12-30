@@ -62,7 +62,7 @@ let maybe = Some 42
 
 | Document | Contents |
 |----------|----------|
-| [FNCS_Specification.md](FNCS_Specification.md) | Complete normative specification |
+| [fncs-specification.md](fncs-specification.md) | Complete normative specification |
 
 ### Specification Parts
 

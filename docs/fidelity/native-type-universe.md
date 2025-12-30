@@ -18,13 +18,13 @@ This document specifies the native type universe for fsnative, the F# native com
 
 ### Relationship to Other Documents
 
-- **[FNCS_Specification.md](FNCS_Specification.md)**: Defines F# Native Compiler Services, including:
+- **[fncs-specification.md](fncs-specification.md)**: Defines F# Native Compiler Services, including:
   - SRTP resolution against Alloy witness hierarchy (Part 3)
   - Platform bindings convention (Part 6)
   - Memory region enforcement rules (Parts 9-10)
   - Native-specific diagnostics (Appendix D)
-- **Beyond_FSlang_Spec.md**: Extensions beyond standard F# semantics
-- **FSharp_Features_In_Fidelity.md**: Feature coverage matrix
+- **beyond-fslang-spec.md**: Extensions beyond standard F# semantics
+- **fsharp-features-in-fidelity.md**: Feature coverage matrix
 
 ---
 
@@ -58,7 +58,7 @@ Everything else is derived from these primitives.
 
 ## Part 2: Primitive Types
 
-> **FNCS Resolution**: See [`FNCS_Specification.md` Part 1.1](FNCS_Specification.md#11-primitive-type-mapping) for how FNCS resolves these types at compile-time.
+> **FNCS Resolution**: See [`fncs-specification.md` Part 1.1](fncs-specification.md#11-primitive-type-mapping) for how FNCS resolves these types at compile-time.
 >
 > **OCaml Provenance**: Primitives follow OCaml's value-oriented representation (unboxed by default) while eliminating GC-oriented overhead. See [Appendix E](#appendix-e-ocaml-provenance-and-fidelity-extensions) for detailed provenance analysis.
 
@@ -524,7 +524,7 @@ switch (shape.tag) {
 
 > **Principle**: Reference types use fat pointers (pointer + length). No null pointers - empty is represented by length 0.
 >
-> **FNCS Resolution**: See [`FNCS_Specification.md` Parts 1.2-1.4](FNCS_Specification.md#12-string-literals) for compiler-level type resolution.
+> **FNCS Resolution**: See [`fncs-specification.md` Parts 1.2-1.4](fncs-specification.md#12-string-literals) for compiler-level type resolution.
 
 ### 4.1 String
 
@@ -550,17 +550,21 @@ string
 | **MLIR** | `!fidelity.str` or `tuple<ptr<i8>, index>` |
 
 **Why UTF-8?**
-1. Rust/C interop - most native code uses UTF-8
-2. Compact for ASCII-heavy content
-3. No BOM or endianness concerns
-4. Web/JSON native encoding
+1. **Native interop** - Rust, C, and most systems APIs use UTF-8
+2. **Compact** - 1 byte per ASCII character
+3. **Web/JSON native** - no transcoding overhead
+4. **Embedded-friendly** - no UTF-16 surrogate handling
 
-**Character Iteration**:
+**Character Iteration** (codepoints, not bytes):
 ```fsharp
-// Iterating over codepoints (not bytes)
+// Iterating over Unicode scalar values
 for c in String.chars s do
-    printfn "%c" c  // c : char (Unicode codepoint, i32)
+    printfn "%c" c  // c : char (UTF-32 codepoint, 4 bytes)
 ```
+
+**Zero-Copy Slicing**: The fat pointer representation (pointer + length) enables zero-copy string slicing - substrings reference the same underlying bytes with adjusted pointer/length.
+
+> **See**: Appendix E for encoding comparison with OCaml (Latin-1) and .NET (UTF-16).
 
 **API Changes (Null-Freedom Cascades)**:
 
@@ -595,6 +599,8 @@ array<'T>
 | **Bounds checking** | Always (no unsafe indexing by default) |
 | **Empty array** | `{ ptr: valid, len: 0 }` - NOT null |
 | **MLIR** | `!fidelity.array<T>` or `tuple<ptr<T>, index>` |
+
+**Monomorphized Layout**: Unlike uniform representations that box generic elements, fsnative arrays are monomorphized - `array<int>` stores unboxed integers contiguously. Sequential access is cache-optimal (8 `int64` or 16 `int32` values per 64-byte cache line).
 
 **Fixed Size After Creation**:
 ```fsharp
@@ -632,15 +638,17 @@ Span<'T>
 | **Stack only** | Cannot be stored in heap structures |
 | **MLIR** | Same as array header (no ownership) |
 
+**Zero-Copy Views**: Spans provide borrowed views into arrays, strings, and memory regions without allocation. The stack-only constraint prevents lifetime escape (similar to Rust's slice borrowing). Maps directly to MLIR `memref` with dynamic offset.
+
 > **Note**: Leverage `FSharp.Core` Span types - already stack-allocated and native-friendly.
 
 ---
 
 ## Part 5: Parameterized Types
 
-> **Principle**: Parameterized types follow the same familiar F# syntax. FNCS resolves native semantics at compile-time.
+> **Principle**: Parameterized types follow familiar F# syntax. FNCS resolves native semantics at compile-time.
 >
-> **FNCS Resolution**: See [`FNCS_Specification.md` Part 1.3](FNCS_Specification.md#13-option-types) for option type resolution and null-free guarantees.
+> **FNCS Resolution**: See [`fncs-specification.md` Part 1.3](fncs-specification.md#13-option-types) for option type resolution and null-free guarantees.
 
 ### 5.1 Option
 
@@ -664,6 +672,10 @@ option<'T>  (voption semantics)
 | **Stack allocated** | Always (never heap) |
 | **Null-freedom** | `None` is tag 0, NOT null pointer |
 | **MLIR** | `!fidelity.option<T>` |
+
+**Stack-Only Guarantee**: Unlike heap-allocated options (cf. OCaml blocks, .NET reference types), fsnative options are always stack-allocated with no GC involvement. This enables predictable memory layout for embedded targets and eliminates heap fragmentation from frequent option use.
+
+> **See**: Appendix E for detailed OCaml/Rust comparison.
 
 **FNCS Resolution**:
 ```fsharp
@@ -708,6 +720,10 @@ Result<'T, 'E>
 | **Stack allocated** | Always |
 | **MLIR** | `!fidelity.result<T, E>` |
 
+**Stack Allocation**: Like `option`, Result is always stack-allocated with zero heap overhead.
+
+**Why Result Over Exceptions**: Result makes error handling explicit in type signatures, enables compile-time exhaustiveness checking, has zero runtime overhead, and can cross FFI boundaries via BAREWire. Exceptions are not supported for control flow in fsnative.
+
 **Preferred Error Handling**: Result is the idiomatic error handling pattern in fsnative. Exceptions are not supported for control flow.
 
 ```fsharp
@@ -744,6 +760,8 @@ list<'T>
 | **Immutable** | Always (structural sharing) |
 | **Allocation** | Arena or stack (not GC heap) |
 | **MLIR** | `!fidelity.list<T>` |
+
+**Arena Allocation**: List cons cells are allocated in arenas (not GC heap), providing better cache locality and batch deallocation at scope end. The immutable structure enables structural sharing as in OCaml.
 
 **When to Use**:
 - Pattern matching on head/tail
@@ -801,6 +819,8 @@ Closure
 | **Invocation** | `fn_ptr(env, args...)` |
 | **MLIR** | `!fidelity.closure<(args) -> ret, env>` |
 
+**Closure Allocation**: Closures are allocated on stack or in arenas (not GC heap). Small closures (<64 bytes) fit within one cache line for efficient invocation.
+
 ### 6.3 Inline Semantics (fsil Absorption)
 
 Most functions are inlined by default:
@@ -831,6 +851,8 @@ let add5 = add 5  // Partial application
 add5 = { fn_ptr: add_impl, env: { x = 5 } }
 ```
 
+**Currying Optimization** (fsil): Fully-applied curried calls compile to direct multi-argument calls (no intermediate closures). Partial application creates flat closures capturing applied arguments. Higher-order uses like `List.map f` are typically inlined at call sites.
+
 ---
 
 ## Part 7: Mutable State
@@ -860,6 +882,8 @@ ref<'T>
 | **Allocation** | Stack or arena (not GC) |
 | **MLIR** | `!fidelity.ref<T>` or `ptr<T>` |
 
+**Stack/Arena Allocation**: Refs are allocated on stack or in arenas (not GC heap), eliminating allocation pressure in loops and providing predictable memory behavior for embedded targets.
+
 ### 7.2 Mutable Bindings
 
 ```fsharp
@@ -872,6 +896,8 @@ x <- x + 1  // Direct mutation
 | **Scope** | Local to function |
 | **Representation** | Stack slot |
 | **Cannot escape** | Cannot be captured by closures |
+
+**Escape Prevention**: Mutable bindings cannot be captured by closures (use `ref` instead). This restriction enables guaranteed stack allocation.
 
 ### 7.3 Mutable Record Fields
 
@@ -887,6 +913,8 @@ c.Value <- c.Value + 1
 | **Layout** | Same as immutable field |
 | **Mutability** | Compile-time property |
 
+**Cache Line Isolation**: For concurrent access, isolate frequently-written mutable fields using `[<CacheLinePadded>]` to prevent false sharing.
+
 ---
 
 ## Part 8: Memory Region Types (UMX Integration)
@@ -895,7 +923,7 @@ c.Value <- c.Value + 1
 >
 > **Erasure at Last Lowering**: These types ARE erased - but at the **last possible lowering stage**, after Fidelity has made all memory layout decisions. By the time code reaches LLVM, "the type information that guided every transformation has done its job and compiled away to nothing." This is the entire point of "Fidelity" - preserving type fidelity through compilation so the F# compiler controls memory layout.
 >
-> **FNCS Enforcement**: See [`FNCS_Specification.md` Parts 9-10](FNCS_Specification.md#part-9-memory-region-types-and-semantics) for region constraint enforcement and diagnostic codes.
+> **FNCS Enforcement**: See [`fncs-specification.md` Parts 9-10](fncs-specification.md#part-9-memory-region-types-and-semantics) for region constraint enforcement and diagnostic codes.
 
 ### 8.1 Memory Regions
 
@@ -963,13 +991,15 @@ let stackBuffer : Ptr<int, Stack, ReadWrite> = ...
 **Compile-Time Safety**:
 ```fsharp
 // ERROR: Cannot write to readOnly pointer
-let writeFlash (p: Ptr<byte, flash, readOnly>) =
+let writeFlash (p: Ptr<byte, Flash, ReadOnly>) =
     Ptr.write p 0uy  // Compile error!
 
 // OK: Can read from readOnly
-let readFlash (p: Ptr<byte, flash, readOnly>) =
+let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
     Ptr.read p  // OK
 ```
+
+**Cache Behavior**: `Stack`, `Arena`, `Sram`, and `Flash` regions are cacheable with normal load/store semantics. `Peripheral` access bypasses cache and uses memory barriers - essential for hardware registers where timing and order matter.
 
 ### 8.4 Hardware Peripheral Descriptors
 

@@ -9,6 +9,20 @@
 
 **Toward a normative specification for native F# type semantics and memory management.**
 
+## Table of Contents
+
+- [Overview](#overview)
+- [The Fidelity Framework](#the-fidelity-framework)
+- [Specification Flow](#specification-flow)
+- [Why fsnative-spec Contains More Than the F# Specification](#why-fsnative-spec-contains-more-than-the-f-specification)
+- [The Core Principle: Same Types, Native Semantics](#the-core-principle-same-types-native-semantics)
+- [Key Semantic Additions](#key-semantic-additions)
+- [The Absorption Model](#the-absorption-model)
+- [Document Organization](#document-organization)
+- [Normative Language](#normative-language)
+- [Relationship to the F# Language Specification](#relationship-to-the-f-language-specification)
+- [Contributing](#contributing)
+
 ## Overview
 
 fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakeztech/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, fsnative-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
@@ -101,9 +115,9 @@ Beyond redefining what existing types mean, fsnative-spec covers concepts that h
 | Region | Use Case | Volatile | Cacheable |
 |--------|----------|----------|-----------|
 | `Stack` | Thread-local, automatic lifetime | No | Yes |
-| `Heap` | Manual or RAII lifetime | No | Yes |
-| `Arena` | Bulk allocation, single deallocation | No | Yes |
+| `Arena` | Bulk allocation, batch deallocation | No | Yes |
 | `Peripheral` | Memory-mapped I/O | Yes | No |
+| `Sram` | General-purpose RAM | No | Yes |
 | `Flash` | Read-only program memory | No | Yes |
 
 ### Access Kinds
@@ -153,33 +167,59 @@ Alloy provides library *functions* that operate on these intrinsic types. The ty
 
 ## Document Organization
 
-### Specification Parts
+The specification lives in the `spec/` directory. Chapter ordering is defined in `spec/Catalog.json`.
 
-| Part | Title | Status |
-|------|-------|--------|
-| Part 1 | Native Type Universe | Specified |
-| Part 2 | Null-Free Semantics | Specified |
-| Part 3 | SRTP Resolution | Specified |
-| Part 4 | Memory Semantics | Draft |
-| Part 5 | Coeffects | Draft |
-| Part 6 | Platform Bindings | Specified |
-| Part 7 | Compatibility | Specified |
-| Part 8 | Diagnostics | Specified |
-| Part 9 | Memory Region Types | Specified |
-| Part 10 | Access Kind Enforcement | Specified |
-| Part 11 | Peripheral Descriptors | Specified |
-| Part 12 | Ownership/Coeffects | Reserved (Future) |
+### Front Matter
 
-### Appendices
+| Document | File | Description |
+|----------|------|-------------|
+| Front Matter | `front-matter.md` | Title, copyright, version |
+| RFC Status | `rfc-status.md` | RFC 2119 compliance notes |
 
-| Appendix | Contents |
-|----------|----------|
-| A | Type Mapping Reference |
-| B | Grammar Extensions (Future) |
-| C | Specification Status |
-| D | Native-Specific Diagnostics (FS8xxx) |
+### Specification Chapters
 
-See [docs/fidelity/README.md](docs/fidelity/README.md) for detailed specification documentation.
+| # | Chapter | File | Status |
+|---|---------|------|--------|
+| 1 | Introduction | `introduction.md` | Needs revision |
+| 2 | Program Structure | `program-structure.md` | Review |
+| 3 | Lexical Analysis | `lexical-analysis.md` | Stable |
+| 4 | Basic Grammar Elements | `basic-grammar-elements.md` | Stable |
+| 5 | Types and Type Constraints | `types-and-type-constraints.md` | Needs revision |
+| 6 | **Native Type Mappings** | `native-type-mappings.md` | **New** |
+| 7 | Expressions | `expressions.md` | Review |
+| 8 | Patterns | `patterns.md` | Stable |
+| 9 | Type Definitions | `type-definitions.md` | Review |
+| 10 | Units of Measure | `units-of-measure.md` | Stable |
+| 11 | Namespaces and Modules | `namespaces-and-modules.md` | Review |
+| 12 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Review |
+| 13 | Program Structure and Execution | `program-structure-and-execution.md` | Needs revision |
+| 14 | **Memory Regions** | `memory-regions.md` | **New** |
+| 15 | **Access Kinds** | `access-kinds.md` | **New** |
+| 16 | **Platform Bindings** | `platform-bindings.md` | **New** |
+| 17 | Inference Procedures | `inference-procedures.md` | Review |
+| 18 | Lexical Filtering | `lexical-filtering.md` | Stable |
+| 19 | Special Attributes and Types | `special-attributes-and-types.md` | Needs revision |
+| 20 | The Native Library Alloy | `the-native-library-alloy.md` | **Rewritten** |
+| 21 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Review |
+
+### Removed Chapters
+
+The following chapters from the standard F# specification are **not applicable** to F# Native and have been removed:
+
+| Chapter | Reason |
+|---------|--------|
+| Provided Types | Type providers require .NET runtime |
+| Custom Attributes and Reflection | System.Reflection not available |
+
+### Chapter Status Key
+
+| Status | Meaning |
+|--------|---------|
+| **Stable** | Minimal changes needed from fslang-spec |
+| **Review** | Needs review for BCL assumptions |
+| **Needs revision** | Known BCL dependencies to remove |
+| **New** | fsnative-specific chapter (not in fslang-spec) |
+| **Rewritten** | Completely rewritten for fsnative |
 
 ## Normative Language
 

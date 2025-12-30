@@ -16,15 +16,15 @@ This document specifies the **F# Native** dialect - extensions and modifications
 
 ## Part 1: Native Type Universe
 
-> **See also**: [`Native_Type_Universe.md`](Native_Type_Universe.md) for complete type specification with memory layouts.
+> **See also**: [`native-type-universe.md`](native-type-universe.md) for complete type specification with memory layouts.
 >
 > **Cross-references**:
-> - Primitive types: `Native_Type_Universe.md` Part 2
-> - Structural types: `Native_Type_Universe.md` Part 3
-> - String/Array: `Native_Type_Universe.md` Part 4
-> - Option/Result: `Native_Type_Universe.md` Part 5
-> - Memory regions: `Native_Type_Universe.md` Part 8
-> - OCaml provenance: `Native_Type_Universe.md` Appendix E
+> - Primitive types: `native-type-universe.md` Part 2
+> - Structural types: `native-type-universe.md` Part 3
+> - String/Array: `native-type-universe.md` Part 4
+> - Option/Result: `native-type-universe.md` Part 5
+> - Memory regions: `native-type-universe.md` Part 8
+> - OCaml provenance: `native-type-universe.md` Appendix E
 
 ### 1.1 Primitive Type Mapping
 
@@ -48,7 +48,7 @@ FNCS resolves types to native representations at compile-time. **No Alloy shadow
 
 ### 1.2 String Literals
 
-> **See**: [`Native_Type_Universe.md` Part 4.1](Native_Type_Universe.md#41-string) for complete string specification.
+> **See**: [`native-type-universe.md` Part 4.1](native-type-universe.md#41-string) for complete string specification.
 
 **Standard F#**: String literals have type `System.String`.
 
@@ -77,7 +77,7 @@ Memory layout:
 
 ### 1.3 Option Types
 
-> **See**: [`Native_Type_Universe.md` Part 5.1](Native_Type_Universe.md#51-option) for complete option specification.
+> **See**: [`native-type-universe.md` Part 5.1](native-type-universe.md#51-option) for complete option specification.
 
 **Standard F#**: `option<'T>` is a reference type, `None` may be null.
 
@@ -97,7 +97,7 @@ let nothing: int option = None        // Stack-allocated, NOT null
 
 ### 1.4 Array Types
 
-> **See**: [`Native_Type_Universe.md` Part 4.2](Native_Type_Universe.md#42-array) for complete array specification.
+> **See**: [`native-type-universe.md` Part 4.2](native-type-universe.md#42-array) for complete array specification.
 
 **Standard F#**: `'T[]` is `System.Array` (heap allocated, GC managed).
 
@@ -427,7 +427,7 @@ Hint: Implement op_Addition on MyType or add to witness hierarchy.
 
 ## Part 9: Memory Region Types and Semantics
 
-> **See**: [`Native_Type_Universe.md` Part 8](Native_Type_Universe.md#part-8-memory-region-types-umx-absorption) for memory region type definitions and UMX absorption.
+> **See**: [`native-type-universe.md` Part 8](native-type-universe.md#part-8-memory-region-types-umx-absorption) for memory region type definitions and UMX absorption.
 
 ### 9.1 Memory Region Kinds
 
