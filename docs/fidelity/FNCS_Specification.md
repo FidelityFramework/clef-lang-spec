@@ -16,41 +16,57 @@ This document specifies the **F# Native** dialect - extensions and modifications
 
 ## Part 1: Native Type Universe
 
+> **See also**: [`Native_Type_Universe.md`](Native_Type_Universe.md) for complete type specification with memory layouts.
+>
+> **Cross-references**:
+> - Primitive types: `Native_Type_Universe.md` Part 2
+> - Structural types: `Native_Type_Universe.md` Part 3
+> - String/Array: `Native_Type_Universe.md` Part 4
+> - Option/Result: `Native_Type_Universe.md` Part 5
+> - Memory regions: `Native_Type_Universe.md` Part 8
+> - OCaml provenance: `Native_Type_Universe.md` Appendix E
+
 ### 1.1 Primitive Type Mapping
 
-F# Native uses Alloy's native types instead of BCL types:
+FNCS resolves types to native representations at compile-time. **No Alloy shadow types required.**
 
-| F# Syntax | Standard F# | F# Native |
-|-----------|-------------|-----------|
-| `int` | `System.Int32` | `Alloy.Int32` |
-| `int64` | `System.Int64` | `Alloy.Int64` |
-| `float` | `System.Double` | `Alloy.Float64` |
-| `float32` | `System.Single` | `Alloy.Float32` |
-| `string` | `System.String` | `Alloy.NativeStr` |
-| `char` | `System.Char` | `Alloy.Char` (UTF-8 code point) |
-| `bool` | `System.Boolean` | `Alloy.Bool` |
-| `unit` | `Microsoft.FSharp.Core.Unit` | `Alloy.Unit` |
-| `byte` | `System.Byte` | `Alloy.UInt8` |
+| F# Syntax | Standard F# (BCL) | FNCS Native | Memory |
+|-----------|-------------------|-------------|--------|
+| `int` | `System.Int32` | Platform word | `index` (MLIR) |
+| `int32` | `System.Int32` | 32-bit signed | `i32` |
+| `int64` | `System.Int64` | 64-bit signed | `i64` |
+| `float` | `System.Double` | IEEE 754 double | `f64` |
+| `float32` | `System.Single` | IEEE 754 single | `f32` |
+| `string` | `System.String` | UTF-8 fat pointer | `{ptr, len}` |
+| `char` | `System.Char` | Unicode codepoint | `i32` |
+| `bool` | `System.Boolean` | 8-bit | `i8` |
+| `unit` | `FSharp.Core.Unit` | Zero-sized | (elided) |
+| `byte` | `System.Byte` | 8-bit unsigned | `i8` |
+| `option<'T>` | `FSharp.Core.Option<'T>` | `voption<'T>` | Stack-allocated |
+
+**Key principle**: FNCS provides native type resolution at the compiler level. Alloy shadow types (e.g., `type option<'T> = voption<'T>`) are temporary workarounds that will be removed once FNCS is complete.
 
 ### 1.2 String Literals
 
+> **See**: [`Native_Type_Universe.md` Part 4.1](Native_Type_Universe.md#41-string) for complete string specification.
+
 **Standard F#**: String literals have type `System.String`.
 
-**F# Native**: String literals have type `NativeStr`.
+**F# Native**: String literals have type `string` (UTF-8 fat pointer, resolved by FNCS).
 
 ```fsharp
 // F# Native semantics
-let greeting = "Hello"  // Type: NativeStr, not System.String
+let greeting = "Hello"  // Type: string (UTF-8 fat pointer, not System.String)
 ```
 
-`NativeStr` is a fat pointer to UTF-8 encoded bytes:
+FNCS resolves `string` to a UTF-8 fat pointer:
 
-```fsharp
-[<Struct>]
-type NativeStr = {
-    Ptr: nativeptr<byte>
-    Length: int
-}
+```
+Memory layout:
+┌─────────────┬─────────────┐
+│ ptr: *u8    │ len: usize  │
+└─────────────┴─────────────┘
+     8 bytes      8 bytes     (on 64-bit)
 ```
 
 **Implications**:
@@ -61,44 +77,47 @@ type NativeStr = {
 
 ### 1.3 Option Types
 
-**Standard F#**: `option<'T>` is a reference type, `None` is null.
+> **See**: [`Native_Type_Universe.md` Part 5.1](Native_Type_Universe.md#51-option) for complete option specification.
 
-**F# Native**: `option<'T>` maps to `voption<'T>` (value option).
+**Standard F#**: `option<'T>` is a reference type, `None` may be null.
+
+**F# Native**: `option<'T>` has `voption<'T>` semantics (stack-allocated value type).
 
 ```fsharp
-// F# Native semantics
-let maybeValue: int option = Some 42  // Type: voption<int>
-let nothing: int option = None        // Type: voption<int>, not null
+// F# Native semantics - user writes familiar syntax
+let maybeValue: int option = Some 42  // Compiled as voption<int>
+let nothing: int option = None        // Stack-allocated, NOT null
 ```
 
 **Implications**:
-- No null representation
-- Stack allocated
-- Pattern matching works identically
+- **Absolute null-freedom**: No null representation anywhere
+- Stack allocated (no heap, no GC)
+- Pattern matching works identically to standard F#
+- FNCS resolves at compile-time, no Alloy shadow required
 
 ### 1.4 Array Types
 
+> **See**: [`Native_Type_Universe.md` Part 4.2](Native_Type_Universe.md#42-array) for complete array specification.
+
 **Standard F#**: `'T[]` is `System.Array` (heap allocated, GC managed).
 
-**F# Native**: `'T[]` is `NativeArray<'T>` (fat pointer).
+**F# Native**: `array<'T>` is a fat pointer (pointer + length).
 
 ```fsharp
-// F# Native semantics
-let numbers = [| 1; 2; 3 |]  // Type: NativeArray<int>
+// F# Native semantics - user writes familiar syntax
+let numbers = [| 1; 2; 3 |]  // Type: array<int> (fat pointer)
 ```
 
-```fsharp
-[<Struct>]
-type NativeArray<'T> = {
-    Ptr: nativeptr<'T>
-    Length: int
-    Capacity: int
-}
+```
+Memory layout:
+┌─────────────┬─────────────┐
+│ ptr: *T     │ len: usize  │
+└─────────────┴─────────────┘
 ```
 
 **Implications**:
 - Explicit memory management (stack, arena, or explicit allocation)
-- No automatic resizing
+- No automatic resizing (fixed-size after creation)
 - Bounds checking preserved
 
 ---
@@ -107,12 +126,13 @@ type NativeArray<'T> = {
 
 ### 2.1 Null Prohibition
 
-F# Native enforces null-free semantics for native types:
+F# Native enforces null-free semantics for ALL types:
 
 ```fsharp
 // COMPILE ERROR in F# Native
-let s: NativeStr = null        // Error: Cannot assign null to NativeStr
-let arr: NativeArray<int> = null // Error: Cannot assign null to NativeArray
+let s: string = null         // Error FS8010: Cannot assign null
+let arr: int array = null    // Error FS8010: Cannot assign null
+let opt: int option = null   // Error FS8010: Use None, not null
 ```
 
 ### 2.2 Interop Boundary
@@ -122,7 +142,7 @@ When interfacing with platform APIs that may return null:
 ```fsharp
 // Platform binding returns nullable
 [<PlatformBinding>]
-let tryGetEnv (name: NativeStr) : NativeStr voption = ...
+let tryGetEnv (name: string) : string voption = ...
 
 // Usage - must handle None case
 match tryGetEnv "PATH" with
@@ -136,8 +156,8 @@ Native types have sensible defaults, not null:
 
 | Type | Default |
 |------|---------|
-| `NativeStr` | Empty string (zero-length) |
-| `NativeArray<'T>` | Empty array (zero-length) |
+| `string` | Empty string (zero-length) |
+| `array<'T>` | Empty array (zero-length) |
 | `voption<'T>` | `ValueNone` |
 | Numeric | `0` |
 | `bool` | `false` |
@@ -170,19 +190,19 @@ let inline add (a: ^T) (b: ^T) : ^T
 // 2. Found in BCL
 
 // F# Native resolution for `add 1 2`:
-// 1. Look for Alloy.Int32 members - not found
-// 2. Look in BasicOps - found: BasicOps.Add<int>
+// 1. FNCS recognizes `int` as native platform word
+// 2. Look in native BasicOps - found: Add<int>
 // 3. Resolved witness: BasicOps, method: Add
 ```
 
-### 3.3 Alloy Operator Resolution
+### 3.3 Native Operator Resolution
 
-Alloy defines operators like `$` for string operations:
+Native operators like `$` for string operations:
 
 ```fsharp
 // Alloy definition
 type WritableString =
-    static member inline ($) (ws: WritableString, s: NativeStr) : unit = ...
+    static member inline ($) (ws: WritableString, s: string) : unit = ...
 
 // Usage
 WritableString $ "Hello"
@@ -229,7 +249,7 @@ Large or dynamically-sized data uses arena allocation:
 
 ```fsharp
 arena {
-    let buffer = NativeArray.create 1_000_000  // Arena allocated
+    let buffer = array.create 1_000_000  // Arena allocated
     let result = process buffer
     return result  // Only result escapes
 }  // Arena freed here
@@ -241,10 +261,10 @@ F# Native will support ownership annotations:
 
 ```fsharp
 // Owned value - caller receives ownership
-let createBuffer () : Owned<NativeArray<byte>> = ...
+let createBuffer () : Owned<array<byte>> = ...
 
 // Borrowed reference - caller borrows, doesn't own
-let processBuffer (buf: Borrowed<NativeArray<byte>>) : unit = ...
+let processBuffer (buf: Borrowed<array<byte>>) : unit = ...
 
 // Move semantics
 let newOwner = move existingBuffer
@@ -263,10 +283,10 @@ Functions can declare their effects:
 let add (a: int) (b: int) : int -[Pure]-> int = a + b
 
 // IO function - performs I/O
-let readFile (path: NativeStr) : NativeArray<byte> -[IO.File]-> NativeArray<byte> = ...
+let readFile (path: string) : array<byte> -[IO.File]-> array<byte> = ...
 
 // Composite coeffects
-let fetchAndParse (url: NativeStr) : Data -[IO.Network, Async]-> Data = ...
+let fetchAndParse (url: string) : Data -[IO.Network, Async]-> Data = ...
 ```
 
 ### 5.2 Coeffect Inference
@@ -319,7 +339,7 @@ Platform bindings are unsafe by default:
 
 ```fsharp
 // Caller must be in unsafe context or explicitly allow
-let writeData (data: NativeArray<byte>) : unit -[IO, Unsafe]-> unit =
+let writeData (data: array<byte>) : unit -[IO, Unsafe]-> unit =
     Platform.Bindings.writeBytes 1 data.Ptr data.Length |> ignore
 ```
 
@@ -352,7 +372,7 @@ The same syntax has different type semantics:
 ```fsharp
 let s = "hello"
 // F#: s : System.String
-// F# Native: s : NativeStr
+// F# Native: s : string
 
 let opt = Some 42
 // F#: opt : int option (reference type, None = null)
@@ -376,15 +396,15 @@ Code targeting F# Native should:
 FNCS produces native-specific error messages:
 
 ```
-FS0001: This expression was expected to have type 'NativeStr'
+FS0001: This expression was expected to have type 'string'
         but here has type 'System.String'.
 
-Hint: F# Native uses NativeStr for string literals.
-      If interoperating with .NET, use NativeStr.ofString.
+Hint: F# Native uses string for string literals.
+      If interoperating with .NET, use string.ofString.
 ```
 
 ```
-FS0002: Cannot assign null to native type 'NativeArray<int>'.
+FS0002: Cannot assign null to native type 'array<int>'.
 
 Hint: F# Native types are non-nullable.
       Use voption<T> for optional values.
@@ -406,6 +426,8 @@ Hint: Implement op_Addition on MyType or add to witness hierarchy.
 ---
 
 ## Part 9: Memory Region Types and Semantics
+
+> **See**: [`Native_Type_Universe.md` Part 8](Native_Type_Universe.md#part-8-memory-region-types-umx-absorption) for memory region type definitions and UMX absorption.
 
 ### 9.1 Memory Region Kinds
 
@@ -746,8 +768,10 @@ The ownership and coeffect systems are designed to integrate with:
 | `byte` | `UInt8` | 1 | 1 |
 | `int16` | `Int16` | 2 | 2 |
 | `uint16` | `UInt16` | 2 | 2 |
-| `int` / `int32` | `Int32` | 4 | 4 |
-| `uint` / `uint32` | `UInt32` | 4 | 4 |
+| `int` | `NativeInt` | ptr | ptr |
+| `int32` | `Int32` | 4 | 4 |
+| `uint` | `NativeUInt` | ptr | ptr |
+| `uint32` | `UInt32` | 4 | 4 |
 | `int64` | `Int64` | 8 | 8 |
 | `uint64` | `UInt64` | 8 | 8 |
 | `nativeint` | `NativeInt` | ptr | ptr |
@@ -760,14 +784,14 @@ The ownership and coeffect systems are designed to integrate with:
 
 ### Compound Types
 
-| F# Syntax | F# Native Type | Notes |
-|-----------|----------------|-------|
-| `string` | `NativeStr` | Fat pointer to UTF-8 |
-| `'T option` | `voption<'T>` | Value option |
-| `'T[]` | `NativeArray<'T>` | Fat pointer |
-| `'T list` | `NativeList<'T>` | Cons cells (arena) |
-| `Map<'K,'V>` | `NativeMap<'K,'V>` | Tree (arena) |
-| `Set<'T>` | `NativeSet<'T>` | Tree (arena) |
+| F# Syntax | FNCS Native Semantics | Notes |
+|-----------|----------------------|-------|
+| `string` | UTF-8 fat pointer | `{ptr, len}` |
+| `option<'T>` | `voption<'T>` | Stack-allocated, non-null |
+| `array<'T>` | Fat pointer | `{ptr, len}` |
+| `list<'T>` | Cons cells | Arena or stack allocated |
+| `Map<'K,'V>` | Balanced tree | Arena allocated |
+| `Set<'T>` | Balanced tree | Arena allocated |
 
 ---
 
@@ -888,14 +912,14 @@ Hint: Peripheral and SystemControl regions require volatile semantics.
 **FS8005: Null assignment to native type**
 
 ```
-error FS8005: Cannot assign null to native type 'NativeArray<int>'.
+error FS8005: Cannot assign null to native type 'array<int>'.
   F# Native types are non-nullable by design.
 
-  let arr: NativeArray<int> = null
+  let arr: array<int> = null
                               ^~~~
 
-Hint: Use 'voption<NativeArray<int>>' for optional values,
-      or 'NativeArray.empty' for an empty array.
+Hint: Use 'voption<array<int>>' for optional values,
+      or 'array.empty' for an empty array.
 ```
 
 ### D.3 BCL/Native Type Conflicts
@@ -904,22 +928,22 @@ Hint: Use 'voption<NativeArray<int>>' for optional values,
 
 ```
 error FS8010: BCL type 'System.String' is not available in native compilation.
-  F# Native uses 'NativeStr' for string values.
+  F# Native uses 'string' for string values.
 
   let s: System.String = "hello"
          ^~~~~~~~~~~~~
 
 Hint: Remove explicit BCL type annotations. String literals automatically
-      have type 'NativeStr' in F# Native.
+      have type 'string' in F# Native.
 ```
 
 **FS8011: BCL collection in native compilation**
 
 ```
 error FS8011: BCL collection 'System.Collections.Generic.List<T>' is not available.
-  F# Native uses native collection types from Alloy.
+  F# Native uses native collection types.
 
-Hint: Use 'NativeList<T>', 'NativeArray<T>', or 'NativeMap<K,V>' instead.
+Hint: Use 'list<T>', 'array<T>', or 'Map<K,V>' with native semantics.
 ```
 
 ### D.4 SRTP Resolution Errors

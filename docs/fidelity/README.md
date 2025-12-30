@@ -5,10 +5,11 @@
 This repository contains the normative specification for **F# Native**, a dialect of F# designed for native compilation without runtime dependencies. F# Native extends standard F# semantics with native type resolution, memory region types, and hardware access primitives.
 
 **F# Native is NOT a new language.** It is F# with:
-- Native types instead of BCL types
-- SRTP resolution against Alloy witnesses instead of .NET method tables
+- Native types resolved by FNCS at compile-time (not BCL types)
+- SRTP resolution against native witnesses
 - Memory region and access kind enforcement
 - Zero-cost peripheral access patterns
+- **Absolute null-freedom** via `voption` semantics
 
 ## Relationship to Standard F#
 
@@ -21,14 +22,14 @@ let numbers = [| 1; 2; 3 |]
 let maybe = Some 42
 
 // In standard F#:
-//   greeting : System.String
-//   numbers  : System.Int32[]
-//   maybe    : int option (reference type, None = null)
+//   greeting : System.String (UTF-16, heap allocated)
+//   numbers  : System.Int32[] (heap allocated, GC managed)
+//   maybe    : int option (reference type, None may be null)
 
-// In F# Native:
-//   greeting : NativeStr (fat pointer to UTF-8)
-//   numbers  : NativeArray<int> (fat pointer)
-//   maybe    : int voption (value type, non-nullable)
+// In F# Native (FNCS resolves to native semantics):
+//   greeting : string (UTF-8 fat pointer, stack/arena)
+//   numbers  : array<int> (fat pointer, explicit lifetime)
+//   maybe    : int option (voption semantics, non-nullable)
 ```
 
 ## Relationship to Fidelity Ecosystem
@@ -46,7 +47,7 @@ let maybe = Some 42
 │        │                         │                    │         │
 │        │                         │                    │         │
 │   "Strings SHALL             Implements            Generates   │
-│    be NativeStr"           type resolution      native code    │
+│    be UTF-8"              type resolution      native code    │
 │                                                                 │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -99,19 +100,22 @@ The specification uses RFC 2119 keywords:
 - **MAY**: Optional
 
 Example:
-> NORMATIVE: String literals SHALL have type `NativeStr`, not `System.String`.
+> NORMATIVE: String literals SHALL have type `string` with UTF-8 fat pointer semantics (not `System.String`).
 
 ## Key Concepts
 
 ### Native Type Universe
 
-F# Native replaces BCL types with native equivalents:
+FNCS resolves F# types to native equivalents at compile-time:
 
-| F# Syntax | F# Native Type | Why |
-|-----------|----------------|-----|
-| `string` | `NativeStr` | UTF-8, fat pointer, no GC |
-| `option<'T>` | `voption<'T>` | Value type, non-nullable |
-| `'T[]` | `NativeArray<'T>` | Fat pointer, explicit lifetime |
+| F# Syntax | Native Semantics | Why |
+|-----------|-----------------|-----|
+| `string` | UTF-8 fat pointer `{ptr, len}` | No GC, known length |
+| `option<'T>` | `voption<'T>` semantics | Stack-allocated, non-nullable |
+| `array<'T>` | Fat pointer `{ptr, len}` | Explicit lifetime, bounds-checked |
+| `int` | Platform word | No GC tagging overhead |
+
+> **Note**: Users write familiar F# type names (`string`, `option`, `array`). FNCS handles native semantics transparently.
 
 ### Memory Regions
 

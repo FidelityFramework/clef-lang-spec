@@ -99,7 +99,7 @@ fsnative-spec defines a native type universe that replaces BCL types in full:
 | F# Keyword | fslang-spec Definition | fsnative-spec Definition |
 |------------|------------------------|--------------------------|
 | `int` | `System.Int32` | 32-bit signed integer, two's complement |
-| `string` | `System.String` | `NativeStr`: fat pointer to UTF-8 bytes |
+| `string` | `System.String` | UTF-8 fat pointer `{ptr, len}` |
 | `float` | `System.Double` | 64-bit IEEE 754 binary floating-point |
 | `bool` | `System.Boolean` | 8-bit value, 0 or 1 |
 | `unit` | `Microsoft.FSharp.Core.Unit` | Zero-sized type |
@@ -322,7 +322,7 @@ fsnative-spec uses RFC 2119 keywords to distinguish requirements from recommenda
 
 Example:
 
-> NORMATIVE: String literals SHALL have type `NativeStr`, not `System.String`.
+> NORMATIVE: String literals SHALL have type `string` with UTF-8 fat pointer semantics, not `System.String`.
 
 This precision ensures that implementations can verify conformance.
 
