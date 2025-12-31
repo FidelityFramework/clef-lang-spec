@@ -27,9 +27,9 @@ FNCS is not an extension or plugin to FCS. It is a separate compiler frontend wi
 
 | Aspect | FCS (Standard F#) | FNCS (F# Native) |
 |--------|-------------------|------------------|
-| **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native types (`NativeStr`, platform integers) |
-| **String Literals** | `System.String` (UTF-16, GC-managed) | `NativeStr` (UTF-8, fat pointer) |
-| **Option Types** | Reference type, nullable | `voption<'T>`, stack-allocated, non-nullable |
+| **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native representations (same syntax, native semantics) |
+| **String Literals** | `System.String` (UTF-16, GC-managed) | `string` with native semantics (UTF-8, fat pointer) |
+| **Option Types** | Reference type, nullable | `option<'T>` with value semantics, stack-allocated, non-nullable |
 | **SRTP Resolution** | .NET method tables | Alloy witness hierarchy |
 | **Base Type** | `System.Object` (`obj`) | None - no universal base type |
 | **Output** | IL generation | Typed tree for native backends |
@@ -63,9 +63,9 @@ FNCS defines types; other components implement operations on those types.
 
 ### Normative Requirements
 
-NORMATIVE: FNCS SHALL resolve string literals to `NativeStr`, not `System.String`.
+NORMATIVE: FNCS SHALL resolve `string` to native semantics (UTF-8 fat pointer), not `System.String`.
 
-NORMATIVE: FNCS SHALL resolve `option<'T>` expressions to `voption<'T>` (value option) semantics.
+NORMATIVE: FNCS SHALL resolve `option<'T>` to value semantics (stack-allocated, non-nullable), not reference semantics.
 
 NORMATIVE: FNCS SHALL reject any code that references `obj`, `System.Object`, or performs boxing/unboxing operations.
 
