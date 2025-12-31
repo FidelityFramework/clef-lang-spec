@@ -1,9 +1,8 @@
 # Program Structure and Execution
 
-F# programs are made up of a collection of assemblies. F# assemblies are made up of static
-references to existing assemblies, called the _referenced assemblies_ , and an interspersed sequence of
-signature (`.fsi`) files, implementation (`.fs`) files, script (`.fsx` or `.fsscript`) files, and interactively
-executed code fragments.
+> **F# Native Note**: F# Native programs do not use CLI assemblies. Instead, programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
+
+F# Native programs are composed of an ordered sequence of signature (`.fsi`) files and implementation (`.fs`) files, plus any library dependencies specified in the project file (`.fidproj`). Script files (`.fsx`) are supported for development and tooling but are not part of native compilation.
 
 ```fsgrammar
 implementation-file :=
@@ -36,12 +35,11 @@ script-fragment :=
 
 A sequence of implementation and signature files is checked as follows.
 
-1. Form an initial environment `sig-env0` and `impl-env0` by adding all assembly references to the
-    environment in the order in which they are supplied to the compiler. This means that the
-    following procedure is applied for each referenced assembly:
-    - Add the top level types, modules, and namespaces to the environment.
-    - For each `AutoOpen` attribute in the assembly, find the types, modules, and namespaces that
-       the attribute references and add these to the environment.
+1. Form an initial environment `sig-env0` and `impl-env0` by adding all library dependencies to the environment in the order specified in the project file. This means the following procedure is applied for each dependency:
+    - Add the top-level types, modules, and namespaces to the environment.
+    - For each `AutoOpen` attribute in the library, find the types, modules, and namespaces that the attribute references and add these to the environment.
+    
+    > **F# Native Note**: The Alloy standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
 
     The resulting environment becomes the active environment for the first file to be processed.
 2. For each file:
@@ -164,85 +162,59 @@ The result of checking a signature file is a set of elaborated namespace declara
 
 ## Script Files
 
-Script files have the `.fsx` or `.fsscript` filename extension. They are processed in the same way as
-files that have the `.fs` extension, with the following exceptions:
+> **F# Native Note**: Script files (`.fsx`, `.fsscript`) are primarily used for development tooling and F# Interactive. They are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
 
-- Side effects from all scripts are executed at program startup.
-- For script files, the namespace `FSharp.Compiler.Interactive.Settings` is opened by default.
-- F# Interactive references the assembly `FSharp.Compiler.Interactive.Settings.dll` by default,
-    but the F# compiler does not. If the script uses the script helper `fsi` object, then the script
-    should explicitly reference `FSharp.Compiler.Interactive.Settings.dll`.
+Script files have the `.fsx` or `.fsscript` filename extension. They are processed for development scenarios with the following characteristics:
 
-Script files may add to the set of referenced assemblies by using the `#r` directive ([§](program-structure-and-execution.md#compiler-directives)).
+- Side effects from scripts are executed immediately in the interactive environment.
+- Script files may add other signature, implementation, and script files to the list of sources by using the `#load` directive. Files are compiled in the same order that was passed to the compiler, except that each script is searched for `#load` directives and the loaded files are placed before the script, in the order they appear in the script. If a filename appears in more than one `#load` directive, the file is placed in the list only once, at the position it first appeared.
+- Script files may have `#nowarn` directives, which disable a warning for the entire compilation.
 
-Script files may add other signature, implementation, and script files to the list of sources by using
-the `#load` directive. Files are compiled in the same order that was passed to the compiler, except
-that each script is searched for `#load` directives and the loaded files are placed before the script, in
-the order they appear in the script. If a filename appears in more than one `#load` directive, the file is
-placed in the list only once, at the position it first appeared.
-
-Script files may have `#nowarn` directives, which disable a warning for the entire compilation.
-
-The F# compiler defines the `COMPILED` compilation symbol for input files that it has processed. F#
-Interactive defines the `INTERACTIVE` symbol.
+The Firefly compiler defines the `FIDELITY` compilation symbol for native compilation. The `COMPILED` symbol is also defined for compatibility.
 
 Script files may not have corresponding signature files.
 
 ## Compiler Directives
 
-_Compiler directives_ are declarations in non-nested modules or namespace declaration groups in the
-following form:
+_Compiler directives_ are declarations in non-nested modules or namespace declaration groups in the following form:
 
 ```fsgrammar
 # id string ... string
 ```
 
-The lexical preprocessor directives `#if`, `#else`, `#endif` and `#indent "off"` are similar to compiler
-directives. For details on `#if`, `#else`, `#endif`, see [§](lexical-analysis.md#conditional-compilation). The `#indent "off"` directive is described in
-[§](features-for-ml-compatibility.md#file-extensions-and-lexical-matters).
+The lexical preprocessor directives `#if`, `#else`, `#endif` and `#indent "off"` are similar to compiler directives. For details on `#if`, `#else`, `#endif`, see [§](lexical-analysis.md#conditional-compilation). The `#indent "off"` directive is described in [§](features-for-ml-compatibility.md#file-extensions-and-lexical-matters).
 
 The following directives are valid in all files:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#nowarn` | `#nowarn "54"` | For signature (`.fsi`) files and implementation (`.fs`) files, turns off warnings within this lexical scope.<br>For script (`.fsx` or `.fsscript`) files, turns off warnings globally. |
+| `#nowarn` | `#nowarn "54"` | For signature (`.fsi`) files and implementation (`.fs`) files, turns off warnings within this lexical scope. For script (`.fsx` or `.fsscript`) files, turns off warnings globally. |
 
-The following directives are valid in script files:
+> **F# Native Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following script directives are supported only in F# Interactive tooling, not in native compilation:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#r`<br>`#reference` | `#r "System.Core"`<br>`#r @"Nunit.Core.dll"`<br`#r @"c:\NUnit\Nunit.Core.dll"`<br>`#r "nunit.core, Version=2.2.2.0, Culture=neutral,PublicKeyToken=96d09a1eb7f44a77"` | References a DLL within this entire script. |
-| `#I`<br>`#Include` | `#I @"c:\Projects\Libraries\Bin"` | Adds a path to the search paths for DLLs that are referenced within this entire script.` |
-| `#load #load "library.fs"` | `#load "core.fsi" "core.fs"` | Loads a set of signature and implementation files into the script execution engine. |
-| `#time` | `#time`<br>`#time "on"`<br>`#time "off"` | Enables or disables the display of performance information, including elapsed real time, CPU time, and garbage collection information for each section of code that is interpreted and executed. |
+| `#load` | `#load "core.fsi" "core.fs"` | Loads a set of signature and implementation files into the script execution engine. |
+| `#time` | `#time "on"` | Enables or disables the display of performance information. |
 | `#help` | `#help` | Asks the script execution environment for help. |
-| `#q`<br>`#quit` | `#q`<br>`#quit` | Requests the script execution environment to halt execution and exit. |
+| `#quit` | `#quit` | Requests the script execution environment to halt execution and exit. |
 
 ## Program Execution
 
-Execution of F# code occurs in the context of an executing CLI program into which one or more
-compiled F# assemblies or script fragments is loaded. During execution, the CLI program can use the
-functions, values, static members, and object constructors that the assemblies and script fragments
-define.
+> **F# Native Note**: Execution of F# Native code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler.
+
+Execution of F# Native code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
 
 ### Execution of Static Initializers
 
-Each implementation file, script file, and script fragment involves a _static initializer_. The execution of
-the static initializer is triggered as follows:
+Each implementation file involves a _static initializer_. In F# Native, static initialization is deterministic and occurs at program startup:
 
-- For executable (.exe) files that have an explicit entry point function, the static initializer for the
-    last file that appears on the command line is forced immediately as the first action in the
-    execution of the entry point function.
-- For executable files that have an implicit entry point, the static initializer for the last file that
-    appears on the command line is the body of the implicit entry point function.
-- For scripts, F# Interactive executes the static initializer for each program fragment immediately.
-- For all other implementation files, the static initializer for the file is executed on first access of a
-    value that has observable initialization according to the rules that follow, or first access to any
-    member of any type in the file that has at least one “static let” or “static do” declaration.
+- For executables with an explicit entry point function, the static initializers for all files are executed in compilation order before the entry point function is called.
+- For executables with an implicit entry point, the static initializer for the last file is the body of the implicit entry point function.
 
-At runtime, the static initializer evaluates, in order, the definitions in the file that have observable
-initialization according to the rules that follow. Definitions with observable initialization in nested
-modules and types are included in the static initializer for the overall file.
+> **F# Native Note**: Unlike managed F#, there is no lazy on-demand initialization of static values. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable, deterministic behavior essential for embedded and real-time systems.
+
+At startup, the static initializer evaluates, in order, the definitions in each file that have observable initialization. Definitions with observable initialization in nested modules and types are included in the static initializer for the overall file.
 
 All definitions have observable initialization except for the following definitions in modules:
 
@@ -250,78 +222,33 @@ All definitions have observable initialization except for the following definiti
 - Type function definitions
 - Literal definitions
 - Value definitions that are generalized to have one or more type variables
-- Non-mutable, non-thread-local values that are bound to an _initialization constant expression_ ,
-    which is an expression whose elaborated form is one of the following:
+- Non-mutable values that are bound to an _initialization constant expression_, which is an expression whose elaborated form is one of the following:
   - A simple constant expression.
-  - A null expression.
-  - A use of the `typeof<_>` or `sizeof<_>` operator from `FSharp.Core.Operators`, or the
-       `defaultof<_>` operator from `FSharp.Core.Operators.Unchecked`.
+  - A use of the `sizeof<_>` operator or the `defaultof<_>` operator from `Unchecked`.
   - A let expression where the constituent expressions are initialization constant expressions.
-  - A match expression where the input is an initialization constant expression, each case is a
-       test against a constant, and each target is an initialization constant expression.
-  - A use of one of the unary or binary operators `=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*` , `<<<`, `>>>`, `|||`, `&&&`, `^^^`,
-       `~~~`, `enum<_>`, `not`, `compare`, prefix `–`, and prefix `+` from `FSharp.Core.Operators` on one or two
-       arguments, respectively. The arguments themselves must be initialization constant
-       expressions, but cannot be operations on decimals or strings. Note that the operators are
-       unchecked for arithmetic operations, and that the operators `%` and `/` are not included
-       because their use can raise division-by-zero exceptions.
+  - A match expression where the input is an initialization constant expression, each case is a test against a constant, and each target is an initialization constant expression.
+  - A use of one of the unary or binary operators `=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, `<<<`, `>>>`, `|||`, `&&&`, `^^^`, `~~~`, `enum<_>`, `not`, `compare`, prefix `–`, and prefix `+` on one or two arguments, respectively. The arguments themselves must be initialization constant expressions, but cannot be operations on decimals or strings.
   - A use of a `[<Literal>]` value.
   - A use of a case from an enumeration type.
-  - A use of a null case from a union type.
-  - A use of a value that is defined in the same assembly and does not have observable
-       initialization, or the use of a value that is defined by a `let` or `match` expression within the
-       expression itself.
+  - A use of a value that is defined in the same compilation unit and does not have observable initialization.
 
-If the execution environment supports the concurrent execution of multiple threads of F# code, each
-static initializer runs as a mutual exclusion region. The use of a mutual exclusion region ensures that
-if another thread attempts to access a value that has observable initialization, that thread pauses
-until static initialization is complete. A static initializer runs only once, on the first thread that
-acquires entry to the mutual exclusion region.
+If the execution environment supports concurrent execution of multiple threads, each static initializer runs as a mutual exclusion region. A static initializer runs only once, on the first thread that acquires entry to the mutual exclusion region.
 
-Values that have observable initialization have implied CLI fields that are private to the assembly. If
-such a field is accessed by using CLI reflection before the execution of the corresponding
-initialization code, then the default value for the type of the field will be returned.
-
-Within implementation files, generic types that have static value definitions receive a static initializer
-for each generic instantiation. These initializers are executed immediately before the first
-dereference of the static fields for the generic type, subject to any limitations present in the specific
-CLI implementation in used. If the static initializer for the enclosing file is first triggered during
-execution of the static initializer for a generic instantiation, references to static values definition in
-the generic class evaluate to the default value.
-
-For example, if external code accesses `data` in this example, the static initializer runs and the
-program prints “hello”:
+For example, if the program accesses `data` in this example, the static initializer runs and the program prints "hello":
 
 ```fsharp
 module LibraryModule
 printfn "hello"
-let data = new Dictionary<int,int>()
+let data = Map.empty<int, int>
 ```
 
-That is, the side effect of printing “hello” is guaranteed to be triggered by an access to the value
-`data`.
-
-If external code calls `id` or accesses `size` in the following example, the execution of the static
-initializer is not yet triggered. However if external code calls `f()`, the execution of the static initializer
-is triggered because the body refers to the value `data`, which has observable initialization.
+All of the following represent definitions that do not have observable initialization because they are initialization constant expressions:
 
 ```fsharp
-module LibraryModule
-printfn "hello"
-let data = new Dictionary<int,int>()
-let size = 3
-let id x = x
-let f() = data
-```
-
-All of the following represent definitions that do not have observable initialization because they are
-initialization constant expressions.
-
-```fsharp
-let x = System.DayOfWeek.Friday
+let x = DayOfWeek.Friday
 let x = 1.0
 let x = "two"
-let x = enum<System.DayOfWeek>(0)
+let x = enum<DayOfWeek>(0)
 let x = 1 + 1
 let x : int list = []
 let x : int option = None
@@ -329,7 +256,6 @@ let x = compare 1 1
 let x = match true with true -> 1 | false -> 2
 let x = true && true
 let x = 42 >>> 2
-let x = typeof<int>
 let x = Unchecked.defaultof<int>
 let x = Unchecked.defaultof<string>
 let x = sizeof<int>
@@ -337,19 +263,13 @@ let x = sizeof<int>
 
 ### Explicit Entry Point
 
-The last file that is specified in the compilation order for an executable file may contain an explicit
-entry point. The entry point is indicated by annotating a function in a module with `EntryPoint`
-attribute:
+The last file that is specified in the compilation order for an executable file may contain an explicit entry point. The entry point is indicated by annotating a function in a module with `EntryPoint` attribute:
 
-- The `EntryPoint` attribute applies only to a “let”-bound function in a module. The function cannot
-    be a member.
-- This attribute can apply to only one function, and the function must be the last declaration in the
-    last file processed on the command line. The function may be in a nested module.
-- The function is asserted to have type `string[] -> int` before type checking. If the assertion fails,
-    an error occurs.
-- At runtime, the entry point is passed one argument at startup: an array that contains the same
-    entries as `System.Environment.GetCommandLineArgs()`, minus the first entry in that array.
+- The `EntryPoint` attribute applies only to a "let"-bound function in a module. The function cannot be a member.
+- This attribute can apply to only one function, and the function must be the last declaration in the last file processed. The function may be in a nested module.
+- The function is asserted to have type `array<string> -> int` before type checking. If the assertion fails, an error occurs.
+- At startup, the entry point is passed one argument: an array that contains the command-line arguments passed to the program (excluding the program name).
 
-The function becomes the entry point to the program. At startup, F# immediately forces execution
-of the static initializer for the file in which the function is declared, and then evaluates the body of
-the function.
+The function becomes the entry point to the program. At startup, F# Native executes all static initializers in compilation order, then evaluates the body of the entry point function.
+
+> **F# Native Note**: The entry point function's return value becomes the process exit code. A return value of 0 indicates success; non-zero values indicate errors. For freestanding (no-OS) targets, the return value may be ignored or handled by the runtime stub.

@@ -1035,6 +1035,95 @@ TBD - `ResourceCoeffect` type integration
 
 ---
 
+## Part 10: Interactive Development (fsni)
+
+> **Spec Reference**: See [`interactive-development.md`](../../spec/interactive-development.md) for full specification.
+
+The type universe must account for interactive development scenarios where types are defined and evaluated incrementally.
+
+### 10.1 Interactive Session Types
+
+In fsni (F# Native Interactive), types are resolved in an evolving environment:
+
+```fsharp
+> type Point = { x: int; y: int };;
+type Point
+
+> let origin = { x = 0; y = 0 };;
+val origin : Point
+```
+
+**Type Resolution in Interactive Mode**:
+- Types defined in the session are immediately available
+- Types from `#require` directives are loaded into the type environment
+- FNCS resolves types against both session-local and loaded definitions
+
+### 10.2 Arena Semantics in Interactive Mode
+
+Interactive sessions use arena-based allocation:
+
+| Aspect | Compiled Program | Interactive Session |
+|--------|-----------------|---------------------|
+| Arena Lifetime | Program-controlled | Session-controlled |
+| Reset | Explicit | `#arena reset` directive |
+| Persistence | N/A | `#persist` for cross-reset values |
+
+**Type Implications**:
+```fsharp
+> let data = [1..1000000];;
+val data : int list  // Allocated in session arena
+
+> #arena reset;;
+// data is no longer valid - type checker knows this
+```
+
+### 10.3 Interpretation vs Compilation Type Semantics
+
+| Mode | Type Checking | Execution |
+|------|---------------|-----------|
+| Interpret | Full FNCS | Interpreted |
+| Compile | Full FNCS | Native code |
+| Hybrid | Full FNCS | Mode-dependent |
+
+All modes use identical type semantics. The difference is only in execution:
+
+```fsharp
+> #mode compile;;
+> let rec fib n = if n < 2 then n else fib (n-1) + fib (n-2);;
+val fib : int -> int  // Same type in all modes
+```
+
+### 10.4 Script File Type Semantics
+
+Script files (`.fsnx`) follow the same type semantics as compiled modules:
+
+```fsharp
+// script.fsnx
+#require "Alloy"
+
+let greeting : string = "Hello"  // NativeStr, UTF-8
+let maybe : int option = Some 42  // voption<int>, non-null
+```
+
+### 10.5 Cross-Compilation Type Considerations
+
+When targeting a different platform:
+
+```fsharp
+> #target linux-arm64;;
+Target: linux-arm64 (cross-compiling from linux-x64)
+
+> sizeof<nativeint>;;
+val it : int = 8  // Reflects target, not host
+```
+
+**Platform-Specific Types**:
+- `nativeint`/`unativeint` size reflects target platform
+- Pointer types respect target architecture
+- Type layouts follow target ABI
+
+---
+
 ## Appendix A: Type Mapping to MLIR
 
 | F# Type | MLIR Type |

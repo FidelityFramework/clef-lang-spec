@@ -439,16 +439,15 @@ The expression `expr` is checked with an arbitrary initial type `ty`. After chec
 be equal to `unit`. If the assertion fails, a warning rather than an error is reported. This warning is
 suppressed for plain expressions without do in script files (that is, .fsx and .fsscript files).
 
-A `do` statement may have attributes. In this example, the `STAThread` attribute specifies that main
-uses the single-threaded apartment (STA) threading model of COM:
+A `do` statement may have attributes:
 
 ```fsharp
 let main() =
-    let form = new System.Windows.Forms.Form()
-    System.Windows.Forms.Application.Run(form)
+    Console.WriteLine "Application started"
+    0
 
-[<STAThread>]
-do main()
+[<EntryPoint>]
+do main() |> ignore
 ```
 
 ## Import Declarations

@@ -1,0 +1,330 @@
+# Error Handling
+
+This chapter specifies error handling semantics in F# Native, including the relationship between compile-time error propagation through tooling and runtime error handling in compiled applications.
+
+## Overview
+
+F# Native takes a fundamentally different approach to error handling than managed F#:
+
+| Aspect | Managed F# | F# Native |
+|--------|------------|-----------|
+| Optional values | `option<'T>` with null representation for `None` | `voption<'T>` (ValueOption) with no null |
+| Failure handling | Exceptions (`raise`, `try/with`) | `Result<'T, 'E>` with explicit propagation |
+| Null values | Permitted for reference types | Not permitted; null-free by construction |
+| Runtime type errors | `InvalidCastException`, `NullReferenceException` | Cannot occur; prevented by type system |
+
+> **Design Principle**: Errors are values, not control flow. The type system encodes fallibility explicitly, making error handling visible and verifiable at compile time.
+
+## The Dual Nature of Error Handling
+
+F# Native error handling operates at two distinct levels:
+
+1. **Application Runtime**: How compiled Fidelity framework applications handle errors during execution
+2. **Tooling Integration**: How F# Native Compiler Services (FNCS) propagates errors through the Language Server Protocol to editors like Ionide
+
+These two domains have different requirements and constraints, but must remain coherent.
+
+## Application Runtime Error Handling
+
+### The Result Type
+
+The `Result<'T, 'E>` type is the primary mechanism for representing operations that may fail:
+
+```fsharp
+type Result<'T, 'E> =
+    | Ok of 'T
+    | Error of 'E
+```
+
+Operations that can fail return `Result` values rather than raising exceptions:
+
+```fsharp
+// Managed F# style (NOT used in F# Native applications)
+let divide x y =
+    if y = 0 then raise (DivideByZeroException())
+    else x / y
+
+// F# Native style
+let divide x y : Result<int, DivisionError> =
+    if y = 0 then Error DivisionByZero
+    else Ok (x / y)
+```
+
+### Standard Error Types
+
+F# Native defines standard error types for common failure modes:
+
+```fsharp
+type ArithmeticError =
+    | DivisionByZero
+    | Overflow
+    | Underflow
+
+type IndexError =
+    | OutOfBounds of index: int * length: int
+
+type ParseError =
+    | InvalidFormat of input: string * expected: string
+    | UnexpectedEnd
+
+type IOError =
+    | NotFound of path: string
+    | PermissionDenied of path: string
+    | DeviceError of code: int
+```
+
+> **Note**: The exact set of standard error types is subject to further specification as the Alloy library matures.
+
+### The voption Type
+
+For optional values where absence is not an error, `voption<'T>` (ValueOption) provides a null-free representation:
+
+```fsharp
+type voption<'T> =
+    | ValueSome of 'T
+    | ValueNone
+```
+
+Unlike managed F#'s `option<'T>`, which uses `null` to represent `None` internally, `voption<'T>` has an explicit discriminator with no null representation.
+
+```fsharp
+// Looking up a value that may not exist
+let tryFind key (map: Map<'K, 'V>) : voption<'V> =
+    match Map.tryFind key map with
+    | ValueSome v -> ValueSome v
+    | ValueNone -> ValueNone
+```
+
+### Result Propagation
+
+F# Native provides computation expression syntax for Result propagation:
+
+```fsharp
+let result {
+    let! x = tryParseInt "42"
+    let! y = tryParseInt "17"
+    return x + y
+}
+```
+
+This is equivalent to explicit binding:
+
+```fsharp
+match tryParseInt "42" with
+| Error e -> Error e
+| Ok x ->
+    match tryParseInt "17" with
+    | Error e -> Error e
+    | Ok y -> Ok (x + y)
+```
+
+### Try/With Syntax Compatibility
+
+F# Native preserves `try`/`with`/`finally` syntax for compatibility with standard F# tooling:
+
+```fsharp
+try
+    riskyOperation()
+with
+| :? SomeException as e -> handleError e
+```
+
+However, the semantics differ:
+
+- In F# Native, `try`/`with` may be used for effect handling (delimited continuations) rather than exception catching
+- The exact semantics depend on the effect system specification (see [Effects](effects.md))
+- Code using `try`/`with` for exception handling must be migrated to Result-based patterns for native compilation
+
+> **Tooling Note**: Ionide and other editors will parse `try`/`with` expressions normally. FNCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
+
+### Null-Freedom
+
+F# Native is null-free by construction. The following are compile-time errors:
+
+```fsharp
+let x : string = null           // ERROR: null literal not available
+let y = Unchecked.defaultof<_>  // ERROR for reference types in most contexts
+```
+
+This eliminates entire classes of runtime errors:
+
+| Managed F# Runtime Error | F# Native |
+|--------------------------|-----------|
+| `NullReferenceException` | Cannot occur |
+| `InvalidCastException` | Cannot occur (static typing) |
+| `ArrayTypeMismatchException` | Cannot occur (no covariant arrays) |
+
+## Tooling Integration
+
+### FNCS Error Propagation
+
+F# Native Compiler Services (FNCS) must propagate errors through the tooling stack in a format compatible with existing F# tooling infrastructure.
+
+#### Diagnostic Format
+
+FNCS diagnostics follow the F# compiler diagnostic format:
+
+```
+filepath(line,col)-(line,col): severity code: message
+```
+
+For example:
+
+```
+src/Main.fs(12,5)-(12,15): error FS8100: Cannot use 'null' in F# Native; use 'ValueNone' for optional values
+```
+
+#### Error Codes
+
+FNCS uses error codes in the FS8xxx range to distinguish native-specific diagnostics:
+
+| Range | Category |
+|-------|----------|
+| FS8000-FS8099 | Type system (null-freedom, access kinds) |
+| FS8100-FS8199 | Memory management (regions, lifetimes) |
+| FS8200-FS8299 | Platform bindings |
+| FS8300-FS8399 | Effect system |
+| FS8400-FS8499 | Code generation |
+
+#### LSP Compatibility
+
+FNCS implements the Language Server Protocol for editor integration. Key considerations:
+
+1. **Diagnostic Publishing**: Errors are published via `textDocument/publishDiagnostics` in standard LSP format
+2. **Code Actions**: Quick fixes (e.g., "Replace null with ValueNone") are provided via `textDocument/codeAction`
+3. **Hover Information**: Type information displays native types, not BCL equivalents
+
+### Ionide Integration Model
+
+Ionide currently supports multiple F# compilation targets:
+
+| Target | Integration Point |
+|--------|-------------------|
+| .NET | FSharp.Compiler.Service |
+| Fable | Fable.Compiler (JavaScript output) |
+| WebSharper | WebSharper.Compiler |
+
+F# Native follows this model:
+
+```
+Ionide ←→ LSP ←→ FNCS ←→ Firefly Compiler ←→ MLIR/LLVM
+```
+
+#### Extension Points
+
+FNCS provides extension points for Ionide integration:
+
+1. **Project Recognition**: `.fidproj` files identify F# Native projects
+2. **Target Selection**: Ionide can route to FNCS when native compilation is detected
+3. **Shared Parsing**: Syntax parsing uses standard F# lexer/parser for compatibility
+4. **Semantic Divergence**: Type checking and code generation use native semantics
+
+#### Compatibility Considerations
+
+To maintain compatibility with the broader F# ecosystem:
+
+1. **Syntax Compatibility**: F# Native code parses as valid F# syntax
+2. **Type Notation**: Types are expressed using standard F# type notation
+3. **Error Format**: Diagnostics follow F# compiler conventions
+4. **Incremental Adoption**: Projects can mix managed and native targets during migration
+
+### Editor Experience
+
+The design-time experience for F# Native should be consistent with managed F#:
+
+| Feature | Behavior |
+|---------|----------|
+| Syntax highlighting | Standard F# highlighting |
+| Error underlining | Red squiggles for errors, yellow for warnings |
+| Hover types | Shows native type representations |
+| Autocomplete | Suggests Alloy library members, not BCL |
+| Go to definition | Navigates to Alloy source or native signatures |
+| Quick fixes | Offers native-appropriate fixes |
+
+## Error Handling Patterns
+
+### Railway-Oriented Programming
+
+F# Native encourages railway-oriented programming with Result:
+
+```fsharp
+let processOrder orderId =
+    orderId
+    |> validateOrderId
+    |> Result.bind fetchOrder
+    |> Result.bind validateInventory
+    |> Result.bind processPayment
+    |> Result.bind shipOrder
+```
+
+### Error Aggregation
+
+For operations that may produce multiple errors:
+
+```fsharp
+type ValidationErrors = ValidationErrors of ValidationError list
+
+let validateAll validators input =
+    validators
+    |> List.map (fun v -> v input)
+    |> List.fold aggregateErrors (Ok input)
+```
+
+### Partial Success
+
+For operations where partial results are meaningful:
+
+```fsharp
+type PartialResult<'T, 'E> =
+    | Complete of 'T
+    | Partial of 'T * 'E list
+    | Failed of 'E list
+```
+
+## Grammar
+
+```fsgrammar
+result-type := Result < type , type >
+
+voption-type := voption < type >
+
+result-expr :=
+    Ok expr
+    Error expr
+
+voption-expr :=
+    ValueSome expr
+    ValueNone
+
+result-bind := let! pattern = expr in expr
+
+result-return := return expr
+```
+
+## Diagnostics
+
+| Code | Severity | Message |
+|------|----------|---------|
+| FS8100 | Error | Cannot use 'null' in F# Native; use 'ValueNone' for optional values |
+| FS8101 | Error | Cannot use 'null' in F# Native; all values must be initialized |
+| FS8102 | Warning | Exception-style error handling detected; consider Result-based pattern |
+| FS8103 | Error | Type does not support 'null' in F# Native |
+| FS8104 | Warning | Unchecked.defaultof<'T> produces undefined behavior for reference types |
+
+## Areas Requiring Further Specification
+
+The following areas require additional design work:
+
+1. **Effect System Integration**: How Result interacts with algebraic effects and delimited continuations
+2. **Async/Concurrent Errors**: Error propagation in concurrent and asynchronous contexts
+3. **Interop Boundaries**: Error translation at FFI boundaries with C libraries
+4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
+5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
+6. **Tooling PR Strategy**: Concrete changes needed for Ionide/FSAC to support FNCS
+
+## See Also
+
+- [Types and Type Constraints](types-and-type-constraints.md) - Type system fundamentals
+- [Special Attributes and Types](special-attributes-and-types.md) - Result and voption definitions
+- [The Native Library Alloy](the-native-library-alloy.md) - Standard library error handling functions
+- [Platform Bindings](platform-bindings.md) - Error handling at platform boundaries

@@ -1,25 +1,12 @@
 # Types and Type Constraints
 
-The notion of _type_ is central to both the static checking of F# programs and to dynamic type tests
-and reflection at runtime. The word is used with four distinct but related meanings:
+The notion of _type_ is central to the static checking of F# Native programs. The word is used with three distinct but related meanings:
 
-- **Type definitions**, such as the actual CLI or F# definitions of `System.String` or
-  `FSharp.Collections.Map<_,_>`.
-- **Syntactic types**, such as the text `option<_>` that might occur in a program text. Syntactic types
-  are converted to static types during the process of type checking and inference.
-- **Static types**, which result from type checking and inference, either by the translation of syntactic
-  types that appear in the source text, or by the application of constraints that are related to
-  particular language constructs. For example, `option<int>` is the fully processed static type that is
-  inferred for an expression `Some(1+1)`. Static types may contain `type variables` as described later
-  in this section.
-- **Runtime types**, which are objects of type `System.Type` and represent some or all of the
-  information that type definitions and static types convey at runtime. The `obj.GetType()` method,
-  which is available on all F# values, provides access to the runtime type of an object. An object’s
-  runtime type is related to the static type of the identifiers and expressions that correspond to
-  the object. Runtime types may be tested by built-in language operators such as `:?` and `:?>`, the
-  expression form downcast `expr`, and pattern matching type tests. Runtime types of objects do
-  not contain type variables. Runtime types that `System.Reflection` reports may contain type
-  variables that are represented by `System.Type` values.
+- **Type definitions**, such as the definitions of `string`, `option<_>`, or `Map<_,_>`. In F# Native, all types have explicit memory representations defined at compile time.
+- **Syntactic types**, such as the text `option<_>` that might occur in a program text. Syntactic types are converted to static types during the process of type checking and inference.
+- **Static types**, which result from type checking and inference, either by the translation of syntactic types that appear in the source text, or by the application of constraints that are related to particular language constructs. For example, `option<int>` is the fully processed static type that is inferred for an expression `Some(1+1)`. Static types may contain `type variables` as described later in this section.
+
+> **F# Native Note**: Unlike managed F#, F# Native has no runtime type system or reflection. All type information is resolved at compile time by FNCS (F# Native Compiler Services). Types exist purely as compile-time constructs that guide memory layout, code generation, and type-safe operations. There is no `System.Type`, no `GetType()` method, and no runtime type discovery. Pattern matching type tests (`:?`, `:?>`) are resolved statically where possible, or generate compile-time errors when the type relationship cannot be determined.
 
 The following describes the syntactic forms of types as they appear in programs:
 
@@ -57,14 +44,13 @@ typar :=
 
 constraint :=
     typar :> type                  -- coercion constraint
-    typar : null                   -- nullness constraint
+    typar : null                   -- nullness constraint (see note below)
     static-typars : ( member-sig ) -- member "trait" constraint
-    typar : (new : unit -> 'T)     -- CLI default constructor constraint
-    typar : struct                 -- CLI non-Nullable struct
-    typar : not struct             -- CLI reference type
+    typar : (new : unit -> 'T)     -- default constructor constraint
+    typar : struct                 -- value type constraint
+    typar : not struct             -- reference type constraint
     typar : enum< type >           -- enum decomposition constraint
     typar : unmanaged              -- unmanaged constraint
-    typar : delegate<type, type>   -- delegate decomposition constraint
     typar : equality
     typar : comparison
 
@@ -182,12 +168,17 @@ A _tuple type_ has the following form:
 ty 1 * ... * tyn
 ```
 
-The elaborated form of a tuple type is shorthand for a use of the family of F# library types
-`System.Tuple<_, ..., _>`. (see [§](expressions.md#tuple-expressions)) for the details of this encoding.
+Tuple types in F# Native represent anonymous product types with a direct, unboxed memory layout. Fields are laid out contiguously with natural alignment (see [§](expressions.md#tuple-expressions)).
 
-When considered as static types, tuple types are distinct from their encoded form. However, the
-encoded form of tuple types is visible in the F# type system through runtime types. For example,
-`typeof<int * int>` is equivalent to `typeof<System.Tuple<int,int>>`.
+> **F# Native Note**: Unlike managed F#, tuples are NOT represented by `System.Tuple<_,...,_>` library types. They have no object header, no heap allocation, and no GC involvement. A tuple `int * string` is laid out as:
+>
+> ```
+> ┌─────────────┬─────────────────────────────┐
+> │ int (word)  │ string (ptr + len = 2 words)│
+> └─────────────┴─────────────────────────────┘
+> ```
+>
+> Tuples are stack-allocated by default, or arena-allocated when escaping their scope.
 
 #### Struct Tuple Types
 
@@ -197,16 +188,9 @@ A _struct tuple type_ has the following form:
 struct ( ty 1 * ... * tyn )
 ```
 
-The elaborated form of a tuple type is shorthand for a use of the family of .NET types
-[System.ValueTuple](https://learn.microsoft.com/dotnet/api/system.valuetuple).
+> **F# Native Note**: In F# Native, ALL tuples have value semantics with direct memory layout - there is no distinction between "reference tuples" and "struct tuples" at the representation level. The `struct` keyword is accepted for compatibility with managed F# code, but both forms compile to the same unboxed representation. There is no `System.Tuple` or `System.ValueTuple` - tuples are native anonymous product types.
 
-When considered as static types, tuple types are distinct from their encoded form. However, the
-encoded form of tuple types is visible in the F# type system through runtime types. For example,
-`typeof<int * int>` is equivalent to `typeof<System.ValueTuple<int,int>>`.
-
-Struct tuple types are value types (as opposed to tuple types which are reference types). Struct tuple types are primarily aimed at use in interop and performance tuning.
-
-The "structness" (i.e. tuple type vs. struct tuple type) of tuple expressions and tuple patterns is inferred in the F# type inference process (unless they are explicitly tagged "struct"). However, code cannot be generic over structness, and there is no implicit conversion between struct tuples and reference tuples.
+The "structness" annotation of tuple expressions and tuple patterns is accepted for source compatibility but has no effect on memory representation in F# Native - all tuples are laid out directly without heap allocation.
 
 ### Array Types
 
@@ -217,17 +201,24 @@ ty []
 ty [ , ... , ]
 ```
 
-A type of the form `ty []` is a _single-dimensional array_ type, and a type of the form `ty[ , ... , ]` is a
-_multidimensional array type_. For example, `int[,,]` is an array of integers of rank 3.
+A type of the form `ty []` is a _single-dimensional array_ type, and a type of the form `ty[ , ... , ]` is a _multidimensional array type_. For example, `int[,,]` is an array of integers of rank 3.
 
-Except where specified otherwise in this document, these array types are treated as named types, as
-if they are an instantiation of a fictitious type definition `System.Arrayn<ty>` where `n` corresponds to
-the rank of the array type.
+> **F# Native Note**: Arrays in F# Native use a fat pointer representation, NOT `System.Array`:
+>
+> ```
+> array<'T>
+> ┌─────────────────┬─────────────────┐
+> │ ptr: *T         │ len: usize      │
+> └─────────────────┴─────────────────┘
+>      8 bytes           8 bytes       = 16 bytes (header)
+>                                      + len * sizeof<'T> (elements)
+> ```
+>
+> Elements are laid out contiguously with natural alignment. Bounds checking is always performed (no unsafe indexing by default). Empty arrays have `len = 0` with a valid pointer - arrays are never null.
 
-> Note: The type `int[][,]` in F# is the same as the type `int[,][]` in C# although the
-dimensions are swapped. This ensures consistency with other postfix type names in F# such as `int list list`.
+> Note: The type `int[][,]` in F# is the same as the type `int[,][]` in C# although the dimensions are swapped. This ensures consistency with other postfix type names in F# such as `int list list`.
 
-F# supports multidimensional array types only up to rank 4.
+F# Native supports multidimensional array types up to rank 4.
 
 ### Constrained Types
 
@@ -291,25 +282,25 @@ ensure the reporting of useful error messages.
 
 ### Nullness Constraints
 
-An _explicit nullness constraint_ has the following form:
+> **F# Native Note**: F# Native enforces **absolute null-freedom**. The nullness constraint `typar : null` is NOT SUPPORTED in F# Native. All types are non-nullable by construction - there is no `null` literal and no null values at runtime.
+>
+> This is the most significant semantic difference from managed F#. See [§](#nullness) for the complete null-freedom model.
 
 ```fsgrammar
-typar : null
+typar : null    -- NOT SUPPORTED in F# Native
 ```
 
-During checking, `typar` is checked as a variable type and the constraint is added to the current
-inference constraints. The conditions that govern when a type satisfies a nullness constraint are
-specified in (see [§](types-and-type-constraints.md#nullness))
+The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (FS8010) indicating that null is not permitted in F# Native code.
 
-In addition:
+Code that requires optional values MUST use `option<'T>` (which compiles to stack-allocated `voption<'T>` semantics):
 
-- The `typar` must be a statically resolved type variable of the form `^ident`. This limitation ensures
-  that the constraint is resolved at compile time, and means that generic code may not use this
-  constraint unless that code is marked inline (see [§](inference-procedures.md#generalization)).
+```fsharp
+// Managed F# pattern (NOT supported):
+let maybeNull : string = null  // ERROR: null literal not permitted
 
-> Note: Nullness constraints are primarily for use during type checking and are used relatively rarely in F# code.
-<br>
-Nullness constraints also arise from expressions of the form `null`.
+// F# Native pattern (correct):
+let maybeValue : string option = None  // OK: explicit optionality
+```
 
 ### Member Constraints
 
@@ -356,10 +347,9 @@ An _explicit default constructor constraint_ has the following form:
 typar : (new : unit -> 'T)
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : (new : unit -> 'T)` is met if `type` has a
-parameterless object constructor.
+During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : (new : unit -> 'T)` is met if `type` has a parameterless constructor.
 
-> Note: This constraint form exists primarily to provide the full set of constraints that CLI implementations allow. It is rarely used in F# programming.
+> **F# Native Note**: This constraint is supported for record and class types that have a default constructor. Unlike managed F#, this does not imply any CLI object creation semantics - it simply requires that the type can be constructed with no arguments, which the compiler verifies by examining the type definition.
 
 ### Value Type Constraints
 
@@ -369,15 +359,14 @@ An _explicit value type constraint_ has the following form:
 typar : struct
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type` : struct is met if `type` is a value type other
-than the CLI type `System.Nullable<_>`.
+During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : struct` is met if `type` is a value type - that is, a type with direct (non-pointer) representation including:
 
-> Note: This constraint form exists primarily to provide the full set of constraints that CLI
-implementations allow. It is rarely used in F# programming.<br><br>
-The restriction on `System.Nullable` is inherited from C# and other CLI languages, which
-give this type a special syntactic status. In F#, the type `option<_>` is similar to some uses
-of `System.Nullable<_>`. For various technical reasons the two types cannot be equated,
-notably because types such as `System.Nullable<System.Nullable<_>>` and `System.Nullable<string>` are not valid CLI types.
+- Primitive types (`int`, `float`, `bool`, etc.)
+- Struct types (types marked with `[<Struct>]`)
+- Enum types
+- Single-case discriminated unions (which are optimized to their payload representation)
+
+> **F# Native Note**: There is no `System.Nullable<_>` in F# Native. Optional values are represented by `option<'T>`, which in F# Native compiles to stack-allocated `voption<'T>` semantics - a tagged value type, not a nullable reference. The `option` type can wrap any type, including other options, without the restrictions that apply to `System.Nullable` in managed code.
 
 ### Reference Type Constraints
 
@@ -387,9 +376,16 @@ An _explicit reference type constraint_ has the following form:
 typar : not struct
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : not struct` is met if `type` is a reference type.
+During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : not struct` is met if `type` is a reference type - that is, a type whose values are represented by pointers:
 
-> Note: This constraint form exists primarily to provide the full set of constraints that CLI implementations allow. It is rarely used in F# programming.
+- Class types
+- Interface types
+- Records (unless marked `[<Struct>]`)
+- Discriminated unions (unless marked `[<Struct>]` or single-case)
+- Function types
+- List types
+
+> **F# Native Note**: The distinction between "value types" and "reference types" in F# Native refers to representation strategy, not heap allocation. Reference types use pointer indirection but may still be stack or arena allocated - there is no GC heap. The constraint `not struct` ensures the type uses pointer representation, which is relevant for certain generic patterns.
 
 ### Enumeration Constraints
 
@@ -399,34 +395,29 @@ An _explicit enumeration constraint_ has the following form:
 typar : enum<underlying-type>
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : enum<underlying-type>` is met if `type` is a CLI
-or F# enumeration type that has constant literal values of type `underlying-type`.
+During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : enum<underlying-type>` is met if `type` is an F# enumeration type that has constant literal values of type `underlying-type`.
 
-> Note: This constraint form exists primarily to allow the definition of library functions such as `enum`. It is rarely used directly in F# programming.<br>
-The `enum` constraint does not imply anything about subtypes. For example, an `enum` constraint does not imply that the type is a subtype of `System.Enum`.
+> Note: This constraint form exists primarily to allow the definition of library functions such as `enum`. It is rarely used directly in F# programming. The `enum` constraint verifies that the type is an enumeration with the specified underlying integral type.
 
 ### Delegate Constraints
 
-An _explicit delegate constraint_ has the following form:
+> **F# Native Note**: The delegate constraint is NOT SUPPORTED in F# Native. CLI delegates are a managed runtime concept that does not exist in native compilation.
 
 ```fsgrammar
-typar : delegate< tupled-arg-type , return-type>
+typar : delegate< tupled-arg-type , return-type>    -- NOT SUPPORTED
 ```
 
-During constraint solving (see [§](inference-procedures.md#inference-procedures) .5), the constraint `type : delegate<tupled-arg-type, return-types>`
-is met if `type` is a delegate type `D` with declaration `type D = delegate of object * arg1 * ... *
-argN` and `tupled-arg-type = arg1 * ... * argN.` That is, the delegate must match the CLI design
-pattern where the sender object is the first argument to the event.
+F# Native uses function types directly for callbacks and event handling. Where managed F# would use delegates, F# Native uses first-class functions:
 
-> Note: This constraint form exists primarily to allow the definition of certain F# library
-functions that are related to event programming. It is rarely used directly in F#
-programming.<br><br>
-The `delegate` constraint does not imply anything about subtypes. In particular, a
-`delegate` constraint does not imply that the type is a subtype of `System.Delegate`.<br><br>
-The `delegate` constraint applies only to delegate types that follow the usual form for CLI
-event handlers, where the first argument is a `sender` object. The reason is that the
-purpose of the constraint is to simplify the presentation of CLI event handlers to the F#
-programmer.
+```fsharp
+// Managed F# pattern (NOT supported):
+let handler : EventHandler = new EventHandler(fun sender args -> ...)
+
+// F# Native pattern (correct):
+let handler : obj -> EventArgs -> unit = fun sender args -> ...
+```
+
+The delegate constraint syntax is accepted for source compatibility but produces a compile-time error.
 
 ### Unmanaged Constraints
 
@@ -453,29 +444,27 @@ typar : equality
 typar : comparison
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : equality` is met if both of the following
-conditions are true:
+During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : equality` is met if both of the following conditions are true:
 
-- The type is a named type, and the type definition does not have, and is not inferred to have, the
-  `NoEquality` attribute.
+- The type is a named type, and the type definition does not have, and is not inferred to have, the `NoEquality` attribute.
 - The type has `equality` dependencies `ty1,..., tyn`, each of which satisfies `tyi: equality`.
 
-The constraint `type : comparison` is a `comparison constraint`. Such a constraint is met if all the
-following conditions hold:
+The constraint `type : comparison` is a `comparison constraint`. Such a constraint is met if all the following conditions hold:
 
-- If the type is a named type, then the type definition does not have, and is not inferred to have,
-  the `NoComparison` attribute, and the type definition implements `System.IComparable` or is an
-  array type or is `System.IntPtr` or is `System.UIntPtr`.
-- If the type has `comparison dependencies` `ty1, ..., tyn` , then each of these must satisfy `tyi :
-  comparison`
+- If the type is a named type, then the type definition does not have, and is not inferred to have, the `NoComparison` attribute, and the type supports ordering operations.
+- If the type has `comparison dependencies` `ty1, ..., tyn`, then each of these must satisfy `tyi : comparison`.
 
-An equality constraint is a relatively weak constraint, because with two exceptions, all CLI types
-satisfy this constraint. The exceptions are F# types that are annotated with the `NoEquality` attribute
-and structural types that are inferred to have the `NoEquality` attribute. The reason is that in other
-CLI languages, such as C#, it possible to use reference equality on all reference types.
+> **F# Native Note**: In F# Native, equality and comparison are resolved through SRTP (Statically Resolved Type Parameters) against the Alloy witness hierarchy, not through interface implementation. The compiler verifies that appropriate `(=)` and `compare` operations exist for the types at compile time. There is no `System.IComparable` interface - comparison capability is a compile-time property verified by FNCS.
 
-A comparison constraint is a stronger constraint, because it usually implies that a type must
-implement `System.IComparable`.
+An equality constraint is satisfied by:
+- All primitive types (`int`, `float`, `bool`, `string`, etc.)
+- Structural types (records, unions, tuples) where all component types satisfy equality
+- Types not marked with `[<NoEquality>]`
+
+A comparison constraint is satisfied by:
+- Ordered primitive types (`int`, `float`, `string`, etc.)
+- Structural types where all component types satisfy comparison
+- Types not marked with `[<NoComparison>]`
 
 ## Type Parameter Definitions
 
@@ -509,30 +498,29 @@ val id<'T> : 'T -> 'T
 Explicit type parameter definitions can include `explicit constraint declarations`. For example:
 
 ```fsharp
-let dispose2<'T when 'T :> System.IDisposable> (x: 'T, y: 'T) =
-x.Dispose()
-y.Dispose()
+let closeResources<'T when 'T :> ICloseable> (x: 'T, y: 'T) =
+    x.Close()
+    y.Close()
 ```
 
-The constraint in this example requires that `'T` be a type that supports the `IDisposable` interface.
+The constraint in this example requires that `'T` be a type that supports the `ICloseable` interface (or trait, resolved via SRTP in F# Native).
 
-However, in most circumstances, declarations that imply subtype constraints on arguments can be
-written more concisely:
+However, in most circumstances, declarations that imply subtype constraints on arguments can be written more concisely:
 
 ```fsharp
-let throw (x: Exception) = raise x
+let throw (x: exn) = raise x
 ```
 
-Multiple explicit constraint declarations use and:
+Multiple explicit constraint declarations use `and`:
 
 ```fsharp
-let multipleConstraints<'T when 'T :> System.IDisposable and
-                                'T :> System.IComparable > (x: 'T, y: 'T) =
-    if x.CompareTo(y) < 0 then x.Dispose() else y.Dispose()
+let processOrdered<'T when 'T : comparison and 'T :> ICloseable> (x: 'T, y: 'T) =
+    if compare x y < 0 then x.Close() else y.Close()
 ```
 
-Explicit type parameter definitions can declare custom attributes on type parameter definitions
-(see [§](custom-attributes-and-reflection.md#custom-attributes)).
+> **F# Native Note**: Interface constraints like `:> IDisposable` from managed F# are typically resolved through SRTP member constraints in F# Native, since there is no CLI interface system. The Alloy library provides trait-like patterns for common capabilities.
+
+Explicit type parameter definitions can declare custom attributes on type parameter definitions (see [§](special-attributes-and-types.md)).
 
 ## Logical Properties of Types
 
@@ -546,21 +534,16 @@ form composed of:
 
 ### Characteristics of Type Definitions
 
-Type definitions include CLI type definitions such as `System.String` and types that are defined in F#
-code (see [§](type-definitions.md#type-definitions)). The following terms are used to describe type definitions:
+Type definitions include native types (such as `string`, `int`, `array`) and types that are defined in F# code (see [§](type-definitions.md#type-definitions)). The following terms are used to describe type definitions:
 
-- Type definitions may be _generic_ , with one or more type parameters; for example,
-  `System.Collections.Generic.Dictionary<'Key,'Value>`.
+- Type definitions may be _generic_, with one or more type parameters; for example, `Map<'Key,'Value>`.
 - The generic parameters of type definitions may have associated `formal type constraints`.
-- Type definitions may have _custom attributes_ (see [§](custom-attributes-and-reflection.md#custom-attributes)), some of which are relevant to checking and
-  inference.
-- Type definitions may be _type abbreviations_ (see [§](type-definitions.md#type-abbreviations)). These are eliminated for the purposes of
-  checking and inference (see [§](types-and-type-constraints.md#expanding-abbreviations-and-inference-equations)).
+- Type definitions may have _custom attributes_ (see [§](special-attributes-and-types.md)), some of which are relevant to checking and inference.
+- Type definitions may be _type abbreviations_ (see [§](type-definitions.md#type-abbreviations)). These are eliminated for the purposes of checking and inference (see [§](types-and-type-constraints.md#expanding-abbreviations-and-inference-equations)).
 
 - Type definitions have a `kind` which is one of the following:
   - `Class`
   - `Interface`
-  - `Delegate`
   - `Struct`
   - `Record`
   - `Union`
@@ -568,14 +551,11 @@ code (see [§](type-definitions.md#type-definitions)). The following terms are u
   - `Measure`
   - `Abstract`
 
-  The kind is determined at the point of declaration by Type Kind Inference (see [§](type-definitions.md#type-kind-inference)) if it is not
-  specified explicitly as part of the type definition. The _kind_ of a type refers to the kind of its
-  outermost named type definition, after expanding abbreviations. For example, a type is a _class_
-  type if it is a named type `C<types>` where `C` is of kind _class_. Thus,
-  `System.Collections.Generic.List<int>` is a class type.
+  > **F# Native Note**: The `Delegate` kind from managed F# is not supported - F# Native uses function types directly.
 
-- Type definitions may be _sealed_. Record, union, function, tuple, struct, delegate, enum, and array
-  types are all sealed, as are class types that are marked with the `SealedAttribute` attribute.
+  The kind is determined at the point of declaration by Type Kind Inference (see [§](type-definitions.md#type-kind-inference)) if it is not specified explicitly as part of the type definition. The _kind_ of a type refers to the kind of its outermost named type definition, after expanding abbreviations. For example, a type is a _class_ type if it is a named type `C<types>` where `C` is of kind _class_.
+
+- Type definitions may be _sealed_. Record, union, function, tuple, struct, enum, and array types are all sealed, as are class types that are marked with the `SealedAttribute` attribute.
 - Type definitions may have zero or one _base type declarations_. Each base type declaration
   represents an additional type that is supported by any values that are formed using the type
   definition. Furthermore, some aspects of the base type are used to form the implementation of
@@ -583,48 +563,44 @@ code (see [§](type-definitions.md#type-definitions)). The following terms are u
 - Type definitions may have one or more _interface declarations_. These represent additional
   encapsulated types that are supported by values that are formed using the type.
 
-Class, interface, delegate, function, tuple, record, and union types are all _reference_ type definitions.
-A type is a reference type if its outermost named type definition is a reference type, after expanding
-type definitions.
+Class, interface, function, tuple, record, and union types are all _reference_ type definitions (meaning they use pointer indirection in their representation). A type is a reference type if its outermost named type definition is a reference type, after expanding type definitions.
 
-Struct types are _value types_.
+Struct types are _value types_ (meaning they have direct, non-pointer representation).
+
+> **F# Native Note**: The distinction between "reference types" and "value types" in F# Native is about memory representation (pointer vs. direct), not about heap vs. stack allocation. Both can be stack-allocated or arena-allocated depending on escape analysis.
 
 ### Expanding Abbreviations and Inference Equations
 
-Two static types are considered equivalent and indistinguishable if they are equivalent after taking
-into account both of the following:
+Two static types are considered equivalent and indistinguishable if they are equivalent after taking into account both of the following:
 
 - The inference equations that are inferred from the current inference constraints (see [§](inference-procedures.md#constraint-solving)).
 - The expansion of type abbreviations (see [§](type-definitions.md#type-abbreviations)).
 
-For example, static types may refer to type abbreviations such as `int`, which is an abbreviation for
-`System.Int32` and is declared by the F# library:
+> **F# Native Note**: In F# Native, type abbreviations like `int`, `string`, and `option` are resolved directly to their native representations by FNCS (F# Native Compiler Services). There is no mapping to BCL types like `System.Int32` or `System.String`.
+
+For example, `int` is a native type abbreviation for the platform word-sized integer:
 
 ```fsharp
-type int = System.Int32
+// int in F# Native = platform word (64-bit on 64-bit platforms)
+// NOT an abbreviation for System.Int32
 ```
 
-This means that the types `int32` and `System.Int32` are considered equivalent, as are `System.Int32 -> int` and `int -> System.Int32`.
+The types `int` and `int32` are distinct in F# Native:
+- `int` = platform word (64-bit on x86-64)
+- `int32` = fixed 32-bit integer
 
 Likewise, consider the process of checking this function:
 
 ```fsharp
-let checkString (x:string) y =
-    (x = y), y.Contains("Hello")
+let checkString (x: string) y =
+    (x = y), String.contains "Hello" y
 ```
 
-During checking, fresh type inference variables are created for values `x` and `y`; let’s call them `ty1` and
-`ty2`. Checking imposes the constraints `ty1 = string` and `ty1 = ty2`. The second constraint results
-from the use of the generic `=` operator. As a result of constraint solving, `ty2 = string` is inferred, and
-thus the type of `y` is `string`.
+During checking, fresh type inference variables are created for values `x` and `y`; let's call them `ty1` and `ty2`. Checking imposes the constraints `ty1 = string` and `ty1 = ty2`. The second constraint results from the use of the generic `=` operator. As a result of constraint solving, `ty2 = string` is inferred, and thus the type of `y` is `string`.
 
-All relations on static types are considered after the elimination of all equational inference
-constraints and type abbreviations. For example, we say `int` is a struct type because `System.Int32` is
-a struct type.
+All relations on static types are considered after the elimination of all equational inference constraints and type abbreviations. For example, we say `int32` is a struct type because it has direct (non-pointer) representation.
 
-> Note: Implementations of F# should attempt to preserve type abbreviations when
-reporting types and errors to users. This typically means that type abbreviations should
-be preserved in the logical structure of types throughout the checking process.
+> Note: Implementations should attempt to preserve type abbreviations when reporting types and errors to users. This typically means that type abbreviations should be preserved in the logical structure of types throughout the checking process.
 
 ### Type Variables and Definition Sites
 
@@ -666,32 +642,28 @@ of the type variable.
 
 ### Base Type of a Type
 
-The _base type_ for the static types is shown in the table. These types are defined in the CLI
-specifications and corresponding implementation documentation.
+> **F# Native Note**: The concept of "base type" in F# Native differs from managed F#. There is no universal `System.Object` base type. Instead, types are organized by their _structural category_ which determines memory layout and available operations.
 
-| **Static Type** | **Base Type**                                                                                                                                                                                        |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Abstract types  | `System.Object`                                                                                                                                                                                      |
-| All array types | `System.Array`                                                                                                                                                                                       |
-| Class types     | The declared base type of the type definition if the type has one; otherwise,<br> `System.Object`. For generic types `C<type-inst>`, substitute the formal generic parameters of `C` for `type-inst` |
-| Delegate types  | `System.MulticastDelegate`                                                                                                                                                                           |
-| Enum types      | `System.Enum`                                                                                                                                                                                        |
-| Exception types | `System.Exception`                                                                                                                                                                                   |
-| Interface types | `System.Object`                                                                                                                                                                                      |
-| Record types    | `System.Object`                                                                                                                                                                                      |
-| Struct types    | `System.ValueType`                                                                                                                                                                                   |
-| Union types     | `System.Object`                                                                                                                                                                                      |
-| Variable types  | `System.Object`                                                                                                                                                                                      |
+| **Static Type** | **Structural Category** | **Notes** |
+|-----------------|------------------------|-----------|
+| Abstract types  | Abstract | Must be inherited; no direct instantiation |
+| All array types | Fat pointer | `{ptr, len}` representation |
+| Class types     | Reference | Pointer to allocated data; may have declared base type |
+| Enum types      | Integral | Same representation as underlying type |
+| Exception types | Record-like | Structured error information |
+| Interface types | Abstract | Compile-time contract only |
+| Record types    | Product | Contiguous field layout |
+| Struct types    | Value | Direct (non-pointer) representation |
+| Union types     | Sum | Tagged payload layout |
+| Variable types  | Polymorphic | Resolved at instantiation |
 
-### Interfaces Types of a Type
+The inheritance hierarchy of class types works as in managed F#, with the declared base type determining inherited members. However, there is no universal base type that all types inherit from.
 
-The _interface types_ of a named type `C<type-inst>` are defined by the transitive closure of the
-interface declarations of `C` and the interface types of the base type of `C`, where formal generic
-parameters are substituted for the actual type instantiation `type-inst`.
+### Interface Types of a Type
 
-The interface types for single dimensional array types `ty[]` include the transitive closure that starts
-from the interface `System.Collections.Generic.IList<ty>`, which includes
-`System.Collections.Generic.ICollection<ty>` and `System.Collections.Generic.IEnumerable<ty>`.
+The _interface types_ of a named type `C<type-inst>` are defined by the transitive closure of the interface declarations of `C` and the interface types of the base type of `C`, where formal generic parameters are substituted for the actual type instantiation `type-inst`.
+
+> **F# Native Note**: Interface implementation in F# Native is verified at compile time through SRTP resolution against the Alloy witness hierarchy. Arrays support iteration through the `seq<'T>` pattern, not through `System.Collections.Generic.IEnumerable<'T>`.
 
 ### Type Equivalence
 
@@ -732,125 +704,104 @@ in `Constraint Solving` (see [§](inference-procedures.md#constraint-solving)).
 
 ### Nullness
 
-The design of F# aims to greatly reduce the use of null literals in common programming tasks,
-because they generally result in error-prone code. However:
+> **F# Native Note**: F# Native enforces **absolute null-freedom**. This is the most significant semantic difference from managed F#. There is no `null` literal, no null values at runtime, and no nullness constraints.
 
-- The use of some `null` literals is required for interoperation with CLI libraries.
-- The appearance of `null` values during execution cannot be completely precluded for technical
-  reasons related to the CLI and CLI libraries.
+**All types in F# Native are non-nullable by construction.** There is exactly one category:
 
-As a result, F# types differ in their treatment of the `null` literal and `null` values. All named types and
-type definitions fall into one of the following categories:
+- **Types without `null`.** ALL types in F# Native fall into this category. There is no `null` literal, no `AllowNullLiteral` attribute, and no way to construct or observe null values.
 
-- **Types with the `null` literal.** These types have `null` as an "extra" value. The following types are in
-  this category:
-  - All CLI reference types that are defined in other CLI languages.
-  - All types that are defined in F# and annotated with the `AllowNullLiteral` attribute.
+This null-freedom is enforced at multiple levels:
 
-  For example, `System.String` and other CLI reference types satisfy this constraint, and these types
-  permit the direct use of the `null` literal.
+1. **Syntax**: The `null` keyword is not permitted in F# Native source code (error FS8010).
+2. **Type system**: No type satisfies the nullness constraint; the constraint itself is not supported.
+3. **Runtime**: All values have valid, non-null representations.
 
-- **Types with `null` as an abnormal value.** These types do not permit the `null` literal, but do have
-  `null` as an abnormal value. The following types are in this category:
-  - All F# list, record, tuple, function, class, and interface types.
-  - All F# union types except those that have `null` as a normal value, as discussed in the next
-      bullet point.
+**Representing Optional Values**:
 
-  For types in this category, the use of the `null` literal is not directly allowed. However, strictly
-  speaking, it is possible to generate a `null` value for these types by using certain functions such as
-  `Unchecked.defaultof<type>`. For these types, `null` is considered an abnormal value. Operations
-  differ in their use and treatment of `null` values; for details about evaluation of expressions that
-  might include `null` values, see (see [§](expressions.md#evaluation-of-elaborated-forms)).
+Where managed F# might use null to indicate absence, F# Native uses `option<'T>`:
 
-- **Types with `null` as a representation value.** These types do not permit the `null` literal but use
-  the `null` value as a representation.
-  For these types, the use of the null literal is not directly permitted. However, one or all of the
-  “normal” values of the type is represented by the null value. The following types are in this
-  category:
-  - The unit type. The `null` value is used to represent all values of this type.
-  - Any union type that has the
-      `FSharp.Core.CompilationRepresentation(CompilationRepresentationFlags.UseNullAsTrueV
-      alue)` attribute flag and a single null union case. The null value represents this case. In
-      particular, `null` represents `None` in the F# `option<_>` type.
-- **Types without `null`.** These types do not permit the `null` literal and do not have the null value.
-  All value types are in this category, including primitive integers, floating-point numbers, and any
-  value of a CLI or F# `struct` type.
+```fsharp
+// Managed F# pattern (NOT supported in F# Native):
+let maybeString : string = null
 
-A static type `ty` satisfies a _nullness constraint_ `ty : null` if it:
+// F# Native pattern (correct):
+let maybeString : string option = None
+```
 
-- Has an outermost named type that has the `null` literal.
-- Is a variable type with a `typar : null` constraint.
+The `option<'T>` type in F# Native compiles to stack-allocated `voption<'T>` semantics - a tagged value type with `None = 0` as a tag value, not a null pointer.
+
+**API Implications (Null-Freedom Cascades)**:
+
+Standard library APIs that use sentinel values in managed F# return `option` in F# Native:
+
+| Managed F# Pattern | F# Native Pattern |
+|-------------------|-------------------|
+| `string.IndexOf(c)` returns `-1` | `String.indexOf c s` returns `voption<int>` |
+| `dict.TryGetValue(k, &v)` | `Map.tryFind k m` returns `voption<'V>` |
+| `Seq.head` throws on empty | `Seq.tryHead` returns `voption<'T>` |
+| Nullable reference types | Not applicable - all types non-nullable |
+
+**Nullness Constraint Not Supported**:
+
+The nullness constraint `typar : null` is NOT SUPPORTED. Code using this constraint will produce a compile-time error. The `AllowNullLiteral` attribute has no effect in F# Native.
 
 ### Default Initialization
 
-Related to nullness is the _default initialization_ of values of some types to _zero values_. This technique
-is common in some programming languages, but the design of F# deliberately de-emphasizes it.
-However, default initialization is allowed in some circumstances:
+Default initialization of values to _zero values_ is supported in F# Native for types that have a well-defined zero representation.
 
-- Checked default initialization may be used when a type is known to have a valid and “safe”
-  default zero value. For example, the types of fields that are labeled with `DefaultValue(true)` are
-  checked to ensure that they allow default initialization.
-- CLI libraries sometimes perform unchecked default initialization, as do the F# library primitives
-  `Unchecked.defaultof<_>` and `Array.zeroCreate`.
+> **F# Native Note**: Unlike managed F#, there is no "nullness constraint" category for default initialization. Instead, default initialization is permitted only for types with explicit zero representations.
 
-The following types permit _default initialization_ :
+The following types permit _default initialization_:
 
-- Any type that satisfies the nullness constraint.
-- Primitive value types.
-- Struct types whose field types all permit default initialization.
+- **Primitive value types**: `int`, `float`, `bool`, etc. (zero, 0.0, false)
+- **Struct types**: Where all field types permit default initialization
+- **Enum types**: Zero value of the underlying type
+- **Arrays**: Initialized with default values for element type
 
-### Dynamic Conversion Between Types
+The following types do NOT permit default initialization:
 
-A runtime type `vty` _dynamically converts_ to a static type `ty` if any of the following are true:
+- **Records and unions**: Must be constructed with explicit values
+- **Function types**: No default function value
+- **Class types**: Must be constructed explicitly
 
-- `vty` coerces to `ty`.
-- `vty` is `int32[]` and `ty` is `uint32[]`(or conversely). Likewise for `sbyte[]`/`byte[]`, `int16[]`/`uint16[]`,
-  `int64[]`/`uint64[]`, and `nativeint[]`/`unativeint[]`.
-- `vty` is `enum[]` where `enum` has underlying type `underlying` , and `ty` is `underlying[]` (or conversely),
-  or the (un)signed equivalent of `underlying[]` by the immediately preceding rule.
-- `vty` is `elemty1[]`, `ty` is `elemty2[]`, `elemty1` is a reference type, and `elemty1` converts to `elemty2`.
-- `ty` is `System.Nullable<vty>`.
+The `Unchecked.defaultof<'T>` function is available but should be used with care - it produces zero-bit representations that may not be valid for all types. `Array.zeroCreate` creates arrays with default-initialized elements.
 
-Note that this specification does not define the full algebra of the conversions of runtime types to
-static types because the information that is available in runtime types is implementation dependent.
-However, the specification does state the conditions under which objects are guaranteed to have a
-runtime type that is compatible with a particular static type.
+### Type Conversions
 
-> Note: This specification covers the additional rules of CLI dynamic conversions, all of
-which apply to F# types. For example:
+> **F# Native Note**: F# Native does not have "runtime types" in the managed F# sense. There is no boxing, no `System.Type`, and no runtime type discovery. All type conversions are verified at compile time.
 
-```fsharp
-let x = box [| System.DayOfWeek.Monday |]
-let y = x :? int32[]
-printf "%b" y // true
-```
+**Static Type Coercion**:
 
-In the previous code, the type `System.DayOfWeek.Monday[]` does not statically coerce to
-`int32[]`, but the expression `x :? int32[]` evaluates to true.
+Type coercion in F# Native follows the static type hierarchy. A type `ty1` coerces to `ty2` (written `ty1 :> ty2`) if:
 
-```fsharp
-let x = box [| 1 |]
-let y = x :? uint32 []
-printf "%b" y // true
-```
+- `ty1` inherits from or implements `ty2`
+- `ty1` and `ty2` are the same type
 
-In the previous code, the type `int32[]` does not statically coerce to `uint32[]`, but the
-expression `x :? uint32 []` evaluates to true.
+**Array Type Conversions**:
+
+Arrays of compatible element types can be reinterpreted, verified at compile time:
+
+- `int32[]` and `uint32[]` (reinterpret cast - same bit pattern)
+- `int16[]` and `uint16[]`
+- `int64[]` and `uint64[]`
+- `nativeint[]` and `unativeint[]`
+- `enum[]` and `underlying-type[]` (where enum has that underlying type)
+
+These conversions are zero-cost reinterpret casts at the memory level.
+
+**No Dynamic Type Tests**:
+
+The `:?` and `:?>` operators for dynamic type testing are resolved statically in F# Native:
 
 ```fsharp
-let x = box [| "" |]
-let y = x :? obj []
-printf "%b" y // true
+// Statically resolvable - OK
+let isString (x: obj) =
+    match x with
+    | :? string as s -> Some s  // Resolved at compile time for known type
+    | _ -> None
+
+// Not resolvable - compile error
+let unknown (x: obj) = x :? SomeType  // Error if relationship unknown
 ```
 
-In the previous code, the type `string[]` does not statically coerce to `obj[]`, but the
-expression `x :? obj []` evaluates to true.
-
-```fsharp
-let x = box 1
-let y = x :? System.Nullable<int32>
-printf "%b" y // true
-```
-
-In the previous code, the type `int32` does not coerce to `System.Nullable<int32>`, but the
-expression `x :? System.Nullable<int32>` evaluates to true.
+Pattern matching type tests work when the type relationship can be determined at compile time from the type hierarchy.

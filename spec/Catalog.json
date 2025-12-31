@@ -21,6 +21,8 @@
         "inference-procedures",
         "lexical-filtering",
         "special-attributes-and-types",
+        "error-handling",
+        "interactive-development",
         "the-native-library-alloy",
         "features-for-ml-compatibility"
     ]

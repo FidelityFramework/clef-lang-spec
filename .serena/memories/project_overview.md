@@ -57,6 +57,15 @@ These are working reference documents that will be removed once spec is complete
 
 **DO NOT** include docs/ content in spec/. They are context only.
 
+## Structural Audit Status: COMPLETE (Dec 2025)
+
+All structural changes verified:
+- README.md updated with ToC, numbered chapter table, status key
+- Catalog.json synchronized with 21 chapters
+- New chapters created: memory-regions, access-kinds, native-type-mappings, platform-bindings
+- Removed chapters deleted: provided-types, custom-attributes-and-reflection
+- Alloy chapter (the-native-library-alloy.md) completely rewritten
+
 ## Key Principles
 
 1. **Same syntax, native semantics** - Users write `string`, `option`, `array`; FNCS resolves to native types

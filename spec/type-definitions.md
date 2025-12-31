@@ -488,8 +488,6 @@ The `mutable` attribute on `x` and `y` makes the assignments valid.
 Record types are implicitly sealed and may not be given the `Sealed` attribute. Record types may not
 be given the `AbstractClass` attribute.
 
-Record types are implicitly marked serializable unless the `AutoSerializable(false)` attribute is used.
-
 Record types are reference types unless the `Struct` attribute is used (see [§](type-definitions.md#struct-type-definitions)).
 
 ### Members in Record Types
@@ -544,23 +542,6 @@ type R1 =
 The `with`/`end` tokens can be omitted if the type-defn-elements vertically align with the `{` in the
 `record-fields`. The semicolon (`;`) tokens can be omitted if the next `record-field` vertically aligns
 with the previous `record-field`.
-
-### CLIMutable Attributes
-
-Adding the `CLIMutable` attribute to a record type causes it to be compiled to a CLI representation as
-a plain-old CLR object (POCO) with a default constructor along with property getters and setters.
-Adding the default constructor and mutable properties makes objects of the record type usable with
-.NET tools and frameworks such as database queries, serialization frameworks, and data models in
-XAML programming.
-
-For example, an F# immutable record cannot be serialized because it does not have a constructor.
-However, if you attach the CLIMutable attribute as in the following example, the XmlSerializer is
-enable to serialize or deserialize this record type:
-
-```fsharp
-[<CLIMutable>]
-type R1 = { x : string; y : int }
-```
 
 ## Union Type Definitions
 
@@ -619,8 +600,6 @@ type OneChoice =
     | A
 ```
 
-Union types are implicitly marked serializable unless the `AutoSerializable(false)` attribute is used.
-
 ### Members in Union Types
 
 Union types may declare members ([§](type-definitions.md#members)), overrides, and interface implementations. As with all
@@ -677,32 +656,6 @@ type Message =
 member x.Name = match x with Result(nm) -> nm | Request(_,nm) -> nm
 ```
 
-### Compiled Form of Union Types for Use from Other CLI Languages
-
-A compiled union type `U` has:
-
-- One CLI static getter property `U.C` for each null union case `C`. This property gets a singleton
-    object that represents each such case.
-- One CLI nested type `U.C` for each non-null union case `C`. This type has instance properties `Item1`,
-    `Item2` ... for each field of the union case, or a single instance property `Item` if there is only one
-    field. However, a compiled union type that has only one case does not have a nested type.
-    Instead, the union type itself plays the role of the case type.
-- One CLI static method `U.NewC` for each non-null union case `C`. This method constructs an object
-    for that case.
-- One CLI instance property `U.IsC` for each case `C`. This property returns `true` or `false` for the case.
-- One CLI instance property `U.Tag` for each case `C`. This property fetches or computes an integer
-    tag corresponding to the case.
-- If `U` has more than one case, it has one CLI nested type `U.Tags`. The `U.Tags` type contains one
-    integer literal for each case, in increasing order starting from zero.
-- A compiled union type has the methods that are required to implement its auto-generated
-    interfaces, in addition to any user-defined properties or methods.
-
-These methods and properties may not be used directly from F#. However, these types have user-
-facing `List.Empty`, `List.Cons`, `Option.None`, and `Option.Some` properties and/or methods.
-
-A compiled union type may not be used as a base type in another CLI language, because it has at
-least one assembly-private constructor and no public constructors.
-
 ## Class Type Definitions
 
 A _class type definition_ encapsulates values that are constructed by using one or more object
@@ -719,9 +672,6 @@ type type-name pat~opt as-defn~opt =
 
 The `class`/`end` tokens can be omitted, in which case _Type Kind Inference_ ([§](type-definitions.md#type-kind-inference)) is used to determine
 the kind of the type.
-
-In F#, class types are implicitly marked serializable unless the `AutoSerializable(false)` attribute is
-present.
 
 ### Primary Constructors in Classes
 
@@ -1307,14 +1257,10 @@ type Vector3 = { X: float; Y: float; Z: float }
 Record structs have the following limitations:
 
 - Unlike normal F# structs you cannot call the default constructor
-- When marked with `[<CLIMutable>]` attribute, a default constructor is not created because it already exists implicitly
 
 ## Enum Type Definitions
 
-Occasionally the need arises to represent a type that compiles as a CLI enumeration type. An _enum
-type definition_ has values that are represented by integer constants and has a CLI enumeration as its
-compiled form. Enum type definitions are declared by specifying integer constants in a format that is
-syntactically similar to a union type definition. For example:
+An _enum type definition_ has values that are represented by integer constants. Enum type definitions are declared by specifying integer constants in a format that is syntactically similar to a union type definition. For example:
 
 ```fsharp
 type Color =
@@ -2305,15 +2251,12 @@ Multiple methods that have the same name may appear in the same type definition 
 For example:
 
 ```fsharp
-type MyForm() =
-    inherit System.Windows.Forms.Form()
+type Logger() =
+    member x.Log(message: string) =
+        Console.WriteLine message
 
-    member x.ChangeText(text: string) =
-        x.Text <- text
-
-    member x.ChangeText(text: string, reason: string) =
-        x.Text <- text
-        System.Windows.Forms.MessageBox.Show ("changing text due to " + reason)
+    member x.Log(message: string, level: string) =
+        Console.WriteLine ($"[{level}] {message}")
 ```
 
 Methods must be distinct based on their name and fully inferred types, after erasure of type
@@ -2327,118 +2270,6 @@ A member in a record type may not have the same name as a record field in that t
 
 A member may not have the same name and signature as another method in the type. This check
 ignores return types except for members that are named `op_Implicit` or `op_Explicit`.
-
-### Members Represented as Events
-
-_Events_ are the CLI notion of a “listening point”—that is, a configurable object that holds a set of
-callbacks, which can be triggered, often by some external action such as a mouse click or timer tick.
-
-In F#, events are first-class values; that is, they are objects that mediate the addition and removal of
-listeners from a backing list of listeners. The F# library supports the type
-`FSharp.Control.IEvent<_,_>` and the module `FSharp.Control.Event`, which contains operations to
-map, fold, create, and compose events. The type is defined as follows:
-
-```fsharp
-type IDelegateEvent<'del when 'del :> System.Delegate > =
-    abstract AddHandler : 'del -> unit
-    abstract RemoveHandler : 'del -> unit
-
-type IEvent<'Del,'T when 'Del : delegate<'T,unit> and 'del :> System.Delegate > =
-    abstract Add : event : ('T -> unit) -> unit
-    inherit IDelegateEvent<'del>
-
-type Handler<'T> = delegate of sender : obj * 'T -> unit
-
-type IEvent<'T> = IEvent<Handler<'T>, 'T>
-```
-
-The following shows a sample use of events:
-
-```fsharp
-open System.Windows.Forms
-
-type MyCanvas() =
-    inherit Form()
-    let event = new Event<PaintEventArgs>()
-    member x.Redraw = event.Publish
-    override x.OnPaint(args) = event.Trigger(args)
-
-let form = new MyCanvas()
-form.Redraw.Add(fun args -> printfn "OnRedraw")
-form.Activate()
-Application.Run(form)
-```
-
-Events from CLI languages are revealed as object properties of type
-`FSharp.Control.IEvent<tydelegate, tyargs>`. The F# compiler determines the type arguments, which
-are derived from the CLI delegate type that is associated with the event.
-
-Event declarations are not built into the F# language, and `event` is not a keyword. However, property
-members that are marked with the `CLIEvent` attribute and whose type coerces to
-`FSharp.Control.IDelegateEvent<tydelegate>` are compiled to include extra CLI metadata and methods
-that mark the property name as a CLI event. For example, in the following code, the
-`ChannelChanged` property is currently compiled as a CLI event:
-
-```fsharp
-type ChannelChangedHandler = delegate of obj * int -> unit
-
-type C() =
-    let channelChanged = new Event<ChannelChangedHandler,_>()
-    [<CLIEvent>]
-    member self.ChannelChanged = channelChanged.Publish
-```
-
-Similarly, the following shows the definition and implementation of an abstract event:
-
-```fsharp
-type I =
-    [<CLIEvent>]
-    abstract ChannelChanged : IEvent<ChannelChanged,int>
-
-type ImplI() =
-    let channelChanged = new Event<ChannelChanged,_>()
-    interface I with
-        [<CLIEvent>]
-        member self.ChannelChanged = channelChanged.Publish
-```
-
-### Members Represented as Static Members
-
-Most members are represented as their corresponding CLI method or property. However, in certain
-situations an instance member may be compiled as a static method. This happens when either of the
-following is true:
-
-- The type definition uses `null` as a representation by placing the
-    `CompilationRepresentation(CompilationRepresentationFlags.UseNullAsTrueValue)` attribute on
-    the type that declares the member.
-
-- The member is an extension member.
-
-Compilation of an instance member as a static method can affect the view of the type when seen
-from other languages or from `System.Reflection`. A member that might otherwise have a static
-representation can be reverted to an instance member representation by placing the attribute
-`CompilationRepresentation(CompilationRepresentationFlags.Instance)` on the member.
-
-For example, consider the following type:
-
-```fsharp
-[<CompilationRepresentation(CompilationRepresentationFlags.UseNullAsTrueValue)>]
-type option<'T> =
-    | None
-    | Some of 'T
-
-    member x.IsNone = match x with None -> true | _ -> false
-    member x.IsSome = match x with Some _ -> true | _ -> false
-
-    [<CompilationRepresentation(CompilationRepresentationFlags.Instance)>]
-    member x.Item =
-    match x with
-        | Some x -> x
-        | None -> failwith "Option.Item"
-```
-
-The `IsNone` and `IsSome` properties are represented as CLI static methods. The `Item` property is
-represented as an instance property.
 
 ## Abstract Members and Interface Implementations
 

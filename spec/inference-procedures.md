@@ -34,12 +34,9 @@ two assemblies define the type `MyNamespace.C`.
     - An active pattern case name, for use when specifying active patterns
     - A literal definition
 - _Types_ : a table that maps names to type definitions. Two queries are supported on this table:
-    - Find a type by name alone. This query may return multiple types. For example, in the default
-        type-checking environment, the resolution of `System.Tuple` returns multiple tuple types.
+    - Find a type by name alone. This query may return multiple types. For example, a type name like `Map` may resolve to multiple generic types with different arities.
 
-    - Find a type by name and generic arity `n`. This query returns at most one type. For example, in
-        the default type-checking environment, the resolution of `System.Tuple` with `n = 2` returns a
-        single type.
+    - Find a type by name and generic arity `n`. This query returns at most one type. For example, the resolution of `Map` with `n = 2` returns a single type `Map<'Key, 'Value>`.
 - _ExtensionsInScope_ : a table that maps type names to one or more member definitions
 
 The dot notation is resolved during type checking by consulting these tables.
@@ -1450,19 +1447,16 @@ specification typically involve recursive value definitions. A simple example is
 following menu item, which prints out part of its state when invoked:
 
 ```fsharp
-open System.Windows.Form
-let rec menuItem : MenuItem =
-    new MenuItem("&Say Hello",
-                 new EventHandler(fun sender e ->
-                     printfn "Text = %s" menuItem.Text),
-                 Shortcut.CtrlH)
+let rec node : TreeNode =
+    { Value = 42
+      OnVisit = fun () -> printfn "Visiting node with value %d" node.Value
+      Children = [] }
 ```
 
 > This code results in a compiler warning because, in theory, the
-`new MenuItem(...)` constructor might evaluate the callback as part of the construction
-process. However, because the `System.Windows.Forms` library is well designed, in this
-example this does not happen in practice, and so the warning can be suppressed or
-ignored by using compiler options.
+record construction might evaluate the `OnVisit` callback as part of initialization.
+In practice, function values in records are not evaluated during construction, so the
+warning can be suppressed or ignored by using compiler options.
 
 The F# compiler performs a simple approximate static analysis to determine whether immediate
 cyclic dependencies are certain to occur during the evaluation of a set of recursive value definitions.
