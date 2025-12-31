@@ -570,30 +570,27 @@ let obj1 =
         member x.Compare(a,b) = compare (a % 7) (b % 7) }
 
 let obj2 =
-    { new obj() with
-        member x.ToString () = "Hello" }
+    { new IDisposable with
+        member x.Dispose() = Console.WriteLine "Disposed" }
 
 let obj3 =
-    { new obj() with
-        member x.ToString () = "Hello, base.ToString() = " + base.ToString() }
-
-let obj4 =
-    { new obj() with
-        member x.Finalize() = printfn "Finalize";
-    interface IDisposable with
-        member x.Dispose() = printfn "Dispose"; }
+    { new IComparer<int> with
+        member x.Compare(a,b) = compare (a % 7) (b % 7)
+      interface IDisposable with
+        member x.Dispose() = Console.WriteLine "Disposed" }
 ```
 
 An object expression can specify additional interfaces beyond those required to fulfill the abstract
-slots of the type being implemented. For example, `obj4` in the preceding examples has static type
-`obj` but the object additionally implements the interface `IDisposable`. The additional interfaces
+slots of the type being implemented. For example, `obj3` in the preceding examples has static type
+`IComparer<int>` but the object additionally implements the interface `IDisposable`. The additional interfaces
 are not part of the static type of the overall expression, but can be revealed through type tests.
+
+> **F# Native Note**: Object expressions in F# Native MUST implement at least one interface type. The base type `obj` does not exist in native compilation, so object expressions of the form `{ new obj() with ... }` are not permitted. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 Object expressions are statically checked as follows.
 
 1. First, `ty0` to `tyn` are checked to verify that they are named types. The overall type of the
-expression is `ty0` and is asserted to be equal to the initial type of the expression. However, if `ty0`
-is type equivalent to `obj` and `ty1` exists, then the overall type is instead `ty1`.
+expression is `ty0` and is asserted to be equal to the initial type of the expression.
 
 2. The type `ty0` must be a class or interface type. The base construction argument `args-expr` must
     appear if and only if `ty0` is a class type. The type must have one or more accessible constructors;
@@ -618,17 +615,17 @@ Object expressions elaborate to a primitive form. At execution, each object expr
 object whose runtime type is compatible with all of the `tyi` that have a dispatch map that is the
 result of _dispatch slot checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
 
-The following example shows how to both implement an interface and override a method. The overall type of the expression is `INewIdentity`.
+The following example shows how to implement an interface. The overall type of the expression is `INewIdentity`.
 
 ```fsharp
 type public INewIdentity =
     abstract IsAnonymous : bool
+    abstract Name : string
 
 let anon =
-{ new obj() with
-    member i.ToString() = "anonymous"
-  interface INewIdentity with
-    member i.IsAnonymous = true }
+    { new INewIdentity with
+        member i.IsAnonymous = true
+        member i.Name = "anonymous" }
 ```
 
 ### Delayed Expressions
@@ -1535,8 +1532,10 @@ where:
 | `%o` | Basic integer type formatted as an unsigned octal integer. |
 | `%e, %E, %f, %F, %g, %G` | `float` or `float32`, possibly with a unit of measure|
 | `%M` | `decimal`, possibly with a unit of measure |
-| `%O` | `obj`, possibly with a unit of measure |
-| `%A` | Fresh variable type `'T` |
+| `%O` | Any type with SRTP-resolved `ToString` member |
+| `%A` | Any type with SRTP-resolved formatting |
+
+> **F# Native Note**: The `%O` and `%A` format specifiers use statically resolved type parameters rather than runtime type inspection. The type must have appropriate formatting members resolvable at compile time. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 | `%a` | Formatter of type `'State -> 'T -> 'Residue` for a fresh variable type `'T` |
 | `%t` | Formatter of type `'State -> 'Residue` |
 
@@ -2231,13 +2230,10 @@ finally
 ```
 
 If the assertion fails, the type `tyexpr` may also be of any static type that satisfies the "collection
-pattern" of the standard library. If so, the _enumerable extraction_ process is used to enumerate the type. In
+pattern" of the native library. If so, the _enumerable extraction_ process is used to enumerate the type. In
 particular, `tyexpr` may be any type that has an accessible GetEnumerator method that accepts zero
 arguments and returns a value that has accessible MoveNext and Current properties. The type of `pat`
-is the same as the return type of the Current property on the enumerator value. However, if the
-Current property has return type obj and the collection type `ty` has an Item property with a more
-specific (non-object) return type `ty2` , type `ty2` is used instead, and a dynamic cast is inserted to
-convert v.Current to `ty2`.
+is the same as the return type of the Current property on the enumerator value.
 
 A sequence iteration of the form
 
@@ -2686,16 +2682,18 @@ The expression `upcast expr` is equivalent to `expr :> _`, so the target type is
 type of the overall expression. For example:
 
 ```fsharp
-(1 :> obj)
-("Hello" :> obj)
 ([1;2;3] :> seq<int>).GetEnumerator()
-(upcast 1 : obj)
+(upcast [1;2;3] : seq<int>)
 ```
+
+> **F# Native Note**: Static coercion is valid for upcasting to implemented interfaces or base class types. The expression `(x :> obj)` is not valid because `obj` does not exist in F# Native. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 The initial type of the overall expression is `ty`. Expression `expr` is checked using a fresh initial type
 `tye`, with constraint `tye :> ty`. Static coercions are a primitive elaborated form.
 
 ### Dynamic Type-Test Expressions
+
+> **F# Native Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
 
 A dynamic type-test expression has the following form:
 
@@ -2703,11 +2701,15 @@ A dynamic type-test expression has the following form:
 expr :? ty
 ```
 
-For example:
+For example, with discriminated unions:
 
 ```fsharp
-((1 :> obj) :? int)
-((1 :> obj) :? string)
+type Shape = Circle of float | Rectangle of float * float
+
+let isCircle (s: Shape) =
+    match s with
+    | Circle _ -> true
+    | Rectangle _ -> false
 ```
 
 The initial type of the overall expression is `bool`. Expression `expr` is checked using a fresh initial type
@@ -2719,9 +2721,9 @@ The initial type of the overall expression is `bool`. Expression `expr` is check
 - If type `ty` is sealed, or if `ty` is a variable type, or if type `tye` is not an interface type, then `ty :> tye`
     is asserted.
 
-Dynamic type tests are a primitive elaborated form.
-
 ### Dynamic Coercion Expressions
+
+> **F# Native Note**: Dynamic coercion (`:?>`) requires runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
 
 A dynamic coercion expression has the following form:
 
@@ -2729,14 +2731,18 @@ A dynamic coercion expression has the following form:
 expr :?> ty
 ```
 
-The expression downcast `e1` is equivalent to `expr :?> _` , so the target type is the same as the initial
-type of the overall expression. For example:
+The expression downcast `e1` is equivalent to `expr :?> _`, so the target type is the same as the initial
+type of the overall expression.
+
+In F# Native, use pattern matching for type-safe extraction:
 
 ```fsharp
-let obj1 = (1 :> obj)
-(obj1 :?> int)
-(obj1 :?> string)
-(downcast obj1 : int)
+type Value = IntVal of int | StrVal of string
+
+let extractInt (v: Value) : int option =
+    match v with
+    | IntVal i -> Some i
+    | StrVal _ -> None
 ```
 
 The initial type of the overall expression is `ty`. Expression `expr` is checked using a fresh initial type
@@ -2747,8 +2753,6 @@ The initial type of the overall expression is `ty`. Expression `expr` is checked
 - The type `tye` must not be sealed.
 - If type `ty` is sealed, or if `ty` is a variable type, or if type `tye` is not an interface type, then `ty :> tye`
     is asserted.
-
-Dynamic coercions are a primitive elaborated form.
 
 ## Quoted Expressions
 
@@ -3027,9 +3031,6 @@ At runtime, an elaborated application of a function `f e1 ... en` is evaluated a
     returned with an extended closure mapping `n` additional formal argument names to the
     argument values for `e1 ... em`.
 
-The result of calling the `obj.GetType()` method on the resulting object is under-specified (see
-[§](expressions.md#values-with-underspecified-object-identity-and-type-identity)).
-
 ### Evaluating Method Applications
 
 At runtime an elaborated application of a method is evaluated as follows:
@@ -3089,8 +3090,6 @@ At runtime, an elaborated function expression `(fun v1 ... vn -> expr)` is evalu
 - The expression evaluates to a function object with a closure that assigns values to all variables
     that are referenced in `expr` and a function body that is `expr`.
 - The values in the closure are the current values of those variables in the execution environment.
-- The result of calling the `obj.GetType()` method on the resulting object is under-specified (see
-    [§](expressions.md#values-with-underspecified-object-identity-and-type-identity)).
 
 ### Evaluating Object Expressions
 
@@ -3109,9 +3108,6 @@ is evaluated as follows:
     `ty0 (args-expr)` is executed as the first step in the construction of the object.
 - The object is given a closure that assigns values to all variables that are referenced in `expr`.
 - The values in the closure are the current values of those variables in the execution environment.
-
-The result of calling the `obj.GetType()` method on the resulting object is under-specified (see
-[§](expressions.md#values-with-underspecified-object-identity-and-type-identity)).
 
 ### Evaluating Definition Expressions
 
@@ -3230,27 +3226,19 @@ mutable static field.
 
 > **F# Native Note**: In F# Native, arrays are invariant and covariant array assignment is not supported. The type system statically prevents array type mismatches that would require runtime checks.
 
-### Values with Underspecified Object Identity and Type Identity
+### Values with Underspecified Object Identity
 
-F# supports operations that detect object identity—that is, whether two object references refer to the same "physical" object. For example, `obj.ReferenceEquals(obj1, obj2)` returns true if the two object references refer to the same object.
+> **F# Native Note**: This section describes reference equality semantics. In F# Native, there is no `obj` base type and no runtime type introspection. Equality and hashing are implemented through statically resolved type constraints. The operations `ReferenceEquals`, `GetType()`, and `GetHashCode()` from `System.Object` are not available.
 
-The results of these operations are underspecified when used with values of the following F# types:
+F# supports operations that detect object identity—that is, whether two references refer to the same "physical" location in memory.
+
+The results of identity-based operations are underspecified when used with values of the following F# types:
 
 - Function types
 - Tuple types
 - Immutable record types
 - Union types
-- Boxed immutable value types
 
-For two values of such types, the results of `obj.ReferenceEquals` and identity-based hash codes are underspecified; however, the operations terminate and do not raise exceptions. An implementation of F# is not required to define the results of these operations for values of these types.
+For two values of such types, the compiler may produce semantically equivalent but physically distinct values. An implementation of F# is not required to preserve or guarantee physical identity for values of these types.
 
-For function values and objects that are returned by object expressions, the results of the following operations are underspecified in the same way:
-
-- `obj.GetHashCode()`
-- `obj.GetType()`
-
-For union types the results of the following operations are underspecified in the same way:
-
-- `obj.GetType()`
-
-> **F# Native Note**: In F# Native, runtime type introspection via `GetType()` is not available since there is no runtime reflection. Equality and hashing are implemented through static type constraints rather than runtime dispatch.
+In F# Native, use structural equality (via `=` operator or `IEquatable<'T>` constraint) for value comparison rather than reference identity.

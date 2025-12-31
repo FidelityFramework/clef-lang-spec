@@ -520,8 +520,10 @@ interface IStructuralEquatable
 interface IStructuralComparable
 interface IComparable
 override GetHashCode : unit -> int
-override Equals : obj -> bool
+override Equals : 'T -> bool  // where 'T is the record type
 ```
+
+> **F# Native Note**: In F# Native, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
 
 The implicit implementations of these interfaces and overrides are described in [§](type-definitions.md#equality-hashing-and-comparison).
 
@@ -613,8 +615,10 @@ interface IStructuralEquatable
 interface IStructuralComparable
 interface IComparable
 override GetHashCode : unit -> int
-override Equals : obj -> bool
+override Equals : 'T -> bool  // where 'T is the union type
 ```
+
+> **F# Native Note**: In F# Native, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
 
 The implicit implementations of these interfaces and overrides are described in [§](type-definitions.md#equality-hashing-and-comparison).
 
@@ -773,8 +777,9 @@ type MyDerived(...) =
     inherit MyBase(...)
 ```
 
-If a class definition does not contain an `inherit` declaration, the class inherits from `obj` by
-default.
+If a class definition does not contain an `inherit` declaration, the class has no base type.
+
+> **F# Native Note**: In F# Native, there is no universal base type `obj`. Classes without an explicit `inherit` declaration are standalone types. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 The `inherit` declaration for a type must have arguments if and only if the type has a primary
 constructor.
@@ -949,8 +954,7 @@ constructor.
 
 If no primary constructor is present, additional constructors must initialize any `val` fields of the
 object that do not have the `DefaultValue` attribute. They must also specify a call to a base class
-constructor for any inherited class type. A call to a base class constructor is not required if the base
-class is `obj`.
+constructor for any inherited class type. A call to a base class constructor is not required if there is no base class.
 
 The use of additional object constructors and `val` fields is required if a class has multiple object
 constructors that must each call different base class constructors. For example:
@@ -1314,10 +1318,10 @@ type definition_ has as its values functions that are represented as delegate va
 type definition is declared by using the `delegate` keyword with a member signature. For example:
 
 ```fsharp
-type Handler<'T> = delegate of obj * 'T -> unit
+type Handler<'T, 'Sender> = delegate of 'Sender * 'T -> unit
 ```
 
-> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. They are used for native interop and callback scenarios. Platform bindings use the `Platform.Bindings` module convention rather than P/Invoke attributes.
+> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform bindings use the `Platform.Bindings` module convention rather than P/Invoke attributes.
 
 ## Exception Definitions
 
@@ -2247,7 +2251,7 @@ type BaseClass() =
 
 type SubClass(x: int) =
     inherit BaseClass()
-    override obj.AbstractMethod n = n + x
+    override this.AbstractMethod n = n + x
 
 let v1 = BaseClass() // not allowed – BaseClass is abstract
 let v2 = (SubClass(7) :> BaseClass)
@@ -2256,7 +2260,7 @@ v2.AbstractMethod 6 // evaluates to 13
 ```
 
 In this example, `BaseClass()` declares the abstract slot `AbstractMethod` and the `SubClass` type
-supplies an implementation member `obj.AbstractMethod`, which takes an argument `n` and returns
+supplies an implementation member `this.AbstractMethod`, which takes an argument `n` and returns
 the sum of `n` and the argument that was passed in the instantiation of `SubClass`. The `v2` object
 instantiates `SubClass` with the value `7`, so `v2.AbstractMethod 6` evaluates to `13`.
 
@@ -2267,11 +2271,11 @@ guaranteed to have an implementation. For example:
 ```fsharp
 type BaseClass() =
     abstract AbstractMethodWithDefaultImplementation : int -> int
-    default obj.AbstractMethodWithDefaultImplementation n = n
+    default this.AbstractMethodWithDefaultImplementation n = n
 
 type SubClass1(x: int) =
     inherit BaseClass()
-    override obj.AbstractMethodWithDefaultImplementation n = n + x
+    override this.AbstractMethodWithDefaultImplementation n = n + x
 
 type SubClass2() =
     inherit BaseClass()
@@ -2294,20 +2298,22 @@ that `default` be used only when the implementation is in the same class as the
 corresponding abstract definition; `override` should be used in other cases. This records
 the intended role of the member implementation.
 
-Implementations may override methods from `obj`:
+Implementations may override methods from base classes:
 
 ```fsharp
+[<AbstractClass>]
 type BaseClass() =
-    override obj.ToString() = "I'm an instance of BaseClass"
+    abstract member Format : unit -> string
+    default this.Format() = "BaseClass"
 
 type SubClass(x: int) =
     inherit BaseClass()
-    override obj.ToString() = "I'm an instance of SubClass"
+    override this.Format() = "SubClass with " + string x
 ```
 
-In this example, `BaseClass` inherits from `obj` and overrides the `ToString` method from
-that class. The `SubClass`, in turn, inherits from `BaseClass` and overrides its version of the `ToString`
-method.
+In this example, `BaseClass` defines an abstract `Format` method with a default implementation. The `SubClass` inherits from `BaseClass` and overrides the `Format` method.
+
+> **F# Native Note**: In F# Native, there is no universal `obj` base type with `ToString`, `Equals`, or `GetHashCode` methods. Types that need string representation, equality, or hashing implement the appropriate interfaces or members explicitly.
 
 Implementations may include abstract property members:
 
@@ -2320,10 +2326,10 @@ type BaseClass() =
     abstract AbstractSettableProperty : int with get, set
 
     abstract AbstractPropertyWithDefaultImplementation : int
-    default obj.AbstractPropertyWithDefaultImplementation = 3
+    default this.AbstractPropertyWithDefaultImplementation = 3
 
     abstract AbstractSettablePropertyWithDefaultImplementation : int with get, set
-    default obj.AbstractSettablePropertyWithDefaultImplementation
+    default this.AbstractSettablePropertyWithDefaultImplementation
         with get() = data2
         and set v = data2 <- v
 
@@ -2331,12 +2337,12 @@ type SubClass(x: int) =
     inherit BaseClass()
     let mutable data1b = 0
     let mutable data2b = 0
-    override obj.AbstractProperty = 3 + x
-    override obj.AbstractSettableProperty
+    override this.AbstractProperty = 3 + x
+    override this.AbstractSettableProperty
         with get() = data1b + x
         and set v = data1b <- v - x
-    override obj.AbstractPropertyWithDefaultImplementation = 6 + x
-    override obj.AbstractSettablePropertyWithDefaultImplementation
+    override this.AbstractPropertyWithDefaultImplementation = 6 + x
+    override this.AbstractSettablePropertyWithDefaultImplementation
         with get() = data2b + x
         and set v = data2b <- v - x
 ```
@@ -2352,16 +2358,16 @@ and overrides the default implementations for `AbstractPropertyWithDefaultImplem
 Implementation members may also implement events ([§](type-definitions.md#members-represented-as-events)). For example:
 
 ```fsharp
-type ChannelChangedHandler = delegate of obj * int -> unit
+type ChannelChangedHandler<'Sender> = delegate of 'Sender * int -> unit
 
 [<AbstractClass>]
 type BaseClass() =
-    abstract ChannelChanged : IEvent<ChannelChangedHandler, int>
+    abstract ChannelChanged : IEvent<ChannelChangedHandler<BaseClass>, int>
 
 type SubClass() =
     inherit BaseClass()
     let mutable channel = 7
-    let channelChanged = new Event<ChannelChangedHandler, int>()
+    let channelChanged = new Event<ChannelChangedHandler<SubClass>, int>()
 
     override self.ChannelChanged = channelChanged.Publish
     member self.Channel
@@ -2514,9 +2520,9 @@ These implicit declarations consist of the following for structural equality and
 
 ```fsharp
 override x.GetHashCode() = ...
-override x.Equals(y:obj) = ...
+override x.Equals(y: 'T) = ...  // where 'T is the type being defined
 interface IStructuralEquatable with
-    member x.Equals(yobj: obj, comparer: IEqualityComparer) = ...
+    member x.Equals(y: 'T, comparer: IEqualityComparer) = ...
     member x.GetHashCode(comparer: IEqualityComparer) = ...
 ```
 
@@ -2524,10 +2530,12 @@ The following declarations enable structural comparison:
 
 ```fsharp
 interface IComparable with
-    member x.CompareTo(y:obj) = ...
+    member x.CompareTo(y: 'T) = ...  // where 'T is the type being defined
 interface IStructuralComparable with
-    member x.CompareTo(yobj: obj, comparer: IComparer) = ...
+    member x.CompareTo(y: 'T, comparer: IComparer) = ...
 ```
+
+> **F# Native Note**: In F# Native, equality and comparison methods use the specific type rather than `obj`. The compiler generates type-safe implementations resolved at compile time through SRTP constraints.
 
 For exception types, implicit declarations for structural equality and hashings are generated, but
 declarations for structural comparison are not generated. Implicit declarations are never generated
@@ -2547,12 +2555,12 @@ FSharp.Core.CustomEquality
 
 The following table lists the effects of each attribute on a type:
 
-| Attrribute | Effect |
+| Attribute | Effect |
 | --- | --- |
 | `NoEquality` | ▪ No equality or hashing is generated for the type.<br>▪ The type does not satisfy the `ty : equality` constraint. |
-| `ReferenceEquality` | ▪ No equality or hashing is generated for the type.<br> ▪ The defaults for `obj` will implicitly be used. |
+| `ReferenceEquality` | ▪ No equality or hashing is generated for the type.<br> ▪ Pointer-based identity comparison is used. |
 | `StructuralEquality` | ▪ The type must be a structural type.<br>▪ All structural field types `ty` must satisfy `ty : equality`. |
-| `CustomEquality` | ▪ The type must have an explicit implementation of `override Equals(obj: obj)` |
+| `CustomEquality` | ▪ The type must have an explicit implementation of `override Equals(y: 'T)` where `'T` is the type. |
 | None |▪ For a non-structural type, the default is `ReferenceEquality`.<br>▪ For a structural type:<br>The default is `NoEquality` if any structural field type `F` fails `F : equality`.<br>The default is `StructuralEquality` if all structural field types `F` satisfy `F : equality`. |
 
 Equality inference also determines the _constraint dependencies_ of a generic structural type. That is:
@@ -2640,22 +2648,20 @@ are present, they may be used only in the following combinations:
 - `[<StructuralEquality; CustomComparison>]` on a structural type
 - `[<StructuralEquality; StructuralComparison>]` on a structural type
 
-### Behavior of the Generated Object.Equals Implementation
+### Behavior of the Generated Equals Implementation
 
-For a type definition `T`, the behavior of the generated `override x.Equals(y:obj) = ...`
+For a type definition `T`, the behavior of the generated `override x.Equals(y: T) = ...`
 implementation is as follows.
 
 1. If the interface `IComparable` has an explicit implementation, then just call
     `IComparable.CompareTo`:
 
     ```fsharp
-    override x.Equals(y : obj) =
+    override x.Equals(y: T) =
         ((x :> IComparable).CompareTo(y) = 0)
     ```
 
 2. Otherwise:
-    - Convert the `y` argument to type `T`. If the conversion fails, return `false`.
-    - Return `false` if `T` is a reference type and `y` is null.
     - If `T` is a struct or record type, invoke `FSharp.Core.Operators.(=)` on each corresponding pair
        of fields of `x` and `y` in declaration order. This method stops at the first `false` result and
        returns `false`.
@@ -2666,29 +2672,27 @@ implementation is as follows.
        two values, then on each corresponding field pair for the data carried by the exception. This
        method stops at the first `false` result and returns `false`.
 
+> **F# Native Note**: In F# Native, `Equals` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion or null reference check since the type system enforces correctness at compile time.
+
 ### Behavior of the Generated CompareTo Implementations
 
 For a type `T`, the behavior of the generated `IComparable.CompareTo` implementation is as
 follows:
 
-- Convert the `y` argument to type `T`. If the conversion fails, raise the `InvalidCastException`.
-- If `T` is a reference type and `y` is `null`, return `1`.
 - If `T` is a struct or record type, invoke `FSharp.Core.Operators.compare` on each corresponding pair
     of fields of `x` and `y` in declaration order, and return the first non-zero result.
 - If `T` is a union type, invoke `FSharp.Core.Operators.compare` first on the index of the union cases
     for the two values, and then on each corresponding field pair of `x` and `y` for the data carried by
     the union case. Return the first non-zero result.
 
-The first few lines of this code can be written:
+The implementation can be written:
 
 ```fsharp
 interface IComparable with
-    member x.CompareTo(y:obj) =
-        let y = (obj :?> T) in
-            match obj with
-            | null -> 1
-            | _ -> ...
+    member x.CompareTo(y: T) = ...
 ```
+
+> **F# Native Note**: In F# Native, `CompareTo` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion since the type system enforces type safety at compile time.
 
 ### Behavior of the Generated GetHashCode Implementations
 

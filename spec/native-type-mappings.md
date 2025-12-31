@@ -8,6 +8,85 @@ F# Native uses familiar F# syntax with native semantics. The compiler (FNCS) res
 
 **Principle**: Users write standard F# type names. FNCS provides native semantics transparently.
 
+## The Universal Base Type `obj` Is Not Available
+
+In managed F#, all types inherit from `System.Object` (aliased as `obj`). This enables:
+- Boxing value types to heap-allocated objects
+- Runtime type information and reflection
+- Heterogeneous collections (`obj list`)
+- Generic `%A` formatting via runtime inspection
+
+**F# Native eliminates `obj` entirely.** There is no universal base type. The compiler SHALL reject any code that references `obj` or `System.Object`.
+
+### Rationale
+
+| Managed F# Capability | Why It Requires `obj` | F# Native Alternative |
+|-----------------------|----------------------|----------------------|
+| Boxing (`box x`) | Wraps value in heap object | Not needed; value types stay value types |
+| Unboxing (`unbox x`) | Extracts value from object | Not available; no boxed values exist |
+| `%A` / `%O` formatting | Runtime type inspection | SRTP-based formatting with compile-time dispatch |
+| `obj list` | Heterogeneous collection | Discriminated union with explicit cases |
+| Downcasting (`:?>`) | Runtime type check | Pattern matching on discriminated unions |
+| `typeof<'T>` | Runtime type token | Not available; types are compile-time only |
+
+### Why `obj` Cannot Exist in Native Compilation
+
+1. **No runtime type information**: Native binaries do not carry type metadata. There is no mechanism to inspect a value's type at runtime.
+
+2. **No garbage collector**: The `obj` type implies heap allocation with GC-managed lifetime. F# Native uses deterministic, scope-based memory management.
+
+3. **Full static resolution**: All types are resolved at compile time. Generic type parameters are monomorphized (specialized at each call site). Type erasure to `obj` is unnecessary and would lose type safety.
+
+4. **SRTP replaces runtime dispatch**: Where managed F# uses `obj` and runtime dispatch (like `printf "%A"`), F# Native uses statically resolved type parameters with compile-time method resolution.
+
+### Migrating Code That Uses `obj`
+
+Code using `obj` must be refactored to use type-safe alternatives:
+
+**Heterogeneous collections:**
+```fsharp
+// DOES NOT COMPILE in F# Native
+let values : obj list = [box 1; box "hello"; box 3.14]
+
+// Use discriminated union instead
+type Value = 
+    | Int of int 
+    | Str of string 
+    | Float of float
+let values : Value list = [Int 1; Str "hello"; Float 3.14]
+```
+
+**Polymorphic formatting:**
+```fsharp
+// DOES NOT COMPILE in F# Native  
+let show (x: obj) = sprintf "%A" x
+
+// Use SRTP with operator overloading
+type Showable = Showable
+    with static member inline ($) (Showable, x: int) = intToString x
+         static member inline ($) (Showable, x: string) = x
+         // ... additional overloads
+
+let inline show x = Showable $ x
+```
+
+**Type-based dispatch:**
+```fsharp
+// DOES NOT COMPILE in F# Native
+let process (x: obj) =
+    match x with
+    | :? int as i -> handleInt i
+    | :? string as s -> handleString s
+    | _ -> handleOther ()
+
+// Use discriminated union with exhaustive matching
+type Input = IntInput of int | StringInput of string
+let process (x: Input) =
+    match x with
+    | IntInput i -> handleInt i
+    | StringInput s -> handleString s
+```
+
 ## Primitive Types
 
 ### Numeric Types
