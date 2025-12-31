@@ -92,7 +92,7 @@ delegate-type-defn :=
     type-name '=' delegate-sig
 
 delegate-sig :=
-    delegate of uncurried-sig -- CLI delegate definition
+    delegate of uncurried-sig -- delegate type definition
 
 type-extension :=
     type-name type-extension-elements
@@ -174,7 +174,7 @@ interface-spec :=
 For example:
 
 ```fsharp
-type int = System.Int32
+type MyInt = int
 type Color = Red | Green | Blue
 type Map<'T> = { entries: 'T[] }
 ```
@@ -442,8 +442,7 @@ For example, the following is not a valid type abbreviation.
 type Drop<'T,'U> = 'T * 'T // invalid: dropped type variable
 ```
 
-> Note : This restriction simplifies the process of guaranteeing a stable and consistent
-compilation to generic CLI code.
+> Note: This restriction simplifies the process of guaranteeing a stable and consistent compilation to generic native code.
 
 Flexible type constraints # _type_ may not be used on the right side of a type abbreviation, because
 they expand to a type variable that has not been named in the type arguments of the type
@@ -517,9 +516,9 @@ Record types implicitly implement the following interfaces and dispatch slots un
 explicitly implemented as part of the definition of the record type:
 
 ```fsharp
-interface System.Collections.IStructuralEquatable
-interface System.Collections.IStructuralComparable
-interface System.IComparable
+interface IStructuralEquatable
+interface IStructuralComparable
+interface IComparable
 override GetHashCode : unit -> int
 override Equals : obj -> bool
 ```
@@ -554,9 +553,7 @@ type Message =
     member x.Name = match x with Result(nm) -> nm | Request(_,nm) -> nm
 ```
 
-Union case names must begin with an uppercase letter, which is defined to mean any character for
-which the CLI library function `System.Char.IsUpper` returns `true` and `System.Char.IsLower` returns
-`false`.
+Union case names must begin with an uppercase letter, which is defined to mean any Unicode character in the "Lu" (uppercase letter) category.
 
 The union cases `Case1` ... `CaseN` have module scope and are added to the _ExprItems_ and _PatItems_
 tables in the name resolution environment. This means that their unqualified names can be used to
@@ -612,9 +609,9 @@ Union types implicitly implement the following interfaces and dispatch slots unl
 implemented as part of the definition of the union type:
 
 ```fsharp
-interface System.Collections.IStructuralEquatable
-interface System.Collections.IStructuralComparable
-interface System.IComparable
+interface IStructuralEquatable
+interface IStructuralComparable
+interface IComparable
 override GetHashCode : unit -> int
 override Equals : obj -> bool
 ```
@@ -776,7 +773,7 @@ type MyDerived(...) =
     inherit MyBase(...)
 ```
 
-If a class definition does not contain an `inherit` declaration, the class inherits `fromSystem.Object` by
+If a class definition does not contain an `inherit` declaration, the class inherits from `obj` by
 default.
 
 The `inherit` declaration for a type must have arguments if and only if the type has a primary
@@ -816,9 +813,9 @@ statements. The following rules apply to these definitions:
   - If a value definition is not mutable, and is not used in any function or member, then the
        value is represented as a local value in the object constructor.
   - If a value definition is mutable, or used in any function or member, then the value is
-       represented as an instance field in the corresponding CLI type.
+       represented as an instance field in the corresponding native type.
 - Function definitions are represented in compiled code as private members of the corresponding
-    CLI type.
+    native type.
     For example, consider this type:
 
     ```fsharp
@@ -843,19 +840,19 @@ Function and value definitions may have attributes as follows:
 
 - Value definitions represented as fields may have attributes that target fields.
 - Value definitions represented as locals may have attributes that target fields, but these
-    attributes will not be attached to any construct in the resulting CLI assembly.
+    attributes will not be attached to any construct in the resulting compiled output.
 - Function definitions represented as methods may have attributes that target methods.
 
 For example:
 
 ```fsharp
 type C(x:int) =
-    [<System.Obsolete>]
+    [<Obsolete>]
     let unused = x
     member __.P = 1
 ```
 
-In this example, no field is generated for `unused`, and no corresponding compiled CLI attribute is
+In this example, no field is generated for `unused`, and no corresponding compiled attribute is
 generated.
 
 #### Static Function and Value Definitions in Primary Constructors
@@ -874,11 +871,11 @@ statements that are marked as static:
     same way as static initializers for implementation files [§](program-structure-and-execution.md#program-execution).
 - The compiled representation for static value definitions is as follows:
   - If the value is not used in any function or member then the value is represented as a local
-       value in the CLI class initializer of the type.
+       value in the static initializer of the type.
   - If the value is used in any function or member, then the value is represented as a static field
-       of the CLI class for the type.
+       of the compiled type.
 - The compiled representation for a static function definition is a private static member of the
-    corresponding CLI type.
+    corresponding compiled type.
 
 Static function and value definitions may have attributes as follows:
 
@@ -903,7 +900,7 @@ printfn "check: %d = 6" (C<int>.P2)
 printfn "check: %d = 6" (C<string>.P2)
 ```
 
-In this example, the value `v` is represented as a static field in the CLI type for `C`. One instance of this
+In this example, the value `v` is represented as a static field in the compiled type for `C`. One instance of this
 field exists for each generic instantiation of `C`. The output of the program is
 
 ```fsother
@@ -953,7 +950,7 @@ constructor.
 If no primary constructor is present, additional constructors must initialize any `val` fields of the
 object that do not have the `DefaultValue` attribute. They must also specify a call to a base class
 constructor for any inherited class type. A call to a base class constructor is not required if the base
-class is `System.Object`.
+class is `obj`.
 
 The use of additional object constructors and `val` fields is required if a class has multiple object
 constructors that must each call different base class constructors. For example:
@@ -972,8 +969,7 @@ type SubClass =
 ```
 
 To implement additional object constructors, F# uses a restricted subset of expressions that ensure
-that the code generated for the constructor is valid according to the rules of object construction for
-CLI objects. Note that precisely one `additional-constr-init-expr` occurs for each branch of a
+that the code generated for the constructor is valid according to the rules of object construction. Note that precisely one `additional-constr-init-expr` occurs for each branch of a
 construction expression.
 
 For classes without a primary constructor, side effects can be performed after the initialization of
@@ -1095,7 +1091,7 @@ presence of any non-abstract members or constructors means a type is not an inte
 type.
 <br>
 By convention, interface type names start with `I`, as in `IEvent`. However, this convention
-is not followed as strictly in F# as in other CLI languages.
+is not enforced by the language.
 
 Interface types may be arranged hierarchically by specifying inherit declarations. For example:
 
@@ -1118,7 +1114,7 @@ whether references are circular.
 ## Struct Type Definitions
 
 A _struct type definition_ is a type definition whose instances are stored inline inside the stack frame or
-object of which they are a part. The type is represented as a CLI struct type, also called a _value type_.
+object of which they are a part. The type is represented as a value type with deterministic memory layout.
 For example:
 
 ```fsharp
@@ -1190,18 +1186,18 @@ not valid:
 ```fsharp
 [<Struct>]
 type BadStruct1 (def : int) =
-    do System.Console.WriteLine("Structs cannot use 'do'!")
+    do Console.WriteLine("Structs cannot use 'do'!")
 ```
 
-Structs may have static “let” or “do” statements. For example, the following is valid:
+Structs may have static "let" or "do" statements. For example, the following is valid:
 
 ```fsharp
 [<Struct>]
 type GoodStruct1 (def : int) =
-    static do System.Console.WriteLine("Structs can use 'static do'")
+    static do Console.WriteLine("Structs can use 'static do'")
 ```
 
-A struct type must be valid according to the CLI rules for structs; in particular, recursively
+A struct type must be valid according to the native compilation rules for structs; in particular, recursively
 constructed structs are not permitted. For example, the following type definition is not permitted,
 because the size of `BadStruct2` would be infinite:
 
@@ -1237,15 +1233,9 @@ type Complex(r : float, I : float) =
 let zero = Complex()
 ```
 
-> Note : The existence of the implicit default constructor for structs is not recorded in CLI
-metadata and is an artifact of the CLI specification and implementation itself. A CLI
-implementation permits default constructors for all struct types, although F# does not
-permit their direct use for F# struct types unless all field types admit default
-initialization. This is similar to the way that F# considers some types to have null as an
-abnormal value.
+> Note: The existence of the implicit default constructor for structs means that all struct types can be zero-initialized. F# does not permit direct use of default constructors for F# struct types unless all field types admit default initialization.
 <br>
-Public struct types for use from other CLI languages should be designed with the
-existence of the default zero-initializing constructor in mind.
+> **F# Native Note**: In F# Native, struct types are always default-constructible with zero-bit initialization. Public struct types should be designed with the existence of the default zero-initializing constructor in mind.
 
 [Record Type Defintions](#record-type-definitions) may also use the `[<Struct>]` attribute to change their representation from a reference type to a value type:
 
@@ -1291,8 +1281,7 @@ typing environment:
 - Brings a named type into scope.
 - Adds the named type to the inferred signature of the containing namespace or module.
 
-Enum types coerce to `System.Enum` and satisfy the `enum<underlying-type>` constraint for their
-underlying type.
+Enum types satisfy the `enum<underlying-type>` constraint for their underlying type.
 
 Each enum type declaration is implicitly annotated with the `RequiresQualifiedAccess` attribute and
 does not add the tags of the enumeration to the name environment.
@@ -1306,7 +1295,7 @@ type Color =
 let red = Red // not accepted, must use Color.Red
 ```
 
-Unlike unions, enumeration types are fundamentally “incomplete,” because CLI enumerations can
+Unlike unions, enumeration types are fundamentally "incomplete," because enumerations can
 be converted to and from their underlying primitive type representation. For example, a `Color` value
 that is not in the above enumeration can be generated by using the `enum` function from the F#
 library:
@@ -1320,28 +1309,19 @@ enumeration.
 
 ## Delegate Type Definitions
 
-Occasionally the need arises to represent a type that compiles as a CLI delegate type. A _delegate
-type definition_ has as its values functions that are represented as CLI delegate values. A delegate
+Occasionally the need arises to represent a type that compiles as a delegate type. A _delegate
+type definition_ has as its values functions that are represented as delegate values. A delegate
 type definition is declared by using the `delegate` keyword with a member signature. For example:
 
 ```fsharp
 type Handler<'T> = delegate of obj * 'T -> unit
 ```
 
-Delegates are often used when using Platform Invoke (P/Invoke) to interface with CLI libraries, as in
-the following example:
-
-```fsharp
-type ControlEventHandler = delegate of int -> bool
-
-[<DllImport("kernel32.dll")>]
-extern void SetConsoleCtrlHandler(ControlEventHandler callback, bool add)
-```
+> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. They are used for native interop and callback scenarios. Platform bindings use the `Platform.Bindings` module convention rather than P/Invoke attributes.
 
 ## Exception Definitions
 
-An _exception definition_ defines a new way of constructing values of type `exn` (a type abbreviation for
-`System.Exception`). Exception definitions have the form:
+An _exception definition_ defines a new way of constructing values of type `exn`. Exception definitions have the form:
 
 ```fsgrammar
 exception ident of type1 * ... * typen
@@ -1381,19 +1361,19 @@ exception ThatWentBadlyWrong of string * int
 exception ThatWentWrongBadly = ThatWentBadlyWrong
 
 let checkForBadDay() =
-    if System.DateTime.Today.DayOfWeek = System.DayOfWeek.Monday then
+    if Time.today().dayOfWeek = DayOfWeek.Monday then
         raise (ThatWentWrongBadly("yes indeed",123))
 ```
 
-Exception values may also be generated by defining and using classes that extend `System.Exception`.
+Exception values may also be generated by defining and using classes that extend `exn`.
 
 ## Type Extensions
 
 A _type extension_ associates additional members with an existing type. For example, the following
-associates the additional member `IsLong` with the existing type `System.String`:
+associates the additional member `IsLong` with the existing type `string`:
 
 ```fsharp
-type System.String with
+type string with
     member x.IsLong = (x.Length > 1000)
 ```
 
@@ -1480,47 +1460,21 @@ Extensions are checked as follows:
 - Extensions may not define fields, interfaces, abstract slots, inherit declarations, or dispatch slot
     (interface and override) implementations.
 - Extension members must be in modules.
-- Extension members are compiled as CLI static members with encoded names.
+- Extension members are compiled as static members with encoded names.
   - The elaborated form of an application of a static extension member `C.M(arg1, ..., argn)` is a call
        to this static member with arguments `arg1, ..., argn`.
   - The elaborated form of an application of an instance extension member `obj.M(arg1, ..., argn)`
        is an invocation of the static instance member where the object parameter is supplied as the
        first argument to the extension member followed by arguments `arg1 ... argn`.
 
-### Imported CLI C# Extensions Members
+### Extension Member Examples
 
-The CLI C# language defines an “extension member,” which commonly occurs in CLI libraries, along
-with some other CLI languages. C# limits extension members to instance methods.
-
-C#-defined extension members are made available to F# code in environments where the C#-
-authored assembly is referenced and an `open` declaration of the corresponding namespace is in
-effect.
-
-The encoding of compiled names for F# extension members is not compatible with C# encodings of
-C# extension members. However, for instance extension methods, the naming can be made
-compatible. For example:
+Extension members can be combined with the `inline` feature of F# to define generic, constrained extension members:
 
 ```fsharp
-open System.Runtime.CompilerServices
-
-[<Extension>]
-module EnumerableExtensions =
-    [<CompiledName("OutputAll"); Extension>]
-    type System.Collections.Generic.IEnumerable<'T> with
-        member x.OutputAll (this:seq<'T>) =
-            for x in this do
-                System.Console.WriteLine (box x)
-```
-
-C#-style extension members may also be declared directly in F#. When combined with the “inline”
-feature of F#, this allows the definition of generic, constrained extension members that are not
-otherwise definable in C# or F#.
-
-```fsharp
-[<Extension>]
-type ExtraCSharpStyleExtensionMethodsInFSharp () =
-    [<Extension>]
-    static member inline Sum(xs: seq<'T>) = Seq.sum xs
+module SeqExtensions =
+    type seq<'T> with
+        member inline xs.Sum() = Seq.sum xs
 ```
 
 Such an extension member can be used as follows:
@@ -1694,14 +1648,14 @@ example, in the following, the body of the member is evaluated each time `C.Time
 
 ```fsharp
 type C () =
-    static member Time = System.DateTime.Now
+    static member Time = Time.now()
 ```
 
 Note that a static property member may also be written with an explicit `get` method:
 
 ```fsharp
 static member ComputerName
-    with get() = System.Environment.GetEnvironmentVariable("COMPUTERNAME")
+    with get() = Environment.getVariable("COMPUTERNAME")
 ```
 
 Property members that have the same name may not appear in the same type definition even if
@@ -1785,8 +1739,7 @@ The `ident.~opt` can be present if and only if the property member is an instanc
 the identifier `ident` corresponds to the “this” (or “self”) variable associated with the object on which
 the member is being invoked.
 
-Arity analysis ([§](inference-procedures.md#arity-inference)) applies to method members. This is because F# members must compile to CLI
-methods, which accept only a single fixed collection of arguments.
+Arity analysis ([§](inference-procedures.md#arity-inference)) applies to method members. This is because F# members must compile to methods that accept only a single fixed collection of arguments.
 
 ### Curried Method Members
 
@@ -1806,12 +1759,8 @@ The following limitations apply to curried method members:
     arguments([§](type-definitions.md#named-arguments-to-method-members)).
 - Curried members may not be overloaded.
 
-The compiled representation of a curried method member is a .NET method in which the arguments
+The compiled representation of a curried method member is a native method in which the arguments
 are concatenated into a single argument group.
-
-> Note : It is recommended that curried argument members do not appear in the public
-API of an F# assembly that is designed for use from other .NET languages. Information
-about the currying order is not visible to these languages.
 
 ### Named Arguments to Method Members
 
@@ -1819,9 +1768,9 @@ Calls to methods—but not to let-bound functions or function values—may use n
 For example:
 
 ```fsharp
-System.Console.WriteLine(format = "Hello {0}", arg0 = "World")
-System.Console.WriteLine("Hello {0}", arg0 = "World")
-System.Console.WriteLine(arg0 = "World", format = "Hello {0}")
+Console.WriteLine(format = "Hello {0}", arg0 = "World")
+Console.WriteLine("Hello {0}", arg0 = "World")
+Console.WriteLine(arg0 = "World", format = "Hello {0}")
 ```
 
 The argument names that are associated with a method declaration are derived from the names
@@ -1846,7 +1795,7 @@ formal parameter of the same name or a “settable” return property of the sam
 the following code resolves the named argument to a settable property:
 
 ```fsharp
-System.Windows.Forms.Form(Text = "Hello World")
+Form(Text = "Hello World")
 ```
 
 If an ambiguity exists, assigning the named argument is assigned to a formal parameter rather than
@@ -1867,7 +1816,7 @@ For example, the following code is invalid:
 
 ```fsharp
 // error: unnamed args after named
-System.Console.WriteLine(arg0 = "World", "Hello {0}")
+Console.WriteLine(arg0 = "World", "Hello {0}")
 ```
 
 Similarly, the following code is invalid:
@@ -1900,9 +1849,9 @@ type C =
 ### Optional Arguments to Method Members
 
 Method members—but not functions definitions—may have optional arguments. F# supports
-two forms of optional arguments: F#-style optional arguments and CLI-compatible optional arguments.
+two forms of optional arguments: F#-style optional arguments and caller-side optional arguments.
 
-CLI-compatible optional arguments are handled on the **caller side**. When a method call omits
+Caller-side optional arguments are handled on the **caller side**. When a method call omits
 an optional argument, the compiler reads the default value from the method's metadata and
 explicitly passes that value. This contrasts with F#-style optional arguments, which are
 handled by the **callee**. With F#-style optional arguments, if an argument is omitted, the
@@ -1978,36 +1927,26 @@ signature is equivalent to using the `(?x:'a)` syntax in a method definition. If
 to an argument of a method, it should also be applied to all subsequent arguments of the method.
 Otherwise, it has no effect and callers must provide all of the arguments.
 
-#### CLI-Compatible Optional Arguments
+#### Caller-Side Optional Arguments with Default Values
 
-For interoperability with C# and other CLI languages, F# supports optional arguments with default values using
-the `Optional` and `DefaultParameterValue` attributes. This mechanism is equivalent to defining an optional
-argument in C# with a default value, such as `MyMethod(int i = 3)`. In F#, this would be written as:
+F# also supports optional arguments with default values using the `Optional` and `DefaultParameterValue` attributes:
 
 ```fsharp
-open System.Runtime.InteropServices
-
 type C() =
     static member MyMethod([<Optional; DefaultParameterValue(3)>] i: int) =
         i + 1
 ```
 
-These attributes are typically used for C# and VB interop so that callers in those languages see an argument as optional.
-They can also be from F# code in the same assembly and from separate assemblies.
-
-CLI-compatible optional arguments are not passed as values of type `Option<_>`. If the optional
+Caller-side optional arguments are not passed as values of type `Option<_>`. If the optional
 argument is present, its value is passed. If the optional argument is omitted, the default
-value from the CLI metadata is supplied instead. The value `System.Reflection.Missing.Value`
-is supplied for any CLI optional arguments of type `System.Object` that do not have a
-corresponding CLI default value, and the default (zero-bit pattern) value is supplied for
-other CLI optional arguments of other types that have no default value.
+value is supplied instead. The default (zero-bit pattern) value is supplied for
+optional arguments of types that have no explicit default value.
 
 ##### Allowable Default Values
 
 The `DefaultParameterValue` attribute accepts the following types of values:
 
 - **Primitive Types**: Constant values for `sbyte`, `byte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32`, `float`, and `string`.
-- **Reference Types**: The only allowed default value is `null`.
 - **Value Types**: The only allowed default value is the default value of the struct.
 
 ##### Usage and Considerations
@@ -2018,7 +1957,8 @@ For example, the following is not allowed:
 
 ```fsharp
 type Class() =
-  static member Wrong([<Optional; DefaultParameterValue("string")>] i:int) = ()```
+  static member Wrong([<Optional; DefaultParameterValue("string")>] i:int) = ()
+```
 
 This will be compiled as if it were written:
 ```fsharp
@@ -2026,29 +1966,11 @@ type Class() =
   static member Wrong(i:int) = ()
 ```
 
-Note that the `null` value for reference types must be type-annotated, for instance: `[<Optional; DefaultParameterValue(null:obj)>] o:obj`.
-
 It is possible to use these attributes in the following ways, though it is not standard practice:
 
 - Specifying `Optional` without `DefaultParameterValue`: Callers can omit the argument, and a default value will be chosen by convention (the default constructor for primitive types and structs).
 - Specifying `DefaultParameterValue` without `Optional`.
 - Specifying `Optional; DefaultParameterValue` on any parameter, not necessarily the last one.
-
-> Note : Imported CLI metadata may specify arguments as optional and may additionally
-specify a default value for the argument. CLI optional arguments can propagate an existing optional
-value by name; for example, `?ValueTitle = Some (...)`.
-<br>For example, here is a fragment of a call to a Microsoft Excel COM automation API that
-uses named and optional arguments.
-
-```fsharp
-    chartobject.Chart.ChartWizard(Source = range5,
-                                  Gallery = XlChartType.xl3DColumn,
-                                  PlotBy = XlRowCol.xlRows,
-                                  HasLegend = true,
-                                  Title = "Sample Chart",
-                                  CategoryTitle = "Sample Category Type",
-                                  ValueTitle = "Sample Value Type")
-```
 
 ### Type-directed Conversions at Member Invocations
 
@@ -2081,7 +2003,7 @@ delegate type, the following conversion can apply:
 type GenericClass<'T>() =
     static member M(arg: 'T) = ()
 
-GenericClass<System.Action>.M(fun () -> ()) // allowed
+GenericClass<Action>.M(fun () -> ()) // allowed
 ```
 
 #### Conversion to Reference Cells
@@ -2100,7 +2022,7 @@ For example:
 
 ```fsharp
 type C() =
-    static member M1(arg: System.Action) = ()
+    static member M1(arg: Action) = ()
     static member M2(arg: byref<int>) = ()
 
 C.M1(fun () -> ()) // allowed
@@ -2110,9 +2032,7 @@ let result = ref 0
 C.M2(result) // allowed
 ```
 
-> Note: These type-directed conversions are primarily for interoperability with existing
-member-based .NET libraries and do not apply at invocations of functions defined in
-modules or bound locally in expressions.
+> Note: These type-directed conversions are primarily for interoperability with existing member-based libraries and do not apply at invocations of functions defined in modules or bound locally in expressions.
 
 A value of type `ref<ty>` may be passed to a function that accepts a byref parameter. The interior
 address of the heap-allocated cell that is associated with such a parameter is passed as the pointer
@@ -2221,29 +2141,11 @@ argument of the form <@ ... @> is always considered to have a type of the form E
 in the same way that caller arguments of the form (fun x -> ...) are always assumed to
 have type of the form ``-> _`` (i.e. a function type)
 
-#### Conversion to LINQ Expressions
+#### Conversion to Quotation Expressions
 
-The third type-directed conversion enables an F# expression to be implicitly converted to a LINQ
-expression at a method call. Conversion is driven by an argument of type
-`System.Linq.Expressions.Expression`.
+The third type-directed conversion enables an F# expression to be implicitly converted to a quotation at a method call. This conversion enables meta-programming scenarios.
 
-```fsharp
-static member Plot(values:Expression<Func<int,int>>) = (...)
-```
-
-This attribute results in an implicit quotation from X --> <@ X @> at the callsite and a call for a
-helper function. So for
-
-```fsharp
-Chart.Plot(f x + f y)
-```
-
-the caller becomes:
-
-```fsharp
-Chart.Plot(FSharp.Linq.RuntimeHelpers.LeafExpressionConverter.
-QuotationToLambdaExpression <@ f x + f y @>)
-```
+> **F# Native Note**: F# Native supports code quotations for compile-time meta-programming. Runtime quotation evaluation is not available without a managed runtime.
 
 ### Overloading of Methods
 
@@ -2392,7 +2294,7 @@ that `default` be used only when the implementation is in the same class as the
 corresponding abstract definition; `override` should be used in other cases. This records
 the intended role of the member implementation.
 
-Implementations may override methods from System.Object:
+Implementations may override methods from `obj`:
 
 ```fsharp
 type BaseClass() =
@@ -2403,7 +2305,7 @@ type SubClass(x: int) =
     override obj.ToString() = "I'm an instance of SubClass"
 ```
 
-In this example, `BaseClass` inherits from `System.Object` and overrides the `ToString` method from
+In this example, `BaseClass` inherits from `obj` and overrides the `ToString` method from
 that class. The `SubClass`, in turn, inherits from `BaseClass` and overrides its version of the `ToString`
 method.
 
@@ -2447,15 +2349,13 @@ latter two. `SubClass` provides implementations for `AbstractProperty` and `Abst
 and overrides the default implementations for `AbstractPropertyWithDefaultImplementation` and
 `AbstractSettablePropertyWithDefaultImplementation`.
 
-Implementation members may also implement CLI events ([§](type-definitions.md#members-represented-as-events)). In this case, the member
-should be marked with the `CLIEvent` attribute. For example:
+Implementation members may also implement events ([§](type-definitions.md#members-represented-as-events)). For example:
 
 ```fsharp
 type ChannelChangedHandler = delegate of obj * int -> unit
 
 [<AbstractClass>]
 type BaseClass() =
-    [<CLIEvent>]
     abstract ChannelChanged : IEvent<ChannelChangedHandler, int>
 
 type SubClass() =
@@ -2463,16 +2363,13 @@ type SubClass() =
     let mutable channel = 7
     let channelChanged = new Event<ChannelChangedHandler, int>()
 
-    [<CLIEvent>]
     override self.ChannelChanged = channelChanged.Publish
     member self.Channel
         with get () = channel
         and set v = channel <- v; channelChanged.Trigger(self, channel)
 ```
 
-`BaseClass` implements the CLI event `IEvent`, so the abstract member `ChannelChanged` is marked with
-`[<CLIEvent>]` as described earlier in §8.13.10. SubClass provides an implementation of the abstract
-member, so the [<CLIEvent>] attribute must also precede the `override` declaration in `SubClass`.
+`BaseClass` includes an abstract event member `ChannelChanged`. `SubClass` provides an implementation of the abstract member.
 
 ### Interface Implementations
 
@@ -2504,9 +2401,9 @@ through inheritance. For example, the following is not permitted:
 // This type definition is not permitted because it implements two instantiations
 // of the same generic interface
 type ClassThatTriesToImplemenTwoInstantiations() =
-    interface System.IComparable<int> with
+    interface IComparable<int> with
         member x.CompareTo(n : int) = 0
-    interface System.IComparable<string> with
+    interface IComparable<string> with
         member x.CompareTo(n : string) = 1
 ```
 
@@ -2618,18 +2515,18 @@ These implicit declarations consist of the following for structural equality and
 ```fsharp
 override x.GetHashCode() = ...
 override x.Equals(y:obj) = ...
-    interface System.Collections.IStructuralEquatable with
-    member x.Equals(yobj: obj, comparer: System.Collections.IEqualityComparer) = ...
-    member x.GetHashCode(comparer: System.IEqualityComparer) = ...
+interface IStructuralEquatable with
+    member x.Equals(yobj: obj, comparer: IEqualityComparer) = ...
+    member x.GetHashCode(comparer: IEqualityComparer) = ...
 ```
 
 The following declarations enable structural comparison:
 
 ```fsharp
-interface System.IComparable with
+interface IComparable with
     member x.CompareTo(y:obj) = ...
-interface System.Collections.IStructuralComparable with
-    member x.CompareTo(yobj: obj, comparer: System.Collections.IComparer) = ...
+interface IStructuralComparable with
+    member x.CompareTo(yobj: obj, comparer: IComparer) = ...
 ```
 
 For exception types, implicit declarations for structural equality and hashings are generated, but
@@ -2653,7 +2550,7 @@ The following table lists the effects of each attribute on a type:
 | Attrribute | Effect |
 | --- | --- |
 | `NoEquality` | ▪ No equality or hashing is generated for the type.<br>▪ The type does not satisfy the `ty : equality` constraint. |
-| `ReferenceEquality` | ▪ No equality or hashing is generated for the type.<br> ▪ The defaults for `System.Object` will implicitly be used. |
+| `ReferenceEquality` | ▪ No equality or hashing is generated for the type.<br> ▪ The defaults for `obj` will implicitly be used. |
 | `StructuralEquality` | ▪ The type must be a structural type.<br>▪ All structural field types `ty` must satisfy `ty : equality`. |
 | `CustomEquality` | ▪ The type must have an explicit implementation of `override Equals(obj: obj)` |
 | None |▪ For a non-structural type, the default is `ReferenceEquality`.<br>▪ For a structural type:<br>The default is `NoEquality` if any structural field type `F` fails `F : equality`.<br>The default is `StructuralEquality` if all structural field types `F` satisfy `F : equality`. |
@@ -2680,7 +2577,7 @@ The following table lists the effects of each attribute on a type.
 | --- | --- |
 | `NoComparison` | ▪ No comparisons are generated for the type.<br>▪ The type does not satisfy the `ty : comparison` constraint. |
 | `StructuralComparison` | ▪ The type must be a structural type other than an exception type.<br>▪ All structural field types `ty` must satisfy `ty : comparison`.<br>▪ An exception type may not have the `StructuralComparison` attribute. |
-| `CustomComparison` | ▪ The type must have an explicit implementation of one or both of the following:<br>`interface System.IComparable`<br>`interface System.Collections.IStructuralComparable`<br>▪ A structural type that has an explicit implementation of one or both of these contracts must specify the `CustomComparison` attribute. |
+| `CustomComparison` | ▪ The type must have an explicit implementation of one or both of the following:<br>`interface IComparable`<br>`interface IStructuralComparable`<br>▪ A structural type that has an explicit implementation of one or both of these contracts must specify the `CustomComparison` attribute. |
 | None | ▪ For a non-structural or exception type, the default is `NoComparison`.<br>▪ For any other structural type:<br>The default is `NoComparison` if any structural field type `F` fails `F : comparison`.<br>The default is `StructuralComparison` if all structural field types `F` satisfy `F : comparison`. |
 
 This check also determines the _constraint dependencies_ of a generic structural type. That is:
@@ -2717,8 +2614,8 @@ type R2 =
 
 [<StructuralEquality; NoComparison >]
 type R3 =
-    { someType : System.Type }
-    static member Make() = { someType = typeof<int> }
+    { someField : int }
+    static member Make() = { someField = 42 }
 ```
 
 then the following expressions all evaluate to `true`:
@@ -2748,12 +2645,12 @@ are present, they may be used only in the following combinations:
 For a type definition `T`, the behavior of the generated `override x.Equals(y:obj) = ...`
 implementation is as follows.
 
-1. If the interface `System.IComparable` has an explicit implementation, then just call
-    `System.IComparable.CompareTo`:
+1. If the interface `IComparable` has an explicit implementation, then just call
+    `IComparable.CompareTo`:
 
     ```fsharp
     override x.Equals(y : obj) =
-        ((x :> System.IComparable).CompareTo(y) = 0)
+        ((x :> IComparable).CompareTo(y) = 0)
     ```
 
 2. Otherwise:
@@ -2771,7 +2668,7 @@ implementation is as follows.
 
 ### Behavior of the Generated CompareTo Implementations
 
-For a type `T`, the behavior of the generated `System.IComparable.CompareTo` implementation is as
+For a type `T`, the behavior of the generated `IComparable.CompareTo` implementation is as
 follows:
 
 - Convert the `y` argument to type `T`. If the conversion fails, raise the `InvalidCastException`.
@@ -2785,7 +2682,7 @@ follows:
 The first few lines of this code can be written:
 
 ```fsharp
-interface System.IComparable with
+interface IComparable with
     member x.CompareTo(y:obj) =
         let y = (obj :?> T) in
             match obj with
@@ -2795,7 +2692,7 @@ interface System.IComparable with
 
 ### Behavior of the Generated GetHashCode Implementations
 
-For a type `T`, the generated `System.Object.GetHashCode()` override implements a combination hash
+For a type `T`, the generated `GetHashCode()` override implements a combination hash
 of the structural elements of a structural type.
 
 ### Behavior of Hash, =, and Compare
@@ -2806,7 +2703,7 @@ library functions is defined by the pseudocode later in this section. This code 
 
 - Ordinal comparison for strings
 - Structural comparison for arrays
-- Natural ordering for native integers (which do not support `System.IComparable`)
+- Natural ordering for native integers (which do not support `IComparable`)
 
 #### Pseudocode for FSharp.Core.Operators.compare
 

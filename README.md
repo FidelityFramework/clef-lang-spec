@@ -186,9 +186,9 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 4 | Basic Grammar Elements | `basic-grammar-elements.md` | Stable |
 | 5 | Types and Type Constraints | `types-and-type-constraints.md` | Revised |
 | 6 | **Native Type Mappings** | `native-type-mappings.md` | **New** |
-| 7 | Expressions | `expressions.md` | Review |
+| 7 | Expressions | `expressions.md` | Revised |
 | 8 | Patterns | `patterns.md` | Stable |
-| 9 | Type Definitions | `type-definitions.md` | Review |
+| 9 | Type Definitions | `type-definitions.md` | Revised |
 | 10 | Units of Measure | `units-of-measure.md` | Stable |
 | 11 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
 | 12 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |

@@ -197,7 +197,7 @@ Additionally:
 Checking an expression generates an _elaborated expression_ in a simpler, reduced language that
 effectively contains a fully resolved and annotated form of the expression. The elaborated
 expression provides more explicit information than the source form. For example, the elaborated
-form of `System.Console.WriteLine("Hello")` indicates exactly which overloaded method definition
+form of `Console.WriteLine("Hello")` indicates exactly which overloaded method definition
 the call has resolved to.
 <!-- Elaborated forms are underlined in this specification, for example, <u>let x = 1 in x + x</u>. -->
 
@@ -230,7 +230,7 @@ form. This specification uses the following elaborated forms:
 
 The following constructs are used in the elaborated forms of expressions that make direct
 assignments to local variables and arrays and generate “byref” pointer values. The operations are
-loosely named after their corresponding primitive constructs in the CLI.
+These are low-level operations for pointer manipulation.
 
 - Assigning to a byref-pointer: `expr <-stobj expr`
 - Generating a byref-pointer by taking the address of a mutable value: `&path`.
@@ -283,17 +283,17 @@ Simple constant expressions are numeric, string, Boolean and unit constants. For
 1.0f            // float32/single
 1.01f           // float32/single
 1.01e10f        // float32/single
-99999999n       // nativeint    (System.IntPtr)
-10328273un      // unativeint   (System.UIntPtr)
-99999999I       // bigint       (System.Numerics.BigInteger or user-specified)
-'a'             // char         (System.Char)
-"3"             // string       (String)
-"c:\\home"      // string       (System.String)
-@"c:\home"      // string       (Verbatim Unicode, System.String)
+99999999n       // nativeint    (platform-sized signed integer)
+10328273un      // unativeint   (platform-sized unsigned integer)
+99999999I       // bigint       (arbitrary precision integer)
+'a'             // char         (Unicode scalar value)
+"3"             // string       (UTF-8 string)
+"c:\\home"      // string       (UTF-8 string)
+@"c:\home"      // string       (Verbatim, UTF-8 string)
 "ASCII"B        // byte[]
-()              // unit         (FSharp.Core.Unit)
-false           // bool         (System.Boolean)
-true            // bool         (System.Boolean)
+()              // unit         (zero-sized type)
+false           // bool         (8-bit boolean)
+true            // bool         (8-bit boolean)
 ```
 
 Simple constant expressions have the corresponding simple type and elaborate to the corresponding
@@ -344,9 +344,9 @@ let pair = struct (1,2)
 
 A _struct tuple expression_ is checked in the same way as a _tuple expression_, but the pseudo-type `S` is resolved to struct tuple.
 
-> **F# Native Note**: In F# Native, all tuples are native product types with direct memory layout. There is no distinction between "reference tuples" and "struct tuples" at the representation level - both compile to unboxed values. The `struct` keyword is accepted for compatibility with managed F# code.
->
-> Tuple types `ty1 * ... * tyn` are represented as contiguous memory containing each element in order. For example, `int * string * bool` is laid out as the fields `int`, followed by `string` (a fat pointer), followed by `bool`, with appropriate padding for alignment.
+Tuple types `ty1 * ... * tyn` are compiled to native product types with sequential field layout. There is no limit on tuple arity in F# Native.
+
+> **F# Native Note**: In F# Native, tuples are compiled directly to unboxed product types with deterministic memory layout. Fields are laid out sequentially with natural alignment. There is no distinction between "reference tuples" and "struct tuples" - both compile to value types with the same representation. The `struct` keyword on tuples is accepted for source compatibility with managed F#.
 
 ### List Expressions
 
@@ -373,8 +373,9 @@ Array expressions are a primitive elaborated form.
 
 > Note: The F# implementation ensures that large arrays of constants of type `bool`, `char`,
 `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, and `uint64` are compiled to an efficient
-binary representation based on a call to
-`System.Runtime.CompilerServices.RuntimeHelpers.InitializeArray`.
+binary representation.
+
+> **F# Native Note**: In F# Native, constant arrays are placed in read-only data sections of the binary and initialized directly from the executable image.
 
 ### Record Expressions
 
@@ -565,35 +566,34 @@ For example:
 
 ```fsharp
 let obj1 =
-    { new System.Collections.Generic.IComparer<int> with
+    { new IComparer<int> with
         member x.Compare(a,b) = compare (a % 7) (b % 7) }
 
 let obj2 =
-    { new System.Object() with
+    { new obj() with
         member x.ToString () = "Hello" }
 
 let obj3 =
-    { new System.Object() with
+    { new obj() with
         member x.ToString () = "Hello, base.ToString() = " + base.ToString() }
 
 let obj4 =
-    { new System.Object() with
+    { new obj() with
         member x.Finalize() = printfn "Finalize";
-    interface System.IDisposable with
+    interface IDisposable with
         member x.Dispose() = printfn "Dispose"; }
 ```
 
 An object expression can specify additional interfaces beyond those required to fulfill the abstract
 slots of the type being implemented. For example, `obj4` in the preceding examples has static type
-`System.Object` but the object additionally implements the interface `System.IDisposable`. The
-additional interfaces are not part of the static type of the overall expression, but can be revealed
-through type tests.
+`obj` but the object additionally implements the interface `IDisposable`. The additional interfaces
+are not part of the static type of the overall expression, but can be revealed through type tests.
 
 Object expressions are statically checked as follows.
 
 1. First, `ty0` to `tyn` are checked to verify that they are named types. The overall type of the
 expression is `ty0` and is asserted to be equal to the initial type of the expression. However, if `ty0`
-is type equivalent to `System.Object` and `ty1` exists, then the overall type is instead `ty1`.
+is type equivalent to `obj` and `ty1` exists, then the overall type is instead `ty1`.
 
 2. The type `ty0` must be a class or interface type. The base construction argument `args-expr` must
     appear if and only if `ty0` is a class type. The type must have one or more accessible constructors;
@@ -618,15 +618,14 @@ Object expressions elaborate to a primitive form. At execution, each object expr
 object whose runtime type is compatible with all of the `tyi` that have a dispatch map that is the
 result of _dispatch slot checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
 
-The following example shows how to both implement an interface and override a method from
-`System.Object`. The overall type of the expression is `INewIdentity`.
+The following example shows how to both implement an interface and override a method. The overall type of the expression is `INewIdentity`.
 
 ```fsharp
 type public INewIdentity =
     abstract IsAnonymous : bool
 
 let anon =
-{ new System.Object() with
+{ new obj() with
     member i.ToString() = "anonymous"
   interface INewIdentity with
     member i.IsAnonymous = true }
@@ -643,11 +642,13 @@ lazy (printfn "hello world")
 is syntactic sugar for
 
 ```fsharp
-new System.Lazy (fun () -> expr )
+Lazy.create (fun () -> expr)
 ```
 
-The behavior of the `System.Lazy` library type ensures that expression `expr` is evaluated on demand in
+The behavior of the `Lazy` type ensures that expression `expr` is evaluated on demand in
 response to a `.Value` operation on the lazy value.
+
+> **F# Native Note**: In F# Native, `Lazy<'T>` is a value type that stores a thunk and memoizes its result on first evaluation. There is no garbage collector involvement.
 
 ### Computation Expressions
 
@@ -1215,7 +1216,7 @@ type AsyncBuilder with
     member Return : 'T -> Async<'T>
     member Delay : (unit -> Async<'T>) -> Async<'T>
     member Using: 'T * ('T -> Async<'U>) -> Async<'U>
-        when 'U :> System.IDisposable
+        when 'U :> IDisposable
     member Bind: Async<'T> * ('T -> Async<'U>) -> Async<'U>
     member TryFinally: Async<'T> * (unit -> unit) -> Async<'T>
     member TryWith: Async<'T> * (exn -> Async<'T>) -> Async<'T>
@@ -1248,7 +1249,7 @@ module Eventually =
 
     type OkOrException<'T> =
         | Ok of 'T
-        | Exception of System.Exception
+        | Exception of exn
 
     /// The catch for the computations. Stitch try/with throughout
     /// the computation and return the overall result as an OkOrException.
@@ -1301,7 +1302,7 @@ module Eventually =
         e1 |> bind (fun () -> e2)
 
     /// The using operator.
-    let using (resource: #System.IDisposable) f =
+    let using (resource: #IDisposable) f =
         tryFinally (f resource) (fun () -> resource.Dispose())
 
     /// The forLoop operator.
@@ -1464,7 +1465,7 @@ let x2 = [ yield 1; yield 2 ]
 
 ```fsharp
 let x3 = [ yield 1
-           if System.DateTime.Now.DayOfWeek = System.DayOfWeek.Monday then
+           if Time.now().dayOfWeek = DayOfWeek.Monday then
                yield 2]
 ```
 
@@ -1485,7 +1486,7 @@ For example:
 ```fsharp
 let x2 = [| yield 1; yield 2 |]
 let x3 = [| yield 1
-    if System.DateTime.Now.DayOfWeek = System.DayOfWeek.Monday then
+    if Time.now().dayOfWeek = DayOfWeek.Monday then
         yield 2 |]
 ```
 
@@ -1533,8 +1534,8 @@ where:
 | `%X` | Basic integer type formatted as an unsigned hexadecimal integer with uppercase letters A through F. |
 | `%o` | Basic integer type formatted as an unsigned octal integer. |
 | `%e, %E, %f, %F, %g, %G` | `float` or `float32`, possibly with a unit of measure|
-| `%M` | `System.Decimal`, possibly with a unit of measure |
-| `%O` | `System.Object`, possibly with a unit of measure |
+| `%M` | `decimal`, possibly with a unit of measure |
+| `%O` | `obj`, possibly with a unit of measure |
 | `%A` | Fresh variable type `'T` |
 | `%a` | Formatter of type `'State -> 'T -> 'Residue` for a fresh variable type `'T` |
 | `%t` | Formatter of type `'State -> 'Residue` |
@@ -1562,32 +1563,32 @@ applications, type applications, and item lookups, as shown in the following tab
 The following are examples of application expressions:
 
 ```fsharp
-System.Math.PI
-System.Math.PI.ToString()
+Math.PI
+Math.PI.ToString()
 (3 + 4).ToString()
-System.Environment.GetEnvironmentVariable("PATH").Length
-System.Console.WriteLine("Hello World")
+Environment.getVariable("PATH").Length
+Console.WriteLine("Hello World")
 ```
 
 Application expressions may start with object construction expressions that do not include the `new`
 keyword:
 
 ```fsharp
-System.Object()
-System.Collections.Generic.List<int>(10)
-System.Collections.Generic.KeyValuePair(3,"Three")
-System.Object().GetType()
-System.Collections.Generic.Dictionary<int,int>(10).[1]
+MyRecord()
+List<int>(10)
+KeyValuePair(3,"Three")
+MyType().GetProperty()
+Map<int,int>.empty.[1]
 ```
 
 If the `long-ident-or-op` starts with the special pseudo-identifier keyword `global`, F# resolves the
 identifier with respect to the global namespace — that is, ignoring all `open` directives (see [§](inference-procedures.md#resolving-application-expressions)). For example:
 
 ```fsharp
-global.System.Math.PI
+global.Alloy.Math.PI
 ```
 
-is resolved to `System.Math.PI` ignoring all `open` directives.
+is resolved to `Alloy.Math.PI` ignoring all `open` directives.
 
 The checking of application expressions is described in detail as an algorithm in [§](inference-procedures.md#resolving-application-expressions). To check an
 application expression, the expression form is repeatedly decomposed into a _lead_ expression `expr`
@@ -1610,8 +1611,8 @@ Additional constructs may be inserted when resolving method calls into simpler p
 
 - The use of a method or value as a first-class function may result in a function expression.
 
-    For example, `System.Environment.GetEnvironmentVariable` elaborates to:
-    `(fun v -> System.Environment.GetEnvironmentVariable(v))`
+    For example, `Environment.getVariable` elaborates to:
+    `(fun v -> Environment.getVariable(v))`
     for some fresh variable `v`.
 
 - The use of post-hoc property setters results in the insertion of additional assignment and
@@ -1793,12 +1794,9 @@ code; when possible, a warning or error is generated. In general, their use is r
 Addresses that are generated by the `&&` operator must not be passed to functions that are in tail call
 position. The F# compiler does not check for this.
 
-Direct uses of `byref` types, `nativeptr` types, or values in the `FSharp.NativeInterop` module may
-result in invalid or unverifiable CIL code. In particular, `byref` and `nativeptr` types may NOT be used
-within named types such as tuples or function types.
+Direct uses of `byref` types, `nativeptr` types, or values in the `FSharp.NativeInterop` module require careful attention to memory safety. In particular, `byref` and `nativeptr` types may NOT be used within named types such as tuples or function types.
 
-When calling an existing CLI signature that uses a CLI pointer type `ty*`, use a value of type
-`nativeptr<ty>`.
+> **F# Native Note**: In F# Native, `nativeptr<ty>` maps directly to a native pointer type. When interfacing with native code that uses a pointer type `ty*`, use a value of type `nativeptr<ty>`.
 
 > Note: The rules in this section apply to the following prefix operators, which are defined
 in the F# core library for use with one argument.
@@ -2228,12 +2226,12 @@ try
         | _ -> ()
 finally
     match box(v) with
-    | :? System.IDisposable as d - > d .Dispose()
+    | :? IDisposable as d -> d.Dispose()
     | _ -> ()
 ```
 
-If the assertion fails, the type `tyexpr` may also be of any static type that satisfies the “collection
-pattern” of CLI libraries. If so, the _enumerable extraction_ process is used to enumerate the type. In
+If the assertion fails, the type `tyexpr` may also be of any static type that satisfies the "collection
+pattern" of the standard library. If so, the _enumerable extraction_ process is used to enumerate the type. In
 particular, `tyexpr` may be any type that has an accessible GetEnumerator method that accepts zero
 arguments and returns a value that has accessible MoveNext and Current properties. The type of `pat`
 is the same as the return type of the Current property on the enumerator value. However, if the
@@ -2307,7 +2305,7 @@ syntax rule for lightweight syntax applies ([§](lexical-filtering.md#basic-ligh
 For example:
 
 ```fsharp
-while System.DateTime.Today.DayOfWeek = System.DayOfWeek.Monday do
+while Time.today().dayOfWeek = DayOfWeek.Monday do
     printfn "I don't like Mondays"
 ```
 
@@ -2331,11 +2329,11 @@ try
     failwith "fail"
 with
     | Failure msg -> "caught"
-    | :? System.InvalidOperationException -> "unexpected"
+    | :? InvalidOperationException -> "unexpected"
 ```
 
 Expression `expr` is checked with the same initial type as the overall expression. The pattern matching
-clauses are then checked with the same initial type and with input type `System.Exception`.
+clauses are then checked with the same initial type and with input type `exn`.
 
 Try-with expressions are a primitive elaborated form.
 
@@ -2389,10 +2387,9 @@ An _assertion expression_ has the following form:
 assert expr
 ```
 
-The expression `assert expr` is syntactic sugar for `System.Diagnostics.Debug.Assert(expr)`
+The expression `assert expr` evaluates `expr` and triggers a runtime assertion failure if the result is `false`.
 
-> Note: `System.Diagnostics.Debug.Assert` is a conditional method call. This means that
-assertions are triggered only if the DEBUG conditional compilation symbol is defined.
+> **F# Native Note**: In F# Native, assertions are controlled by the `DEBUG` conditional compilation symbol. When disabled, assertion expressions are elided entirely. When enabled, a failed assertion causes program termination with diagnostic output.
 
 ## Definition Expressions
 
@@ -2586,7 +2583,7 @@ use ident = expr1 in expr2
 For example:
 
 ```fsharp
-use inStream = System.IO.File.OpenText "input.txt"
+use inStream = File.openText "input.txt"
 let line1 = inStream.ReadLine()
 let line2 = inStream.ReadLine()
 (line1,line2)
@@ -2599,22 +2596,21 @@ let ident1 : ty1 = expr1 in expr2.
 ```
 
 Only one value may be defined by a deterministic disposal expression, and the definition is not
-generalized ([§](inference-procedures.md#generalization)). The type `ty1` must implement the `IDisposable` interface. The `Dispose` method is called
-on the value when the value goes out of scope. Thus the overall expression elaborates to this:
+generalized ([§](inference-procedures.md#generalization)). The type `ty1` , is then asserted to be a subtype of `IDisposable`. The `Dispose` method is called on the value when the value goes out of scope. Thus the overall expression elaborates to this:
 
 ```fsgrammar
 let ident1 : ty1 = expr1
 try expr2
-finally ident.Dispose()
+finally (ident :> IDisposable).Dispose()
 ```
 
-> **F# Native Note**: Since F# Native is null-free, the disposal call is unconditional. The value is always valid when Dispose is called.
+> **F# Native Note**: In F# Native, `use` bindings provide deterministic resource cleanup. Unlike managed F#, there is no null check required since F# Native is null-free by construction.
 
 ### Pinned Pointer Expressions
 
-A _pinned pointer expression_ allows a pointer to be extracted from an expression and bound to a name. This feature is intended for low-level programming scenarios where a stable address is required.
+A _pinned pointer expression_ allows a pointer to be extracted from an expression and bound to a name, ensuring the value remains at a fixed memory address for the scope of the binding. This feature is intended for low-level programming scenarios.
 
-> **F# Native Note**: Since F# Native uses deterministic memory management without garbage collection, the `fixed` keyword primarily serves to extract and bind a typed pointer for the scope of the expression.
+> **F# Native Note**: In F# Native, `fixed` expressions are primarily used for interoperability with native APIs that require stable pointers. Since F# Native uses deterministic memory management without a moving collector, the pinning semantic ensures the pointer remains valid for the binding scope.
 
 A pinned pointer expression has the following form:
 
@@ -2967,13 +2963,11 @@ The `VolatileField` attribute marks a mutable location as volatile, ensuring mem
 
 ### Zero Values
 
-Some types have a _zero value_. The zero value is the "default" value for the type:
+Some types have a _zero value_. The zero value is the "default" value for the type. The following types have the following zero values:
 
-- For numeric types, zero.
-- For boolean, `false`.
-- For struct types, the value with all fields set to the zero value for the type of the field.
+- For struct types, the value with all fields set to the zero value for the type of the field. The zero value is also computed by the F# library function `Unchecked.defaultof<ty>`.
 
-The zero value is computed by the library function `Unchecked.defaultof<ty>`.
+> **F# Native Note**: In F# Native, reference types do not have a null zero value since F# Native is null-free by construction. The `Unchecked.defaultof<ty>` function returns a zero bit pattern for struct types only; it is a compile-time error to use it with reference types.
 
 ### Taking the Address of an Elaborated Expression
 
@@ -2987,7 +2981,7 @@ The `AddressOf` operation is computed as follows:
 
 - If `expr` has form `path` where `path` is a reference to a value with type `byref<ty>`, the elaborated
     form is `&path`.
-- If `expr` has form `expra.field` where `field` is a mutable field, the elaborated
+- If `expr` has form `expra.field` where `field` is a mutable, non-readonly field, the elaborated
     form is `&(AddressOf(expra).field)`.
 - If `expr` has form expra.[exprb] where the operation is an array lookup, the elaborated form is
     `&(AddressOf(expra).[exprb])`.
@@ -3005,7 +2999,15 @@ assumption changes the errors and warnings reported.
 - If `mutation` is `DefinitelyMutates`, then an error is given if a defensive copy must be created.
 - If `mutation` is `PossiblyMutates`, then a warning is given if a defensive copy arises.
 
-An F# compiler can optionally upgrade `PossiblyMutates` to `DefinitelyMutates` for calls to property setters and methods named `MoveNext` and `GetNextArg`, which are common cases of struct-mutators.
+An F# compiler can optionally upgrade `PossiblyMutates` to `DefinitelyMutates` for calls to property
+setters and methods named `MoveNext` and `GetNextArg`, which are common cases of struct-mutators. This is done by the F# compiler.
+
+> Note: In F#, the warning "copy due to possible mutation of value type" is a level 4
+  warning and is not reported when using the default settings of the F# compiler. This is
+  because the majority of value types are immutable. This is warning number 52 in the F# implementation.
+  <br> Unless a value is held in arrays or locations marked mutable, or a value type
+  is known to be immutable to the F# compiler, F# inserts copies to ensure that
+  inadvertent mutation does not occur.
 
 ### Evaluating Value References
 
@@ -3033,7 +3035,8 @@ The result of calling the `obj.GetType()` method on the resulting object is unde
 At runtime an elaborated application of a method is evaluated as follows:
 
 - The elaborated form is `e0.M(e1 , ..., en)` for an instance method or `M(e, ..., en)` for a static method.
-- The (optional) `e0` and `e1` ,..., _en_ are evaluated in order. For instance methods, `e0` evaluates to a valid instance (F# Native is null-free by construction).
+- The (optional) `e0` and `e1` ,..., _en_ are evaluated in order.
+- If `e0` evaluates to `null`, a `NullReferenceException` is raised.
 - If the method is declared `abstract` — that is, if it is a virtual dispatch slot — then the body of the
     member is chosen according to the dispatch maps of the value of `e0` ([§](inference-procedures.md#dispatch-slot-checking)).
 - The formal parameters of the method are mapped to corresponding argument values. The body
@@ -3045,16 +3048,23 @@ At runtime, an elaborated use of a union case `Case(e1 , ..., en)` for a union t
 follows:
 
 - The expressions `e1, ..., en` are evaluated in order.
-- The result of evaluation is a value with union case label `Case` and fields given by the
+- The result of evaluation is an object value with union case label `Case` and fields given by the
     values of `e1 , ..., en`.
+- If the type `ty` uses null as a representation ([§](types-and-type-constraints.md#nullness)) and `Case` is the single union case without
+    arguments, the generated value is `null`.
+- The runtime type of the object is either `ty` or an internally generated type that is compatible
+    with `ty`.
 
 ### Evaluating Field Lookups
 
-At runtime, an elaborated lookup of a field is evaluated as follows:
+At runtime, an elaborated lookup of an F# field is evaluated as follows:
 
 - The elaborated form is `expr.F` for an instance field or `F` for a static field.
-- The (optional) `expr` is evaluated to a valid instance (F# Native is null-free by construction).
-- The value of the field is read from the instance or the global field table for static fields.
+- The (optional) `expr` is evaluated.
+- The value of the field is read from either the global field table or the local field table associated
+    with the object.
+
+> **F# Native Note**: In F# Native, there is no null reference check since all references are valid by construction.
 
 ### Evaluating Array Expressions
 
@@ -3128,38 +3138,51 @@ As runtime, while-loops `while expr1 do expr2 done` are evaluated as follows:
 - Expression `expr1` is evaluated to a value `v1`.
 - If `v1` is true, expression `expr2` is evaluated, and the expression `while expr1 do expr2 done` is
     evaluated again.
-- If `v1` is `false`, the loop terminates and the resulting value is `()` (the unit value).
+- If `v1` is `false`, the loop terminates and the resulting value is `null` (the representation of the only
+    value of type `unit`)
 
 ### Evaluating Static Coercion Expressions
 
 At runtime, elaborated static coercion expressions of the form `expr :> ty` are evaluated as follows:
 
 - Expression `expr` is evaluated to a value `v`.
-- The expression evaluates to `v` with its type statically known as `ty`.
-
-> **F# Native Note**: Static coercions in F# Native do not involve boxing. Value types remain unboxed.
+- If the static type of `e` is a value type, and `ty` is a reference type, `v` is _boxed_ ; that is, `v` is converted
+    to an object on the heap with the same field assignments as the original value. The expression
+    evaluates to a reference to this object.
+- Otherwise, the expression evaluates to `v`.
 
 ### Evaluating Dynamic Type-Test Expressions
 
 At runtime, elaborated dynamic type test expressions `expr :? ty` are evaluated as follows:
 
 1. Expression `expr` is evaluated to a value `v`.
-2. If the runtime type of `v` is compatible with `ty`, the expression evaluates to `true`.
-3. Otherwise, the expression evaluates to `false`.
-
-> **F# Native Note**: Dynamic type tests are primarily useful for union types and interface dispatch. Since F# Native is null-free, there are no null-related edge cases.
+2. If `v` is `null`, then:
+    - If `tye` uses `null` as a representation ([§](types-and-type-constraints.md#nullness)), the result is `true`.
+    - Otherwise the expression evaluates to `false`.
+3. If `v` is not `null` and has runtime type `vty` which dynamically converts to `ty` ([§](types-and-type-constraints.md#dynamic-conversion-between-types)), the
+    expression evaluates to `true`. However, if `ty` is an enumeration type, the expression evaluates to
+    `true` if and only if `ty` is precisely `vty`.
 
 ### Evaluating Dynamic Coercion Expressions
 
 At runtime, elaborated dynamic coercion expressions `expr :?> ty` are evaluated as follows:
 
 1. Expression `expr` is evaluated to a value `v`.
-2. If `v` has runtime type compatible with `ty`, the expression evaluates to `v` with type `ty`.
-3. If the types are incompatible, the coercion fails.
+2. If `v` is `null`:
+    - If `tye` uses `null` as a representation ([§](types-and-type-constraints.md#nullness)), the result is the `null` value.
+    - Otherwise a `NullReferenceException` is raised.
+3. If `v` is not `null`:
+    - If `v` has dynamic type `vty` which _dynamically converts_ to `ty` ([§](types-and-type-constraints.md#dynamic-conversion-between-types)), the expression evaluates to the dynamic conversion of `v` to `ty`.
+        - If `vty` is a reference type and `ty` is a value type, then `v` is _unboxed_ ; that is, `v` is
+             converted from an object on the heap to a struct value with the same field
+             assignments as the object. The expression evaluates to this value.
+        - Otherwise, the expression evaluates to `v`.
+    - Otherwise an `InvalidCastException` is raised.
 
-> **F# Native Note**: The semantics of failed dynamic coercions require further specification. Options include compile-time prevention where possible, returning `voption<ty>`, or program termination for truly dynamic cases. See [Error Handling](error-handling.md) for the native approach to fallible operations.
->
-> F# Native does not use boxing/unboxing. Value types remain unboxed throughout their lifetime.
+Expressions of the form `expr :?> ty` evaluate in the same way as the F# library function
+`unbox<ty>(expr)`.
+
+> **F# Native Note**: In F# Native, the `option<_>` type uses `voption` semantics internally and is null-free. Boxing operations behave consistently since there is no null representation.
 
 ### Evaluating Sequential Execution Expressions
 
@@ -3205,13 +3228,29 @@ one of the following forms:
 The expression evaluates to the address of the referenced local mutable value, mutable field, or
 mutable static field.
 
-### Values with Underspecified Object Identity
+> **F# Native Note**: In F# Native, arrays are invariant and covariant array assignment is not supported. The type system statically prevents array type mismatches that would require runtime checks.
 
-F# Native supports reference equality testing for class instances. However, the results of physical identity comparisons are underspecified for the following types:
+### Values with Underspecified Object Identity and Type Identity
 
-- Function values (closures may be duplicated or shared)
-- Tuple values (may be stack-allocated or optimized away)
-- Immutable record values
-- Union values
+F# supports operations that detect object identity—that is, whether two object references refer to the same "physical" object. For example, `obj.ReferenceEquals(obj1, obj2)` returns true if the two object references refer to the same object.
 
-For these types, the compiler may choose different memory representations based on optimization, and code should not rely on specific physical identity behavior.
+The results of these operations are underspecified when used with values of the following F# types:
+
+- Function types
+- Tuple types
+- Immutable record types
+- Union types
+- Boxed immutable value types
+
+For two values of such types, the results of `obj.ReferenceEquals` and identity-based hash codes are underspecified; however, the operations terminate and do not raise exceptions. An implementation of F# is not required to define the results of these operations for values of these types.
+
+For function values and objects that are returned by object expressions, the results of the following operations are underspecified in the same way:
+
+- `obj.GetHashCode()`
+- `obj.GetType()`
+
+For union types the results of the following operations are underspecified in the same way:
+
+- `obj.GetType()`
+
+> **F# Native Note**: In F# Native, runtime type introspection via `GetType()` is not available since there is no runtime reflection. Equality and hashing are implemented through static type constraints rather than runtime dispatch.
