@@ -11,8 +11,7 @@ fsnative-spec/
 ├── spec/                    # THE SPECIFICATION (authoritative)
 │   ├── Catalog.json         # Chapter ordering
 │   └── *.md                 # Spec chapters
-├── docs/fidelity/           # TEMPORARY working context (will be removed)
-│   └── *.md                 # Reference docs during spec development
+├── docs/                    # Empty (docs/fidelity moved to fsnative)
 ├── releases/                # Versioned spec snapshots
 └── README.md                # Project overview
 ```
@@ -46,14 +45,14 @@ fsnative-spec/
 - `provided-types.md` - Type providers require .NET
 - `custom-attributes-and-reflection.md` - System.Reflection not available
 
-## docs/fidelity/ (TEMPORARY)
+## docs/fidelity/ (REMOVED)
 
-These are working reference documents that will be removed once spec is complete:
-- `native-type-universe.md` - Comprehensive type reference
-- `fncs-specification.md` - FNCS compiler services
-- `beyond-fslang-spec.md` - Historical context
-- `fsharp-features-in-fidelity.md` - Feature matrix
-- `README.md` - docs overview
+The docs/fidelity folder has been removed. Content was migrated:
+- `native-type-universe.md` → Moved to `fsnative/docs/fidelity/`
+- `fncs-specification.md` → Moved to `fsnative/docs/fidelity/`
+- `beyond-fslang-spec.md` → Extracted to Serena memory `design_philosophy`
+- `fsharp-features-in-fidelity.md` → Extracted to Firefly memory `fsharp_metaprogramming_patterns`
+- `README.md` → Deleted (navigation no longer needed)
 
 **DO NOT** include docs/ content in spec/. They are context only.
 

@@ -3,7 +3,7 @@
 ## Audit Date: 2024-12-30
 
 ## Reference Document
-`docs/fidelity/native-type-universe.md` - The comprehensive native type specification
+`fsnative/docs/fidelity/native-type-universe.md` - The comprehensive native type specification (moved from fsnative-spec)
 
 ## Summary
 
@@ -20,7 +20,7 @@ All four "Needs revision" chapters have been revised to align with native type u
 
 ### "New" Chapters (Native-Specific) ✓
 
-All four new chapters exist and align well with native-type-universe.md:
+All four new chapters exist and align well with native-type-universe.md (now at fsnative/docs/fidelity/):
 
 | Chapter | File | Alignment Notes |
 |---------|------|-----------------|
@@ -100,7 +100,7 @@ These chapters have extensive BCL/CLI dependencies that conflict with native typ
 | Part 6 | Function Types | native-type-mappings.md | ✓ Exists |
 | Part 7 | Mutable State | Need review in expressions.md | ⚠️ Review needed |
 | Part 8 | Memory Region Types | memory-regions.md, access-kinds.md | ✓ Exists |
-| Part 9 | Coeffects | Deferred (Part 9 is "TBD" in native-type-universe) | N/A |
+| Part 9 | Coeffects | Deferred (Part 9 is "TBD" in native-type-universe.md) | N/A |
 
 ## Clean Break Principle
 

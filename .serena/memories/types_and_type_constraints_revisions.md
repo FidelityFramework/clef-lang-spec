@@ -86,5 +86,5 @@ The `spec/types-and-type-constraints.md` file was extensively revised to remove 
 ## Style Conventions Established
 - Use `> **F# Native Note**:` blocks for native-specific explanations
 - Memory layout diagrams use ASCII box drawing
-- Reference docs/fidelity/native-type-universe.md for detailed type specs
+- Reference fsnative/docs/fidelity/native-type-universe.md for detailed type specs
 - Keep managed F# references only in explanatory "what F# Native does NOT have" context
