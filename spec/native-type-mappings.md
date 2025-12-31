@@ -266,6 +266,104 @@ type UserId = UserId of int
 
 **Layout**: Same as wrapped type (`int`).
 
+## Struct Alignment
+
+### Default Alignment
+
+Structs use natural alignment based on their largest field:
+
+| Largest Field | Default Alignment |
+|---------------|-------------------|
+| `i8`, `u8` | 1 byte |
+| `i16`, `u16` | 2 bytes |
+| `i32`, `u32`, `f32` | 4 bytes |
+| `i64`, `u64`, `f64`, pointer | 8 bytes |
+
+### Explicit Alignment
+
+The `[<Align(n)>]` attribute requests specific alignment:
+
+```fsharp
+[<Align(64)>]
+[<Struct>]
+type CacheAligned = { Value: int64 }
+```
+
+NORMATIVE: The compiler SHALL respect alignment requests that are:
+- Powers of two
+- Greater than or equal to natural alignment
+- Less than or equal to platform page size (typically 4096)
+
+NORMATIVE: Alignment requests that cannot be satisfied SHALL produce a compile-time error.
+
+### Alignment and SIMD
+
+For SIMD operations, alignment affects performance significantly:
+
+| Vector Width | Recommended Alignment |
+|--------------|----------------------|
+| 128-bit (SSE, NEON) | 16 bytes |
+| 256-bit (AVX2) | 32 bytes |
+| 512-bit (AVX-512) | 64 bytes |
+
+Misaligned vector loads may incur penalties or faults depending on the instruction.
+
+### Stack and Arena Allocation
+
+NORMATIVE: Stack-allocated aligned types SHALL be placed at appropriately aligned addresses.
+
+NORMATIVE: Arena allocators SHALL provide an alignment-aware allocation function:
+```fsharp
+Arena.allocAligned<'T> : Arena -> alignment:int -> count:int -> nativeptr<'T>
+```
+
+## Intrinsic Operations
+
+Certain operations have direct hardware support that F# loops cannot match. The `Alloy.Intrinsics` module provides guaranteed-efficient implementations.
+
+### Bit Manipulation Intrinsics
+
+| Function | LLVM Intrinsic | Description |
+|----------|---------------|-------------|
+| `clz : uint32 -> int` | `llvm.ctlz.i32` | Count leading zeros |
+| `clz64 : uint64 -> int` | `llvm.ctlz.i64` | Count leading zeros (64-bit) |
+| `ctz : uint32 -> int` | `llvm.cttz.i32` | Count trailing zeros |
+| `ctz64 : uint64 -> int` | `llvm.cttz.i64` | Count trailing zeros (64-bit) |
+| `popcount : uint32 -> int` | `llvm.ctpop.i32` | Population count |
+| `popcount64 : uint64 -> int` | `llvm.ctpop.i64` | Population count (64-bit) |
+| `bswap : uint32 -> uint32` | `llvm.bswap.i32` | Byte swap |
+| `bswap64 : uint64 -> uint64` | `llvm.bswap.i64` | Byte swap (64-bit) |
+
+NORMATIVE: These functions SHALL emit the corresponding LLVM intrinsic, not loop-based implementations.
+
+### Arithmetic Intrinsics
+
+| Function | LLVM Intrinsic | Description |
+|----------|---------------|-------------|
+| `mulhi : uint64 -> uint64 -> uint64` | (platform-specific) | High 64 bits of 128-bit product |
+| `addCarry : uint64 -> uint64 -> uint64 -> struct(uint64 * uint64)` | `llvm.uadd.with.overflow` | Add with carry in/out |
+
+NORMATIVE: Multi-word arithmetic operations SHALL use carry-propagating instructions where available.
+
+### Usage
+
+```fsharp
+open Alloy.Intrinsics
+
+let extractRegime (bits: uint32) =
+    let shifted = bits <<< 1
+    let leadingZeros = clz shifted  // Guaranteed 1-2 cycles, not a loop
+    // ... regime extraction logic
+```
+
+### Fallback Behavior
+
+On targets without hardware support for specific intrinsics:
+
+NORMATIVE: The compiler SHALL emit efficient software fallbacks that match the semantic behavior.
+
+NORMATIVE: The compiler MAY emit warnings when intrinsics fall back to software implementation on performance-critical targets.
+
 ## Reference Types
 
 ### Arrays
