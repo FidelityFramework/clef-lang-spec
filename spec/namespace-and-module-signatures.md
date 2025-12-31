@@ -235,13 +235,13 @@ can be satisfied by any value of the appropriate type. For example:
 
 ```fsharp
 let f =
-    let myTable = new System.Collections.Generic.Dictionary<int,int>(4)
+    let mutable cache = Map.empty<int,int>
     fun x ->
-        if myTable.ContainsKey x then
-            myTable.[x]
-        else
+        match Map.tryFind x cache with
+        | Some v -> v
+        | None ->
             let res = x * x
-            myTable.[x] <- res
+            cache <- Map.add x res cache
             res
 ```
 
@@ -261,10 +261,9 @@ let f : int -> int = failwith "failure"
 For both the first and second signatures, you can still use the functions as first-class function values
 from client code—the parentheses simply act as a constraint on the implementation of the value.
 
-The reason for this interpretation of types in value and member signatures is that CLI
-interoperability requires that F# functions compile to methods, rather than to fields that are
-function values. Thus, signatures must contain enough information to reveal the desired arity of a
-method as it is revealed to other CLI programming languages.
+The reason for this interpretation of types in value and member signatures is that function arity affects compilation. F# functions with known arity compile to direct function calls, while function values require closure allocation. Signatures must contain enough information to reveal the desired arity for efficient native code generation.
+
+> **F# Native Note**: In native compilation, arity information enables direct function calls without closure overhead. Parenthesized signatures indicate that the implementation must be callable with that arity, enabling the compiler to generate efficient native calling conventions.
 
 #### Signature Conformance for Type Functions
 

@@ -9,19 +9,19 @@ The following sections describe how F# resolves names in various contexts.
 Each point in the interpretation of an F# program is subject to an environment. The environment
 encompasses:
 
-- All referenced external DLLs (assemblies).
+- All referenced source packages and native libraries.
 - _ModulesAndNamespaces_ : a table that maps `long-ident`s to a list of signatures. Each signature is
     either a namespace declaration group signature or a module signature.
 
-    For example, `System.Collections` may map to one namespace declaration group signature for
-    each referenced assembly that contributes to the `System.Collections` namespace, and to a
-    module signature, if a module called `System.Collections` is declared or in a referenced
-    assembly.
+    For example, `Alloy.Collections` may map to one namespace declaration group signature for
+    each referenced package that contributes to the `Alloy.Collections` namespace, and to a
+    module signature, if a module called `Alloy.Collections` is declared or in a referenced
+    package.
 
-    If the program references multiple assemblies, the assemblies are added to the name resolution
-environment in the order in which the references appear on the command line. The order is
-important only if ambiguities occur in referencing the contents of assemblies—for example, if
-two assemblies define the type `MyNamespace.C`.
+    If the program references multiple packages, the packages are added to the name resolution
+environment in the order in which the references appear in the project file. The order is
+important only if ambiguities occur in referencing the contents of packages—for example, if
+two packages define the type `MyNamespace.C`.
 
 - _ExprItems_ : a table that maps names to the following items:
     - A value
@@ -59,11 +59,11 @@ If the `long-ident` starts with the special pseudo-identifier keyword `global`, 
 by consulting the _ModulesAndNamespaces_ table and ignoring all `open` directives, including those
 implied by `AutoOpen` attributes.
 
-For example, if the environment contains two referenced DLLs, and each DLL has namespace
-declaration groups for the namespaces `System`, `System.Collections`, and
-`System.Collections.Generic`, _Name Resolution in Module and Namespace Paths_ for
-`System.Collections` returns the two namespace declaration groups named `System.Collections`, one
-from each assembly.
+For example, if the environment contains two referenced packages, and each package has namespace
+declaration groups for the namespaces `Alloy`, `Alloy.Collections`, and
+`Alloy.Collections.Concurrent`, _Name Resolution in Module and Namespace Paths_ for
+`Alloy.Collections` returns the two namespace declaration groups named `Alloy.Collections`, one
+from each package.
 
 ### Opening Modules and Namespace Declaration Groups
 
@@ -80,8 +80,8 @@ environment as follows:
     the type has the `RequireQualifiedAccess` attribute.
     - If the type is a union, add the union cases to the _ExprItems_ and _PatItems_ tables, unless the
     type has the `RequireQualifiedAccess` attribute.
-    - Add the type to the _TypeNames_ table. If the type has a CLI-encoded generic name such as
-    ``List`1``, add an entry under both `List` and ``List`1``.
+    - Add the type to the _TypeNames_ table. For generic types such as `List<'T>`, add an entry under
+    `List` that records the generic arity.
 
 3. Add each value in the original order of declaration in `F` , as follows:
 
@@ -266,7 +266,9 @@ member, in the context of a particular type `type`.
 
 _Name Resolution for Members_ proceeds through the following steps:
 
-1. Search the hierarchy of the type from `System.Object` to `type`.
+1. Search the hierarchy of the type from its root base type to `type`.
+
+   > **F# Native Note**: F# Native classes do not inherit from `System.Object`. The type hierarchy is determined by explicit `inherit` declarations.
 
 2. At each type, try to resolve `member-ident` to one of the following, in order:
 
@@ -449,7 +451,7 @@ Resolution_ to resolve the remainder.
 
 For example, _Unqualified Lookup_ is used to resolve the vast majority of identifier references in F#
 code, from simple identifiers such as `sin`, to complex accesses such as
-`System.Environment.GetCommandLineArgs().Length`.
+`Array.init 10 id |> Array.length`.
 
 _Unqualified Lookup_ proceeds through the following steps:
 
@@ -483,7 +485,7 @@ _Item-Qualified Lookup_ proceeds as follows:
     - A group of indexer getter properties
     - A single non-indexer getter property
     - A static F# field
-    - A static CLI field
+    - A static field
     - An implicitly resolved symbolic operator name
 2. If the first projection is `<types>`, then we say the resolution has a type application `<types>` with
     remaining projections.
@@ -560,7 +562,7 @@ _Item-Qualified Lookup_ proceeds as follows:
         - Check the type for accessibility and attributes.
         - Process the types using a new instantiation for `C`, thus generating a type `ty`, and process the object construction `fun v -> new ty(v)` as an object constructor call.
 
-    - If `item` is a CLI event reference
+    - If `item` is an event reference
 
         - Check the event for accessibility and attributes.
         - Let `fty` be the actual type of the event.
@@ -598,14 +600,14 @@ Expression-Qualified Lookup proceeds through the following steps:
     | Empty | Assert that the type of the overall, original application expression is `ty`. | Checking is complete.|
     | Starts with `(expr2)` | Apply _Function Application Resolution_ ([§](inference-procedures.md#function-application-resolution)). | Checking is complete when _Function Application Resolution_ returns. |
     | Starts with `<types>` | Fail. | Type instantiations may not be applied to arbitrary expressions; they can apply only to generic types, generic methods, and generic values. |
-    | Starts with `.long-ident` | Resolve `long-ident` using _Name Resolution for Members_ ([§](inference-procedures.md#name-resolution-in-expressions))_. Return a name resolution item `item` and a residue long identifier `rest`. Continue processing at step 2. | For example, for `ty = string` and `long-ident = Length`, _Name Resolution for Members_ returns a property reference to the CLI instance property `System.String.Length`. |
+    | Starts with `.long-ident` | Resolve `long-ident` using _Name Resolution for Members_ ([§](inference-procedures.md#name-resolution-in-expressions))_. Return a name resolution item `item` and a residue long identifier `rest`. Continue processing at step 2. | For example, for `ty = string` and `long-ident = Length`, _Name Resolution for Members_ returns a property reference to the `Length` property of the string type. |
 
 2. If Step 1 returned an `item` and `rest`, report an error if `item` is not one of the following:
     - A group of methods.
     - A group of instance getter property indexers.
     - A single instance, non-indexer getter property.
     - A single instance F# field.
-    - A single instance CLI field.
+    - A single instance field.
 3. Proceed based on `item` as follows:
 
     - If `item` is a group of methods
@@ -666,7 +668,7 @@ If no syntactic argument is supplied, _Method Application Resolution_ tries to r
 method as a first class value, such as the method call in the following example:
 
 ```fsharp
-List.map System.Environment.GetEnvironmentVariable ["PATH"; "USERNAME"]
+List.map String.length ["hello"; "world"]
 ```
 
 _Method Application Resolution_ proceeds through the following steps:
@@ -820,13 +822,8 @@ _Method Application Resolution_ proceeds through the following steps:
         3) Prefer candidates that do not have `ImplicitlyReturnedFormalArgs`.
         4) Prefer candidates that do not have `ImplicitlySuppliedFormalArgs`.
         5) If two candidates have unnamed actual argument types `ty11 ... ty1n` and `ty21 ... ty2n`, and
-           each `ty1i` either
-            - feasibly subsumes `ty2i`, or
-            - `ty2i` is a `System.Func` type and `ty1i` is some other delegate type,
-
-           then prefer the second candidate. That is, prefer any candidate that has the more
-           specific actual argument types, and consider any `System.Func` type to be more specific
-           than any other delegate type.
+           each `ty1i` feasibly subsumes `ty2i`, then prefer the second candidate. That is, prefer any
+           candidate that has the more specific actual argument types.
         6) Prefer candidates that are not extension members over candidates that are.
         7) To choose between two extension members, prefer the one that results from the most
         recent use of open.
@@ -871,15 +868,14 @@ One effect of these additional rules is that a method that is used as a first cl
 resolve even if a method is overloaded and no further information is available. For example:
 
 ```fsharp
-let r = new Random()
-let roll = r.Next;;
+let builder = StringBuilder()
+let append = builder.Append;;
 ```
 
-_Method Application Resolution_ results in the following, despite the fact that in the standard CLI
-library, `System.Random.Next` is overloaded:
+_Method Application Resolution_ results in the following, despite the fact that `StringBuilder.Append` may be overloaded:
 
 ```fsharp
-val roll : int -> int
+val append : string -> StringBuilder
 ```
 
 The reason is that if the initial type contains no information about the expected number of
@@ -928,7 +924,7 @@ In this case, for each unnamed argument position, then for each overload:
 
 ### Conditional Compilation of Member Calls
 
-If a member definition has the `System.Diagnostics.Conditional` attribute, then any application of
+If a member definition has the `Conditional` attribute, then any application of
 the member is adjusted as follows:
 
 - The `Conditional("symbol")` attribute may apply to methods only.
@@ -1070,10 +1066,9 @@ type<tyarg11, ..., tyarg1n> :> type<tyarg21, ..., tyarg2n>
 type<tyarg11, ..., tyarg1n> = type<tyarg21, ..., tyarg2n>
 ```
 
-> Note: F# generic types do not support covariance or contravariance. That is, although
-single-dimensional array types in the CLI are effectively covariant, F# treats these types
-as invariant during constraint solving. Likewise, F# considers CLI delegate types as
-invariant and ignores any CLI variance type annotations on generic interface types and
+> Note: F# generic types do not support covariance or contravariance. F# treats array types
+as invariant during constraint solving. Likewise, F# considers delegate types as
+invariant and ignores any variance type annotations on generic interface types and
 generic delegate types.
 
 New constraints of the form `type1<tyarg11, ..., tyarg1n> :> type2<tyarg21, ..., tyarg2n>` where
@@ -1095,24 +1090,23 @@ MyBaseClass<list<'T>> :> MyBaseClass<list<int>>
 and solved again, so that the constraint `'T = int` will eventually be derived.
 
 > Note : Subtype constraints on single-dimensional array types `ty[] :> ty` are reduced to
-residual constraints, because these types are considered to be subtypes of `System.Array`,
-`System.Collections.Generic.IList<'T>`, `System.Collections.Generic.ICollection<'T>`,
-and `System.Collections.Generic.IEnumerable<'T>`. Multidimensional array types
-`ty[,...,]` are also subtypes of `System.Array`.
-<br>Types from other CLI languages may, in theory, support multiple instantiations of the
-same interface type, such as `C : I<int>, I<string>`. Consequently, it is more difficult to
-solve a constraint such as `C :> I<'T>`. Such constraints are rarely used in practice in F#
-coding. To solve this constraint, the F# compiler reduces it to a constraint `C :> I<'T>`,
-where `I<'T>` is the first interface type that occurs in the tree of supported interface
-types, when the tree is ordered from most derived to least derived, and iterated left-to-
-right in the order of the declarations in the CLI metadata.
-<br>The F# compiler ignores CLI variance type annotations on interfaces.
+residual constraints, because these types are considered to implement `IEnumerable<'T>`.
+Multidimensional array types `ty[,...,]` are also subtypes of the base array type.
+<br>A type may support multiple instantiations of the same interface type, such as
+`C : I<int>, I<string>`. Consequently, it is more difficult to solve a constraint such as
+`C :> I<'T>`. Such constraints are rarely used in practice in F# coding. To solve this
+constraint, the compiler reduces it to a constraint `C :> I<'T>`, where `I<'T>` is the first
+interface type that occurs in the tree of supported interface types, when the tree is
+ordered from most derived to least derived, and iterated left-to-right in the order of the
+interface declarations.
+
+> **F# Native Note**: F# Native does not inherit array subtyping from a managed runtime. Array types implement collection interfaces as defined by the Alloy library.
 
 New constraints of the form `type :> 'b` are solved again as `type = 'b`.
 
-> Note : Such constraints typically occur only in calls to generic code from other CLI
-languages where a method accepts a parameter of a “naked” variable type—for
-example, a C# 2.0 function with a signature such as `T Choose<'T>(T x, T y)`.
+> Note : Such constraints typically occur in generic code where a method accepts a parameter
+of a "naked" variable type—for example, a function with a signature such as
+`T Choose<'T>(T x, T y)`.
 
 ### Solving Nullness, Struct, and Other Simple Constraints
 
@@ -1159,17 +1153,17 @@ themselves constrained to be equal.
 
 #### Simulation of Solutions for Member Constraints
 
-Certain types are assumed to implicitly define static members even though the actual CLI metadata
-for types does not define these operators. This mechanism is used to implement the extensible
+Certain types are assumed to implicitly define static members even though no explicit member
+definition exists in the type declaration. This mechanism is used to implement the extensible
 conversion and math functions of the F# library including `sin`, `cos`, `int`, `float`, `(+)`, and `(-)`. The
 following table shows the static members that are implicitly defined for various types.
 
 | Type | Implicitly defined static members |
 | --- | --- |
 | Integral types:<br> `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `nativeint`, `unativeint` | `op_BitwiseAnd`, `op_BitwiseOr`, `op_ExclusiveOr`, `op_LeftShift`, `op_RightShift`, `op_UnaryPlus`, `op_UnaryNegation`, `op_Increment`, `op_Decrement`, `op_LogicalNot`, `op_OnesComplement`, `op_Addition`, `op_Subtraction`, `op_Multiply`, `op_Division`, `op_Modulus`, `op_UnaryPlus`<br>`op_Explicit`: takes the type as an argument and returns `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32`, `float`, `decimal`, `nativeint`, or `unativeint` |
-| Signed integral CLI types:<br> `sbyte`, `int16`, `int32`, `int64` and `nativeint` | `op_UnaryNegation`, `Sign`, `Abs` |
-| Floating-point CLI types:<br>`float32` and `float` | `Sin`, `Cos`, `Tan`, `Sinh`, `Cosh`, `Tanh`, `Atan`, `Acos`, `Asin`, `Exp`, `Ceiling`, `Floor`, `Round`, `Log10`, `Log`, `Sqrt`, `Atan2`, `Pow`, `op_Addition`, `op_Subtraction`, `op_Multiply`, `op_Division`, `op_Modulus`, `op_UnaryPlus`, `op_UnaryNegation`, `Sign`, `Abs` <br> `op_Explicit`: takes the type as an argument and returns `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32`, `float`, `decimal`, `nativeint`, or `unativeint` |
-| decimal type <br>**Note** : The decimal type is included only for the Sign static member. This is deliberate: in the CLI, `System.Decimal` includes the definition of static members such as `op_Addition` and the F# compiler does not need to simulate the existence of these methods. | `Sign` |
+| Signed integral types:<br> `sbyte`, `int16`, `int32`, `int64` and `nativeint` | `op_UnaryNegation`, `Sign`, `Abs` |
+| Floating-point types:<br>`float32` and `float` | `Sin`, `Cos`, `Tan`, `Sinh`, `Cosh`, `Tanh`, `Atan`, `Acos`, `Asin`, `Exp`, `Ceiling`, `Floor`, `Round`, `Log10`, `Log`, `Sqrt`, `Atan2`, `Pow`, `op_Addition`, `op_Subtraction`, `op_Multiply`, `op_Division`, `op_Modulus`, `op_UnaryPlus`, `op_UnaryNegation`, `Sign`, `Abs` <br> `op_Explicit`: takes the type as an argument and returns `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32`, `float`, `decimal`, `nativeint`, or `unativeint` |
+| decimal type <br>**Note** : The decimal type is included only for the Sign static member. | `Sign` |
 | String type `string` | `op_Addition` <br> `op_Explicit`: takes the type as an argument and return `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32`, `float` or `decimal`. |
 
 ### Over-constrained User Type Annotations
@@ -1650,19 +1644,19 @@ The compiler removes all condensed type parameters and replaces them with their 
 constraint `ty`. For example:
 
 ```fsharp
-let F x = (x :> System.IComparable).CompareTo(x)
+let F x = (x :> IComparable).CompareTo(x)
 ```
 
 After generalization, the function is inferred to have the following type:
 
 ```fsharp
-F : 'a -> int when 'a :> System.IComparable
+F : 'a -> int when 'a :> IComparable
 ```
 
 In this case, the actual inferred, generalized type for `F` is condensed to:
 
 ```fsharp
-F : System.IComparable -> R
+F : IComparable -> R
 ```
 
 Condensation does not apply to arguments of unconstrained variable type. For example:
@@ -1816,7 +1810,7 @@ For example, given
 
 ```fsharp
 let obj1 =
-    { new System.Collections.Generic.IComparer<int> with
+    { new IComparer<int> with
         member x.Compare(a,b) = compare (a % 7) (b % 7) }
 ```
 
@@ -1847,10 +1841,9 @@ The construction of the dispatch map for any particular type is as follows:
 ## Byref Safety Analysis
 
 Byref arguments are pointers that can be stack-bound and are used to pass values by reference to
-procedures in CLI languages, often to simulate multiple return values. Byref pointers are not often
-used in F#; more typically, tuple values are used for multiple return values. However, a byref value
-can result from calling or overriding a CLI method that has a signature that involves one or more
-byref values.
+procedures, often to simulate multiple return values. Byref pointers are not often used in F#; more
+typically, tuple values are used for multiple return values. However, a byref value can result from
+calling or overriding a method that has a signature that involves one or more byref values.
 
 To ensure the safety of byref arguments, the following checks are made:
 
@@ -1947,15 +1940,15 @@ let f x = fun y -> x + y
 ```
 
 Arity inference is applied partly to help define the elaborated form of a function definition. This is
-the form that other CLI languages see. In particular:
+the form used in the compiled output. In particular:
 
 - A function value `F` in a module that has arity `[A1 ; ...; An]` and the type
     `ty1,1 * ... * ty1,A1 -> ... -> tyn,1 * ... * tyn,An - > rty`
-    elaborates to a CLI static method definition with signature
+    elaborates to a static function with signature
     `rty F(ty1,1, ..., ty1,A1, ..., tyn,1 , ..., tyn,An)`.
 - F# instance (respectively static) methods that have arity `[A1 ; ...; An]` and type
     `ty1,1 * ... * ty1,A1 -> ... -> tyn,1 * ... * tynAn -> rty`
-    elaborate to a CLI instance (respectively static) method definition with signature
+    elaborate to an instance (respectively static) method definition with signature
     `rty F(ty1,1, ..., ty1,A1)`, subject to the syntactic restrictions that result from the patterns that
     define the member, as described later in this section.
 
@@ -1965,7 +1958,7 @@ For example, consider a function in a module with the following definition:
 let AddThemUp x (y, z) = x + y + z
 ```
 
-This function compiles to a CLI static method with the following C# signature:
+This function compiles to a static function with the following signature:
 
 ```fsharp
 int AddThemUp(int x, int y, int z);
@@ -2009,9 +2002,9 @@ type Bar() =
     static member Test5 (a1, a2, a3 : int * float * string) = ()
 ```
 
-## Additional Constraints on CLI Methods
+## Additional Constraints on Common Methods
 
-F# treats some CLI methods and types specially, because they are common in F# programming and
+F# treats some methods and types specially, because they are common in F# programming and
 cause extremely difficult-to-find bugs. For each use of the following constructs, the F# compiler
 imposes additional _ad hoc_ constraints:
 
@@ -2019,24 +2012,8 @@ imposes additional _ad hoc_ constraints:
 
 `x.GetHashCode()` requires type `ty : equality` for the static type of `x`
 
-`new Dictionary<A,B>()` requires `A : equality`, for any overload that does not take an
-`IEqualityComparer<T>`
+`Map.empty<A,B>` requires `A : comparison`
 
-No constraints are added for the following operations. Consider writing wrappers around these
-functions to improve the type safety of the operations.
+`Set.empty<A>` requires `A : comparison`
 
-`System.Array.BinarySearch<T>(array,value)` requiring `C : comparison`, for any overload that
-does not take an `IComparer<T>`
-
-`System.Array.IndexOf` requiring `C : equality`
-
-`System.Array.LastIndexOf(array,T)` requiring `C : equality`
-
-`System.Array.Sort<'T>(array)` requiring `C : comparison`, for any overload that does not take an
-`IEqualityComparer<T>`
-
-`new SortedList<A,B>()` requiring `A : comparison`, for any overload that does not take an
-`IEqualityComparer<T>`
-
-`new SortedDictionary<A,B>()` requiring `C : comparison`, for any overload that does not take an
-`IEqualityComparer<_>`
+> **F# Native Note**: The Alloy library defines collection types with appropriate constraints. `Map<'Key,'Value>` requires `'Key : comparison`, and `Set<'T>` requires `'T : comparison`. These constraints are enforced at compile time.

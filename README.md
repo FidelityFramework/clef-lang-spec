@@ -181,7 +181,7 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | # | Chapter | File | Status |
 |---|---------|------|--------|
 | 1 | Introduction | `introduction.md` | Revised |
-| 2 | Program Structure | `program-structure.md` | Review |
+| 2 | Program Structure | `program-structure.md` | Revised |
 | 3 | Lexical Analysis | `lexical-analysis.md` | Stable |
 | 4 | Basic Grammar Elements | `basic-grammar-elements.md` | Stable |
 | 5 | Types and Type Constraints | `types-and-type-constraints.md` | Revised |
@@ -190,19 +190,19 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 8 | Patterns | `patterns.md` | Stable |
 | 9 | Type Definitions | `type-definitions.md` | Review |
 | 10 | Units of Measure | `units-of-measure.md` | Stable |
-| 11 | Namespaces and Modules | `namespaces-and-modules.md` | Review |
-| 12 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Review |
+| 11 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
+| 12 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
 | 13 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
 | 14 | **Memory Regions** | `memory-regions.md` | **New** |
 | 15 | **Access Kinds** | `access-kinds.md` | **New** |
 | 16 | **Platform Bindings** | `platform-bindings.md` | **New** |
-| 17 | Inference Procedures | `inference-procedures.md` | Review |
+| 17 | Inference Procedures | `inference-procedures.md` | Revised |
 | 18 | Lexical Filtering | `lexical-filtering.md` | Stable |
 | 19 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
 | 20 | **Error Handling** | `error-handling.md` | **New** |
 | 21 | **Interactive Development** | `interactive-development.md` | **New** |
 | 22 | The Native Library Alloy | `the-native-library-alloy.md` | **Rewritten** |
-| 23 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Review |
+| 23 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Stable |
 
 ### Removed Chapters
 

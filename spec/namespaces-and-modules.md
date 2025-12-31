@@ -256,7 +256,7 @@ Function and value definitions in modules may declare explicit type variables an
 
 ```fsharp
 let pair<'T>(x : 'T) = (x, x)
-let dispose<'T when 'T :> System.IDisposable>(x : 'T) = x.Dispose()
+let dispose<'T when 'T :> IDisposable>(x : 'T) = x.Dispose()
 let convert<'T, 'U>(x) = unbox<'U>(box<'T>(x))
 ```
 
@@ -265,12 +265,12 @@ A value definition that has explicit type variables is called a type function ([
 Function and value definitions may specify attributes:
 
 ```fsharp
-// A value definition with the System.Obsolete attribute
-[<System.Obsolete("Don't use this")>]
+// A value definition with the Obsolete attribute
+[<Obsolete("Don't use this")>]
 let oneTwoPair = ( 1 , 2 )
 
 // A function definition with an attribute
-[<System.Obsolete("Don't use this either")>]
+[<Obsolete("Don't use this either")>]
 let pear v = (v, v)
 ```
 
@@ -279,7 +279,7 @@ the attributes apply to each value.
 
 ```fsharp
 // A value definition that defines two values, each with an attribute
-[<System.Obsolete("Don't use this")>]
+[<Obsolete("Don't use this")>]
 let (a, b) = (1, 2)
 ```
 
@@ -297,12 +297,14 @@ definitions in expressions ([§](inference-procedures.md#checking-and-elaboratin
 - Each defined value may have an accessibility annotation ([§](namespaces-and-modules.md#accessibility-annotations)). By default, the accessibility
     annotation of a function or value definition in a module is `public`.
 - Each defined value is _externally accessible_ if its accessibility annotation is `public` and it is not
-    hidden by an explicit signature. Externally accessible values are guaranteed to have compiled CLI
-    representations in compiled CLI binaries.
+    hidden by an explicit signature. Externally accessible values are guaranteed to have compiled
+    representations in the output binary.
 - Each defined value can be used to satisfy the requirements of any signature for the module
     ([§](namespace-and-module-signatures.md#signature-conformance)).
 - Each defined value is subject to arity analysis ([§](inference-procedures.md#arity-inference)).
-- Values may have attributes, including the `ThreadStatic` or `ContextStatic` attribute.
+- Values may have attributes.
+
+> **F# Native Note**: The `ThreadStatic` and `ContextStatic` attributes are not available in F# Native. Thread-local storage uses platform-specific mechanisms.
 
 ### Literal Definitions in Modules
 
@@ -318,7 +320,7 @@ Literal values may be used in custom attributes and pattern matching. For exampl
 
 ```fsharp
 [<Literal>]
-let StartOfWeek = System.DayOfWeek.Monday
+let StartOfWeek = DayOfWeek.Monday
 
 [<MyAttribute(StartOfWeek)>]
 let feeling(day) =
@@ -365,13 +367,14 @@ A value that has explicit generic parameters but has arity `[]` (that is, no exp
 is called a _type function_. The following are some example type functions from the F# library:
 
 ```fsharp
-val typeof<'T> : System.Type
 val sizeof<'T> : int
 module Set =
     val empty<'T> : Set<'T>
 module Map =
     val empty<'Key,'Value> : Map<'Key,'Value>
 ```
+
+> **F# Native Note**: The `typeof<'T>` type function is not available in F# Native because there is no runtime type system. Type information is resolved entirely at compile time. Use `sizeof<'T>` for size queries.
 
 Type functions are rarely used in F# programming, although they are convenient in certain
 situations. Type functions are typically used for:
@@ -474,8 +477,8 @@ Import declarations can be used in:
 
 An import declaration is processed by first resolving the `long-ident` to one or more namespace
 declaration groups and/or modules [ `F1`, ..., `Fn` ] by _Name Resolution in Module and Namespace Paths_
-([§](inference-procedures.md#name-resolution-in-module-and-namespace-paths)). For example, `System.Collections.Generic` may resolve to one or more namespace
-declaration groups—one for each assembly that contributes a namespace declaration group in the
+([§](inference-procedures.md#name-resolution-in-module-and-namespace-paths)). For example, `Alloy.Collections` may resolve to one or more namespace
+declaration groups—one for each source package that contributes a namespace declaration group in the
 current environment. Next, each `Fi` is added to the environment successively by using the technique
 specified in [§](inference-procedures.md#opening-modules-and-namespace-declaration-groups). An error occurs if any `Fi` is a module that has the `RequireQualifiedAccess`
 attribute.
@@ -541,7 +544,9 @@ Note that:
     namespace declaration group.”
 - `private` on a type, module, or type representation in a module means “private to the module.”
 
-The CLI compiled form of all non-public entities is `internal`.
+Non-public entities are not accessible from outside their defining scope.
+
+> **F# Native Note**: Accessibility is enforced at compile time. Non-public symbols are not exported in the native binary's symbol table.
 
 > Note: The `family` and `protected` specifications are not supported in this version of the F#
 language.
