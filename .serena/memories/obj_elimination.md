@@ -67,6 +67,47 @@ let inline show x = Showable $ x
 
 Documented in `native-type-mappings.md` under "The Universal Base Type `obj` Is Not Available".
 
+## Tooling Implications
+
+The elimination of `obj` has profound implications for developer tooling:
+
+### Value Display in Interactive (fsni)
+
+Without `obj`, fsni cannot use reflection-based `%A` formatting. Instead:
+- **SRTP-based display**: Formatters generated at compile time via `Displayable $` pattern
+- **Type-specific formatters**: Each type needs explicit or auto-generated display logic
+- **Compile-then-execute**: Even simple REPL expressions require compilation to resolve SRTP
+
+### Parallel Toolchain Required
+
+F# Native requires parallel tooling rather than extending managed F# tools:
+
+| Managed F# | F# Native | Why Parallel? |
+|------------|-----------|---------------|
+| FCS | FNCS | Type resolution fundamentally differs |
+| FSAC | FSNAC | No `obj` escape hatch for type checking |
+| NuGet | Fargo | Source-based vs binary packages |
+| FSI | fsni | SRTP-based value display |
+
+### Cannot Extend FSAC
+
+FSAC uses `obj` internally for:
+- Universal value container during type checking
+- Reflection-based hover information
+- FSI evaluation results
+
+FSNAC must be a separate implementation that:
+- Uses FNCS for type resolution
+- Generates SRTP-based formatters
+- Has no dependency on `obj` anywhere
+
+### Coexistence Model
+
+F# Native tooling coexists with Fable/managed F# via project-type routing:
+- `.fsproj` → FSAC
+- `.fidproj` → FSNAC
+- Same workspace, different backends
+
 ## Remediation Completed
 
 The following spec files have been remediated to remove inappropriate `obj` references:

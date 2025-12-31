@@ -269,11 +269,209 @@ Use #target linux-x64 to execute, or #emit to generate binary.
 Emitted: add.o (linux-arm64)
 ```
 
+## Value Display Without Runtime Reflection
+
+A fundamental difference between fsni and managed F# Interactive (FSI) is how values are formatted for display.
+
+### The Managed F# Approach
+
+In FSI, value display relies on `obj` and runtime reflection:
+
+```
+// Managed FSI internals (simplified)
+let displayValue (value: obj) : string =
+    sprintf "%A" value  // Uses reflection to inspect value
+```
+
+This approach is not available in F# Native because:
+- There is no universal base type `obj`
+- There is no runtime type information or reflection
+- Values cannot be "boxed" to a common representation
+
+### SRTP-Based Value Formatting
+
+F# Native uses statically resolved type parameters (SRTP) to generate formatters at compile time:
+
+```fsharp
+// fsni generates specific formatters via SRTP
+type Displayable = Displayable
+    with static member inline ($) (Displayable, x: int) = 
+             Text.Format.intToString x
+         static member inline ($) (Displayable, x: string) = 
+             "\"" + x + "\""
+         static member inline ($) (Displayable, xs: 'T list) =
+             "[" + (xs |> List.map (fun x -> Displayable $ x) 
+                       |> String.concat "; ") + "]"
+         // ... additional overloads for all displayable types
+
+let inline display x = Displayable $ x
+```
+
+When you enter an expression in fsni:
+
+```
+> [1; 2; 3];;
+```
+
+The system:
+1. Type-checks the expression (determines `int list`)
+2. Generates a display function via SRTP resolution
+3. Compiles both expression and display function
+4. Executes and formats the result
+
+### Implications for Custom Types
+
+User-defined types require explicit display support:
+
+```fsharp
+> type Point = { X: float; Y: float };;
+type Point = { X: float; Y: float }
+
+> { X = 1.0; Y = 2.0 };;
+val it : Point = { X = 1.0; Y = 2.0 }
+-- Display generated from record field structure
+```
+
+For types requiring custom formatting:
+
+```fsharp
+> type Point = { X: float; Y: float }
+      with static member ($) (Displayable, p: Point) =
+               $"({p.X}, {p.Y})";;
+
+> { X = 1.0; Y = 2.0 };;
+val it : Point = (1.0, 2.0)
+```
+
+### Format Specifiers
+
+The `%A` format specifier in F# Native uses SRTP rather than reflection:
+
+```fsharp
+> printfn "%A" [1; 2; 3];;
+[1; 2; 3]
+-- SRTP resolves formatting at compile time
+```
+
+> **F# Native Note**: Format specifiers `%A` and `%O` are resolved at compile time via SRTP. Types must have appropriate formatting members resolvable statically. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+
+## Tooling Architecture
+
+### Parallel Toolchain Model
+
+F# Native uses a parallel toolchain rather than extending managed F# tooling:
+
+| Component | Managed F# | F# Native |
+|-----------|------------|-----------|
+| Compiler Services | FCS (F# Compiler Services) | FNCS (F# Native Compiler Services) |
+| Language Server | FSAC (F# AutoComplete) | FSNAC (F# Native AutoComplete) |
+| Package Manager | NuGet | Fargo (fpm) |
+| Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
+| Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
+| Interactive | FSI | fsni |
+| Script Files | `.fsx` | `.fsnx` |
+
+### Why Parallel Rather Than Plugin
+
+The toolchains are parallel rather than plugins because:
+
+1. **Type resolution fundamentally differs**: FNCS resolves `string` to native UTF-8 fat pointer semantics; FCS resolves to `System.String`. These cannot be reconciled at runtime.
+
+2. **SRTP resolution differs**: FNCS resolves SRTP against Alloy's intrinsic type witnesses; FCS resolves against BCL method tables.
+
+3. **No `obj` escape hatch**: Managed tooling uses `obj` as a universal container for values during type checking and display. F# Native has no such type.
+
+4. **Source-based packages**: Fargo distributes source code for whole-program optimization. NuGet distributes compiled binaries.
+
+### Coexistence with Fable and Managed F#
+
+F# Native tooling is designed to coexist with other F# targets in a single workspace:
+
+```
+my-project/
+├── web-ui/                 # Fable → JavaScript
+│   ├── App.fsproj         # ← FSAC handles this
+│   └── Components.fs
+├── native-backend/         # F# Native → Native binary
+│   ├── Server.fidproj     # ← FSNAC handles this
+│   └── Api.fs
+└── shared/                 # Pure F# domain types
+    ├── Shared.fsproj      # ← Both can consume (with constraints)
+    └── Domain.fs
+```
+
+IDE integration (Ionide) routes to the appropriate language server based on project type:
+
+- `.fsproj` → FSAC (managed F# or Fable)
+- `.fidproj` → FSNAC (F# Native)
+
+### Shared Code Constraints
+
+Code shared between Fable and F# Native must avoid:
+
+| Feature | Fable | F# Native | Sharable? |
+|---------|-------|-----------|-----------|
+| Pure functions | ✅ | ✅ | ✅ |
+| Records, DUs | ✅ | ✅ | ✅ |
+| `string` operations | `System.String` | `NativeStr` | ❌ |
+| `option` | Reference type | `voption` | ❌ |
+| `printf "%A"` | Reflection | SRTP | ⚠️ |
+| Async | `Async<'T>` | Native async | ❌ |
+| Reflection | Available | Not available | ❌ |
+
+Shared code should be restricted to pure domain modeling without IO or string manipulation.
+
+## Package Management Integration
+
+### Fargo Integration
+
+fsni integrates with Fargo for package management:
+
+```
+> #require "robot-controller";;\n-- Resolving robot-controller from frgo.dev...\n-- Downloaded: robot-controller-1.2.0.fidpkg\n-- Source files: 12\n-- Compiling for current session...\nLoaded: RobotController (3 modules)
+
+> open RobotController.Algorithms;;
+> PIDController.create 1.0 0.1 0.05;;
+val it : PIDController = { Kp = 1.0; Ki = 0.1; Kd = 0.05 }
+```
+
+### Source-Based Loading
+
+Unlike NuGet which loads pre-compiled binaries, Fargo loads source:
+
+```
+> #require "crypto-algorithms";;\n-- Source package: crypto-algorithms-2.0.0\n-- Compiling with current target optimizations...\n-- Inlining enabled across package boundary\nLoaded: CryptoAlgorithms
+```
+
+This enables:
+- Cross-package inlining
+- Target-specific optimization
+- Dead code elimination
+- Consistent native semantics
+
+### Local Package Development
+
+For local package development:
+
+```
+> #require "path: ../my-local-package";;
+-- Loading from: /home/dev/my-local-package
+-- Watching for changes...
+Loaded: MyLocalPackage
+
+> // Edit my-local-package source files...
+
+> #reload;;
+-- Reloading changed packages...
+-- MyLocalPackage: 2 files changed
+Reloaded: MyLocalPackage
+```
+
 ## Tooling Integration
 
 ### LSP Integration
 
-fsni connects to the F# Native Language Server for:
+fsni connects to the F# Native Language Server (FSNAC) for:
 
 - Autocompletion in the REPL
 - Type information on hover
