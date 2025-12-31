@@ -4,6 +4,75 @@ F# is a scalable, succinct, type-safe, type-inferred, efficiently executing func
 
 F# Native preserves the same syntax and type-checking behavior as standard F#, but with native type semantics: types are resolved to native representations at compile time rather than to .NET Base Class Library (BCL) types. This specification defines those native semantics.
 
+## F# Native Compiler Services (FNCS)
+
+The F# Native Compiler Services (FNCS) is the compiler frontend that implements this specification. FNCS is a purpose-built fork of the F# Compiler Services (FCS), optimized for native compilation.
+
+### What FNCS Provides
+
+FNCS performs parsing, type inference, and constraint resolution for F# Native programs:
+
+| Capability | Description |
+|------------|-------------|
+| **Parsing** | F# syntax analysis producing syntax trees |
+| **Type Checking** | Type inference with native type resolution |
+| **SRTP Resolution** | Statically resolved type parameters against native witnesses |
+| **Typed Tree** | Fully typed representation for downstream compilation |
+
+FNCS outputs a typed abstract syntax tree with resolved types and constraints. This output flows to compilation backends (such as Firefly) for code generation.
+
+### Distinction from FCS
+
+FNCS is not an extension or plugin to FCS. It is a separate compiler frontend with fundamentally different type semantics:
+
+| Aspect | FCS (Standard F#) | FNCS (F# Native) |
+|--------|-------------------|------------------|
+| **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native types (`NativeStr`, platform integers) |
+| **String Literals** | `System.String` (UTF-16, GC-managed) | `NativeStr` (UTF-8, fat pointer) |
+| **Option Types** | Reference type, nullable | `voption<'T>`, stack-allocated, non-nullable |
+| **SRTP Resolution** | .NET method tables | Alloy witness hierarchy |
+| **Base Type** | `System.Object` (`obj`) | None - no universal base type |
+| **Output** | IL generation | Typed tree for native backends |
+
+### Architectural Principles
+
+FNCS adheres to these principles:
+
+**Native Types Are Intrinsic**: Primitive types (`int`, `string`, `bool`, etc.) are defined within FNCS itself, not discovered from external assemblies. When a program uses `string`, FNCS knows its representation, operations, and memory semantics because that knowledge is built into the compiler.
+
+**No BCL Dependencies**: The type checking path SHALL NOT reference BCL types. Types resolve to native representations as defined in [Native Type Mappings](native-type-mappings.md).
+
+**No Universal Base Type**: There is no `obj` type. All types are concrete. Polymorphism is achieved through generics and SRTP, not runtime type erasure. See [Native Type Mappings § The Universal Base Type `obj` Is Not Available](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+
+**SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the Alloy library's witness hierarchy, not .NET method tables. This enables compile-time polymorphism without runtime overhead.
+
+**Typed Tree Fidelity**: FNCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly.
+
+### Layer Separation
+
+FNCS has a focused responsibility within the Fidelity ecosystem:
+
+| Component | Responsibility |
+|-----------|---------------|
+| **FNCS** | Type universe, literal typing, type inference, SRTP resolution |
+| **Alloy** | Native library implementations using FNCS types |
+| **Firefly/PSG** | Semantic graph construction from FNCS typed trees |
+| **Firefly/Alex** | Platform-aware native code generation |
+
+FNCS defines types; other components implement operations on those types.
+
+### Normative Requirements
+
+NORMATIVE: FNCS SHALL resolve string literals to `NativeStr`, not `System.String`.
+
+NORMATIVE: FNCS SHALL resolve `option<'T>` expressions to `voption<'T>` (value option) semantics.
+
+NORMATIVE: FNCS SHALL reject any code that references `obj`, `System.Object`, or performs boxing/unboxing operations.
+
+NORMATIVE: FNCS SHALL resolve SRTP constraints against the native witness hierarchy defined by Alloy, not against .NET method tables.
+
+NORMATIVE: The typed tree output by FNCS SHALL include resolved SRTP witnesses, enabling downstream stages to generate direct calls without runtime dispatch.
+
 ## A First Program
 
 Over the next few sections, we will look at some small F# programs, describing some important aspects of F# along the way. As an introduction to F#, consider the following program:
@@ -142,17 +211,24 @@ let checkList alist =
 
 In this example, `alist` is compared with each potentially matching pattern of elements. When `alist` matches a pattern, the result expression is evaluated and is returned as the value of the match expression. Here, the `->` operator separates a pattern from the result that a match returns.
 
-Pattern matching can also be used as a control construct—for example, by using a pattern that performs a dynamic type test:
+Pattern matching can also be used as a control construct. In F# Native, type-based dispatch uses discriminated unions rather than runtime type tests:
 
 ```fsharp
-let describeType (x : obj) =
+type Value =
+    | StrVal of string
+    | IntVal of int
+    | Other
+
+let describeValue (x : Value) =
     match x with
-    | :? string -> "x is a string"
-    | :? int -> "x is an int"
-    | _ -> "x is something else"
+    | StrVal _ -> "x is a string"
+    | IntVal _ -> "x is an int"
+    | Other -> "x is something else"
 ```
 
-The `:?` operator returns true if the value matches the specified type.
+This approach provides exhaustive pattern matching verified at compile time.
+
+> **F# Native Note**: The `:?` type test operator and `obj` type are not available in F# Native. Use discriminated unions for type-safe variant handling. See [Native Type Mappings § The Universal Base Type `obj` Is Not Available](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 Function values can also be combined with the *pipeline operator*, `|>`. For example, given these functions:
 
