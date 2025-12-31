@@ -87,6 +87,91 @@ let process (x: Input) =
     | StringInput s -> handleString s
 ```
 
+## Compile-Time Metaprogramming
+
+The absence of `obj` and `System.Reflection` does not leave F# Native without metaprogramming capabilities. Three F# features provide **typed, compile-time metaprogramming** that surpasses what reflection-based approaches can offer:
+
+| Feature | Role | Reflection Equivalent |
+|---------|------|----------------------|
+| **Quotations** (`Expr<'T>`) | Encode program fragments as inspectable data | `MethodInfo`, `Expression<T>` |
+| **Active Patterns** | Compositional structural recognition | `GetType()`, type discrimination |
+| **Computation Expressions** | Continuation capture as notation | Callback-based async, monadic patterns |
+
+### Why This Matters
+
+Other native-compiled ML-family languages lack typed metaprogramming:
+
+| Capability | OCaml | Rust | F# Native |
+|------------|-------|------|-----------|
+| Typed quotations | No | No | Yes |
+| Pattern-based recognition | Match only | Match only | Active patterns |
+| Continuation notation | No | No | Computation expressions |
+| Metaprogramming | PPX (string-based) | proc_macro (token-based) | Quotations (typed) |
+
+F# quotations carry full type information through transformations. OCaml's PPX system and Rust's procedural macros operate on strings or token streams - they lack the type safety that quotations provide.
+
+### Quotations as Semantic Carriers
+
+Quotations encode constraints and metadata as compile-time data that the compiler can inspect:
+
+```fsharp
+// Peripheral descriptor carried as typed quotation
+let gpioDescriptor: Expr<PeripheralDescriptor> = <@
+    { Name = "GPIO"
+      BaseAddress = 0x48000000un
+      MemoryRegion = Peripheral }
+@>
+```
+
+The compiler extracts semantic information from quotations during PSG construction. No runtime reflection is needed - the information is available at compile time and can guide code generation (e.g., emitting volatile loads for peripheral access).
+
+### Active Patterns for Structural Recognition
+
+Active patterns enable compositional matching without type discrimination hierarchies:
+
+```fsharp
+// Recognize SRTP dispatch in PSG nodes
+let (|SRTPDispatch|_|) (node: PSGNode) =
+    match node.TypeCorrelation with
+    | Some { SRTPResolution = Some srtp } -> Some srtp
+    | _ -> None
+
+// Composable usage
+match currentNode with
+| SRTPDispatch srtp -> emitResolvedCall srtp
+| PeripheralAccess info -> emitVolatileAccess info
+| _ -> emitDefault node
+```
+
+Active patterns compose with `&` and `|`, can be tested in isolation, and encapsulate recognition logic - capabilities that runtime type inspection cannot match.
+
+### Computation Expressions as Continuation Capture
+
+Every `let!` in a computation expression captures a continuation:
+
+```fsharp
+maybe {
+    let! x = someOption    // Bind(someOption, fun x -> ...)
+    let! y = otherOption   // Bind(otherOption, fun y -> ...)
+    return x + y
+}
+```
+
+This desugaring to nested lambdas provides continuation semantics as notation. The compilation strategy depends on the computation pattern:
+
+| Pattern | Compilation Strategy |
+|---------|---------------------|
+| Sequential effects (async, state) | Preserve continuations (DCont dialect) |
+| Parallel pure (validated, reader) | Compile to data flow (Inet dialect) |
+
+### Normative Requirements
+
+NORMATIVE: `System.Reflection` and all reflection-based APIs SHALL NOT be available in F# Native. The compiler SHALL reject any code that references reflection types or methods.
+
+NORMATIVE: Quotations, active patterns, and computation expressions SHALL be fully supported. These features operate at compile time and impose no runtime overhead.
+
+NORMATIVE: Quotation-based metaprogramming SHALL NOT require runtime evaluation. All quotation inspection and transformation occurs during compilation.
+
 ## Primitive Types
 
 ### Numeric Types

@@ -127,6 +127,20 @@ The following spec files have been remediated to remove inappropriate `obj` refe
 - Equality/comparison attribute table updated
 - Generated `Equals` and `CompareTo` implementations use typed parameters
 
+## Compile-Time Metaprogramming
+
+The elimination of `obj` and `System.Reflection` is compensated by F#'s typed metaprogramming features:
+
+| Feature | Role | Reflection Replacement |
+|---------|------|------------------------|
+| **Quotations** | Encode constraints as data | `MethodInfo`, `Expression<T>` |
+| **Active Patterns** | Compositional recognition | `GetType()`, type discrimination |
+| **Computation Expressions** | Continuation capture | Callback-based async |
+
+**Key advantage over OCaml/Rust**: F# quotations carry full type information. OCaml's PPX and Rust's proc_macro are string/token-based.
+
+Documented in `native-type-mappings.md` under "Compile-Time Metaprogramming".
+
 ## Related Decisions
 
 - `voption` instead of `option` (value semantics, no null)
