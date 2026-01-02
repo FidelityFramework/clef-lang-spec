@@ -406,10 +406,72 @@ be type `string`.
 
 _Field Label Resolution_ specifies how to resolve identifiers such as `field1` in `{field1 = expr; ... fieldN = expr}`.
 
+> **F# Native Extension**: Unlike standard F# where memory layout is delegated to the CLR runtime, fsnative computes deterministic memory layouts at compile time. Field Label Resolution therefore encompasses both type resolution AND layout determination. See [§](native-type-universe.md#32-records-named-products) for memory layout principles.
+
 _Field Label Resolution_ proceeds through the following steps:
 
-1. Look up all fields in all available types in the _Types_ table and the _FieldLabels_ table ([§](type-definitions.md#record-type-definitions)).
-2. Return the set of field declarations.
+#### Step 1: Candidate Set Construction
+
+For each `field-label_i` in the record expression:
+
+1. If `field-label_i` is a single identifier `fld` AND the initial type is known to be a record type `R<_, ..., _>` that has field `F_i` with name `fld`, then `field-label_i` resolves to `F_i` directly.
+
+2. Otherwise, look up `field-label_i` in the _FieldLabels_ table. This yields a set of field references `FSet_i`, where each reference identifies a field in some record type. The corresponding set of record types is `RSet_i`.
+
+#### Step 2: Type Resolution via Intersection
+
+Compute the intersection of all candidate record type sets:
+
+```
+R_candidates = RSet_1 ∩ RSet_2 ∩ ... ∩ RSet_n
+```
+
+The resolution proceeds based on the cardinality of `R_candidates`:
+
+| Cardinality | Result |
+|-------------|--------|
+| 0 | Error FS8704: "No single record type contains all specified fields" |
+| 1 | Success: The unique record type `R` is identified |
+| > 1 | Error FS8702: "Ambiguous record type. Could be: {types}. Use type annotation to disambiguate." |
+
+#### Step 3: Completeness Verification
+
+For the resolved record type `R`, verify that every field defined in `R` has exactly one corresponding `field-label_i` in the expression. Missing fields result in error FS8705.
+
+#### Step 4: Layout Computation (F# Native Extension)
+
+> **Core Principle**: "Field order determines memory layout" ([§](native-type-universe.md#32-records-named-products)). The compiler controls layout—not MLIR, not LLVM.
+
+For the resolved record type `R` with fields `f_1, f_2, ..., f_n` in declaration order:
+
+1. Initialize `offset = 0`, `max_align = 1`
+2. For each field `f_i` with type `T_i`:
+   - Compute `(size_i, align_i) = layoutOf(T_i)`
+   - Compute padding: `pad = (align_i - (offset mod align_i)) mod align_i`
+   - Set `offset_i = offset + pad`
+   - Update `offset = offset_i + size_i`
+   - Update `max_align = max(max_align, align_i)`
+3. Compute final padding for struct alignment: `final_pad = (max_align - (offset mod max_align)) mod max_align`
+4. Total layout: `TypeLayout.Inline(offset + final_pad, max_align)`
+
+The resolved record type carries this computed layout, ensuring deterministic memory representation throughout the compilation pipeline.
+
+#### Step 5: Return Resolution
+
+Return the resolved record type `R` with:
+- Type constructor reference (including computed layout)
+- Field types in declaration order
+- Memory offsets for each field
+
+#### Error Codes
+
+| Code | Condition |
+|------|-----------|
+| FS8701 | Field name not found in any record type in scope |
+| FS8702 | Multiple record types contain all specified fields (ambiguity) |
+| FS8703 | Record type lookup failed (internal error) |
+| FS8704 | No single record type contains all specified fields |
+| FS8705 | Record expression is incomplete (missing required fields) |
 
 ## Resolving Application Expressions
 
