@@ -35,12 +35,12 @@ fsnative-spec is part of the **Fidelity** native F# compilation ecosystem:
 
 | Project | Role |
 |---------|------|
-| **[Firefly](https://github.com/speakeztech/firefly)** | AOT compiler: F# → PSG → MLIR → Native binary |
+| **[fsnative](https://github.com/speakeztech/fsnative)** | F# Native Compiler Services (FNCS): parsing, type checking, PSG construction |
+| **[Firefly](https://github.com/speakeztech/firefly)** | AOT compiler: consumes PSG → MLIR → Native binary |
 | **[Alloy](https://github.com/speakeztech/alloy)** | Native standard library with platform bindings |
 | **[BAREWire](https://github.com/speakeztech/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
 | **[Farscape](https://github.com/speakeztech/farscape)** | C/C++ header parsing for native library bindings |
 | **[XParsec](https://github.com/speakeztech/xparsec)** | Parser combinators powering PSG traversal and header parsing |
-| **[fsnative](https://github.com/speakeztech/fsnative)** | F# Native Compiler Services (FNCS) |
 | **fsnative-spec** | F# Native language specification (this repository) |
 
 The name "Fidelity" reflects the framework's core mission: **preserving type and memory safety** from source code through compilation to native execution.

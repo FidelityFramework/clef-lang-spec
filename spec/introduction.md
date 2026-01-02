@@ -54,12 +54,11 @@ FNCS has a focused responsibility within the Fidelity ecosystem:
 
 | Component | Responsibility |
 |-----------|---------------|
-| **FNCS** | Type universe, literal typing, type inference, SRTP resolution |
+| **FNCS** | Type universe, literal typing, type inference, SRTP resolution, PSG construction, editor services |
 | **Alloy** | Native library implementations using FNCS types |
-| **Firefly/PSG** | Semantic graph construction from FNCS typed trees |
-| **Firefly/Alex** | Platform-aware native code generation |
+| **Firefly/Alex** | PSG consumption, platform-aware MLIR generation, native code output |
 
-FNCS defines types; other components implement operations on those types.
+FNCS produces a Program Semantic Graph (PSG) with native types attached and full symbol information preserved for design-time tooling. Firefly consumes the PSG as "correct by construction" and focuses purely on code generation.
 
 ### Normative Requirements
 
