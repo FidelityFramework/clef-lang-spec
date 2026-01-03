@@ -1321,7 +1321,7 @@ type definition is declared by using the `delegate` keyword with a member signat
 type Handler<'T, 'Sender> = delegate of 'Sender * 'T -> unit
 ```
 
-> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform bindings use the `Platform.Bindings` module convention rather than P/Invoke attributes.
+> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform operations use FNCS intrinsics rather than P/Invoke attributes. See [Platform Bindings](platform-bindings.md).
 
 ## Exception Definitions
 

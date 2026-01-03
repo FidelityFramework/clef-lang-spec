@@ -10,8 +10,24 @@ Where .NET F# programs reference `FSharp.Core.dll` and `mscorlib.dll`, F# Native
 
 - Familiar API surface (Console, String, Array, etc.)
 - Native type implementations (fat pointers, stack allocation)
-- Platform bindings for system calls
+- BCL-free implementation using FNCS intrinsics
 - No garbage collector dependency
+
+## Architectural Position
+
+Alloy is **Layer 3** in the binding architecture - it is pure F# code that uses FNCS intrinsics:
+
+```
+Layer 1: FNCS Intrinsics (Sys.write, NativePtr.set, etc.)
+    ↑
+Layer 2: Binding Libraries (Farscape-generated)
+    ↑
+Layer 3: User Code (Alloy, applications)  ← Alloy is here
+```
+
+Alloy does NOT declare platform bindings. It uses `Sys.*` intrinsics directly.
+
+> **See**: [Platform Bindings](platform-bindings.md) for the three-layer architecture.
 
 ## Automatically Opened Namespaces
 
@@ -54,14 +70,21 @@ open Alloy.Collections
 
 ### Alloy.Console
 
-Console I/O operations using platform bindings.
+Console I/O operations using FNCS intrinsics.
 
 ```fsharp
 module Console =
+    /// Write a string to stdout
     val Write : string -> unit
+
+    /// Write a string followed by newline to stdout
     val WriteLine : string -> unit
+
+    /// Read a line from stdin
     val ReadLine : unit -> string
 ```
+
+Implementation uses `Sys.write` and `Sys.read` intrinsics directly.
 
 ### Alloy.String
 
@@ -99,19 +122,24 @@ module Option =
     val map : ('T -> 'U) -> voption<'T> -> voption<'U>
 ```
 
-## Platform Bindings
+## Using FNCS Intrinsics
 
-Alloy defines platform binding points that the compiler (Alex) implements for each target:
+Alloy implements I/O using FNCS intrinsics directly:
 
 ```fsharp
-module Platform.Bindings =
-    val writeBytes : int -> nativeptr<byte> -> int -> int
-    val readBytes : int -> nativeptr<byte> -> int -> int
-    val getCurrentTicks : unit -> int64
-    val sleep : int -> unit
+// Alloy/Primitives.fs
+module Primitives =
+    let inline writeStr (fd: int) (s: string) : int =
+        Sys.write fd s.Pointer s.Length
+
+    let inline writeStrOut s = writeStr 1 s
+    let inline writeStrErr s = writeStr 2 s
 ```
 
-> **See**: [Platform Bindings](platform-bindings.md) for binding semantics.
+This pattern:
+- Uses `Sys.write` (Layer 1 intrinsic)
+- No stub declarations with BCL dependencies
+- Pure F# implementation
 
 ## Operators
 
@@ -149,7 +177,7 @@ Standard arithmetic operators are defined in `Alloy.Operators`:
 | Option type | Reference, nullable | `voption`, non-nullable |
 | Array header | Object header | Fat pointer |
 | Memory management | GC | Deterministic |
-| Platform bindings | P/Invoke | Compiler-provided |
+| Platform operations | P/Invoke | FNCS intrinsics |
 
 ## SRTP Resolution
 

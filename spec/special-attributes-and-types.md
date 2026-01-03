@@ -63,13 +63,9 @@ These attributes control memory layout for native compilation:
 | --- | --- |
 | `[<EntryPoint>]` | Indicates that a function is the program's entry point. The function must have type `array<string> -> int`. Only one function in the last compilation file may have this attribute. See [Program Structure and Execution](program-structure-and-execution.md#explicit-entry-point). |
 
-### Platform Binding Attributes
+### Platform Binding Notes
 
-> **F# Native Note**: F# Native does not use `DllImport` or P/Invoke. Platform bindings are expressed through the `Platform.Bindings` module convention, where the compiler provides platform-specific implementations. See [Platform Bindings](platform-bindings.md).
-
-| Attribute | Description |
-| --- | --- |
-| `[<PlatformBinding>]` | Indicates that a function declaration in `Platform.Bindings` should be implemented by the compiler with platform-specific code. |
+> **F# Native Note**: F# Native does not use `DllImport` or P/Invoke. Platform operations use **FNCS intrinsics** (`Sys.write`, `NativePtr.set`, etc.) which are recognized by module pattern and compiled to platform-specific code. External library bindings use **quotation semantic carriers**. See [Platform Bindings](platform-bindings.md).
 
 ### Memory Region Attributes
 
@@ -119,7 +115,7 @@ Assembly metadata attributes (`AssemblyVersion`, `AssemblyTitle`, `AssemblyCompa
 
 | Not Applicable | Reason |
 | --- | --- |
-| `[<DllImport(...)>]` | P/Invoke is a CLI mechanism. Use `Platform.Bindings` module convention instead. |
+| `[<DllImport(...)>]` | P/Invoke is a CLI mechanism. Use FNCS intrinsics (`Sys.*`) or quotation-based binding libraries instead. See [Platform Bindings](platform-bindings.md). |
 | `[<MarshalAs(...)>]` | CLI marshalling is not applicable. F# Native types have deterministic native representations. |
 | `[<In>]`, `[<Out>]` | CLI parameter direction attributes. Not needed for native calling conventions. |
 | `[<UnmanagedFunctionPointer>]` | CLI interop mechanism. Native function pointers are used directly. |

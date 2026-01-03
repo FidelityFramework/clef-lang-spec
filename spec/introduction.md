@@ -46,7 +46,7 @@ FNCS adheres to these principles:
 
 **SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the Alloy library's witness hierarchy, not .NET method tables. This enables compile-time polymorphism without runtime overhead.
 
-**Typed Tree Fidelity**: FNCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly.
+**Typed Tree Fidelity**: FNCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly. The typed representation is defined by [`FSharpNativeExpr`](fsharp-native-expr.md), FNCS's native expression type that replaces FCS's `FSharpExpr`.
 
 ### Layer Separation
 
@@ -264,21 +264,22 @@ String interpolation with `$"..."` syntax provides type-safe formatting. The `%A
 
 The `Console.WriteLine` function is an example of *imperative programming*, which means calling functions for their side effects. Other commonly used imperative programming techniques include arrays and dictionaries. F# programs typically use a mixture of functional and imperative techniques.
 
-### Native Compilation and Platform Bindings
+### Native Compilation and System Intrinsics
 
-F# Native compiles to standalone native executables. Platform-specific operations are provided through the `Platform.Bindings` module convention:
+F# Native compiles to standalone native executables. Platform-specific operations use **FNCS intrinsics** - operations that are intrinsic to the native type universe:
 
 ```fsharp
-// Platform bindings are recognized by the compiler
-// and replaced with platform-specific implementations
-module Platform.Bindings =
-    val writeBytes : int -> nativeptr<byte> -> int -> int
-    val readBytes : int -> nativeptr<byte> -> int -> int
+// Sys intrinsics are recognized by FNCS during type checking
+// and compiled to platform-specific code by Alex
+module Sys =
+    val write : int -> nativeptr<byte> -> int -> int  // syscall on Unix
+    val read  : int -> nativeptr<byte> -> int -> int  // syscall on Unix
+    val exit  : int -> 'T                             // never returns
 ```
 
-The Firefly compiler (specifically the Alex component) provides implementations of these bindings for each target platform (Linux, macOS, Windows, embedded, etc.).
+FNCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
 
-> **See**: [Platform Bindings](platform-bindings.md) for the complete specification of platform binding conventions.
+> **See**: [Platform Bindings](platform-bindings.md) for the three-layer binding architecture including Sys intrinsics and quotation-based bindings for external libraries.
 
 ### Parallel and Asynchronous Programming
 

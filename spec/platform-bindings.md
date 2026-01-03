@@ -1,126 +1,350 @@
-# Platform Bindings
+# Platform Bindings and System Intrinsics
 
-Platform bindings define the interface between F# Native code and platform-specific operations. The compiler (Alex) provides implementations for each target platform.
+Platform bindings define the interface between F# Native code and platform-specific operations. This chapter specifies the three-layer binding architecture used by FNCS and Firefly.
 
 ## Overview
 
-F# Native uses a **module convention** for platform bindings rather than P/Invoke or FFI attributes. This approach:
+F# Native uses a **three-layer architecture** for platform operations:
 
+| Layer | Purpose | Examples |
+|-------|---------|----------|
+| **Layer 1: FNCS Intrinsics** | Native type universe operations | `Sys.write`, `NativePtr.set` |
+| **Layer 2: Binding Libraries** | External library bindings | GTK, CMSIS, OpenGL |
+| **Layer 3: User Code** | Applications and libraries | Alloy, user programs |
+
+This approach:
 - Avoids BCL dependencies (`System.Runtime.InteropServices`)
 - Enables compile-time platform specialization
 - Provides type-safe syscall interfaces
+- Separates intrinsic operations from external library bindings
 
-## The Platform.Bindings Module
+---
 
-Alloy defines binding points in `Platform.Bindings`:
+## Layer 1: FNCS Intrinsics
 
-```fsharp
-module Platform.Bindings =
-    val writeBytes : int -> nativeptr<byte> -> int -> int
-    val readBytes : int -> nativeptr<byte> -> int -> int
-    val getCurrentTicks : unit -> int64
-    val sleep : int -> unit
-    val exit : int -> unit
-```
+FNCS recognizes certain operations as **intrinsic** to the native type universe. These are recognized by module pattern - no declaration in user code is needed.
 
-These functions have **no F# implementation**. The compiler recognizes them and generates platform-specific code.
+### The Sys Module
 
-## Binding Recognition
-
-The compiler identifies platform bindings by:
-
-1. Module path: `Platform.Bindings.*`
-2. Function signature matching
-3. No implementation body (returns `Unchecked.defaultof<_>`)
+The `Sys` module provides direct system call primitives:
 
 ```fsharp
-// In Alloy - binding declaration
-module Platform.Bindings =
-    let writeBytes fd buffer count : int = 
-        Unchecked.defaultof<int>  // Placeholder - compiler provides impl
+module Sys =
+    /// Write bytes to a file descriptor
+    /// fd: file descriptor (0=stdin, 1=stdout, 2=stderr)
+    /// buffer: pointer to data
+    /// count: number of bytes to write
+    /// Returns: number of bytes written, or negative on error
+    val write : fd:int -> buffer:nativeptr<byte> -> count:int -> int
+
+    /// Read bytes from a file descriptor
+    /// fd: file descriptor
+    /// buffer: pointer to receive data
+    /// maxCount: maximum bytes to read
+    /// Returns: number of bytes read, or negative on error
+    val read : fd:int -> buffer:nativeptr<byte> -> maxCount:int -> int
+
+    /// Exit the process with the specified code
+    /// This function never returns
+    val exit : code:int -> 'T
 ```
+
+### The NativePtr Module
+
+Pointer operations intrinsic to native compilation:
+
+```fsharp
+module NativePtr =
+    val get       : nativeptr<'T> -> int -> 'T
+    val set       : nativeptr<'T> -> int -> 'T -> unit
+    val add       : nativeptr<'T> -> int -> nativeptr<'T>
+    val toNativeInt   : nativeptr<'T> -> nativeint
+    val ofNativeInt   : nativeint -> nativeptr<'T>
+    val stackalloc    : int -> nativeptr<'T>
+```
+
+### Intrinsic Recognition
+
+FNCS recognizes intrinsics by module path pattern during type checking. When code calls `Sys.write`, FNCS:
+
+1. Matches the module path `Sys`
+2. Matches the member name `write`
+3. Returns the intrinsic's native type signature
+4. Marks the call as `SemanticKind.Intrinsic` in the SemanticGraph
+
+The compiler (Alex) then provides platform-specific implementations during code generation.
+
+---
 
 ## Platform-Specific Implementation
 
-The compiler (Alex) provides implementations per target:
+Alex provides implementations of Sys intrinsics for each target platform.
 
 ### Linux x86-64
 
-| Binding | Implementation |
-|---------|---------------|
-| `writeBytes` | `syscall(1, fd, buffer, count)` (write) |
-| `readBytes` | `syscall(0, fd, buffer, count)` (read) |
-| `getCurrentTicks` | `syscall(228, ...)` (clock_gettime) |
-| `sleep` | `syscall(35, ...)` (nanosleep) |
-| `exit` | `syscall(60, code)` (exit) |
+| Intrinsic | Implementation |
+|-----------|---------------|
+| `Sys.write` | `syscall(1, fd, buffer, count)` |
+| `Sys.read` | `syscall(0, fd, buffer, count)` |
+| `Sys.exit` | `syscall(60, code)` |
+
+Syscall convention: `rax`=syscall number, `rdi`=arg1, `rsi`=arg2, `rdx`=arg3
 
 ### Linux ARM64
 
-| Binding | Implementation |
-|---------|---------------|
-| `writeBytes` | `svc #0` with x8=64 |
-| `readBytes` | `svc #0` with x8=63 |
-| `exit` | `svc #0` with x8=93 |
+| Intrinsic | Implementation |
+|-----------|---------------|
+| `Sys.write` | `svc #0` with `x8=64` |
+| `Sys.read` | `svc #0` with `x8=63` |
+| `Sys.exit` | `svc #0` with `x8=93` |
+
+### macOS x86-64
+
+| Intrinsic | Implementation |
+|-----------|---------------|
+| `Sys.write` | `syscall(0x2000004, fd, buffer, count)` |
+| `Sys.read` | `syscall(0x2000003, fd, buffer, count)` |
+| `Sys.exit` | `syscall(0x2000001, code)` |
+
+Note: macOS x86-64 uses BSD syscall numbers with `0x2000000` offset.
+
+### macOS ARM64
+
+| Intrinsic | Implementation |
+|-----------|---------------|
+| `Sys.write` | `svc #0x80` with `x16=4` |
+| `Sys.read` | `svc #0x80` with `x16=3` |
+| `Sys.exit` | `svc #0x80` with `x16=1` |
 
 ### Windows x86-64
 
-| Binding | Implementation |
-|---------|---------------|
-| `writeBytes` | `WriteFile` via ntdll |
-| `readBytes` | `ReadFile` via ntdll |
-| `exit` | `NtTerminateProcess` |
+| Intrinsic | Implementation |
+|-----------|---------------|
+| `Sys.write` | `WriteFile` via ntdll |
+| `Sys.read` | `ReadFile` via ntdll |
+| `Sys.exit` | `NtTerminateProcess` |
 
 ### Freestanding
 
-For bare-metal targets, bindings may:
+For bare-metal targets, intrinsics may:
 - Map to hardware registers
 - Generate inline assembly
 - Require target-specific configuration
 
-## Standard Bindings
+---
 
-### I/O Bindings
+## Layer 2: Binding Libraries
 
-```fsharp
-/// Write bytes to a file descriptor
-/// Returns: Number of bytes written, or negative on error
-val writeBytes : fd:int -> buffer:nativeptr<byte> -> count:int -> int
+External library bindings (GTK, CMSIS, OpenGL, etc.) require **rich semantic metadata** that FNCS cannot know intrinsically:
 
-/// Read bytes from a file descriptor
-/// Returns: Number of bytes read, or negative on error
-val readBytes : fd:int -> buffer:nativeptr<byte> -> maxCount:int -> int
-```
+- Memory layouts and alignment
+- Ownership semantics (managed, unmanaged, refcounted)
+- Volatile access requirements
+- Callback calling conventions
+- Register mappings (for hardware peripherals)
+- FFI calling conventions
 
-### Time Bindings
+### The Quotation Solution
 
-```fsharp
-/// Get current time in ticks (platform-specific resolution)
-val getCurrentTicks : unit -> int64
+F# quotations (`<@ ... @>`) are **compile-time inspectable data structures**. Unlike regular code which compiles to instructions, quotations compile to expression trees that can be examined during compilation.
 
-/// Sleep for specified milliseconds
-val sleep : milliseconds:int -> unit
-```
+This makes quotations ideal for carrying binding metadata:
+- Generated by Farscape from C/C++ headers
+- Compiled as regular F# code
+- Inspected at compile time by FNCS
+- Never executed at runtime
 
-### Process Bindings
+### How Quotation Binding Works
 
-```fsharp
-/// Exit the process with the specified code
-val exit : code:int -> unit
-```
+#### Step 1: Farscape Generates Binding Library
 
-### Memory Bindings
+Farscape parses C/C++ headers and generates F# binding libraries:
 
 ```fsharp
-/// Allocate memory from the system
-val allocateMemory : size:unativeint -> nativeptr<byte>
+// Generated by Farscape from gtk.h
+module Gtk.Bindings
 
-/// Free memory to the system
-val freeMemory : ptr:nativeptr<byte> -> unit
+open BAREWire.Descriptors
+open Alloy.Memory
+
+/// Type descriptor - quotation carries layout and semantics
+let gtkWindowDescriptor: Expr<TypeDescriptor> = <@
+    { TypeName = "GtkWindow"
+      CName = "GtkWindow"
+      Layout = { Size = 24un; Alignment = 8un }
+      Ownership = Unmanaged
+      RefCounted = true
+      Destructor = Some "gtk_widget_destroy" }
+@>
+
+/// Function descriptor - quotation carries calling convention
+let gtkWindowNewDescriptor: Expr<FunctionDescriptor> = <@
+    { CName = "gtk_window_new"
+      Parameters = [
+          { Name = "type"; Type = I32; PassBy = Value }
+      ]
+      ReturnType = Ptr gtkWindowDescriptor
+      CallingConvention = CDecl
+      OwnershipTransfer = CallerOwns }
+@>
+
+/// The callable function - references the descriptor
+let windowNew (windowType: int) : nativeptr<GtkWindow> =
+    // Body references descriptor, enabling FNCS to find metadata
+    failwith "Binding placeholder"
 ```
 
-## File Descriptors
+#### Step 2: FNCS Inspects Quotations at Compile Time
 
-Standard file descriptors:
+When FNCS encounters a call to a binding function, it:
+
+1. **Recognizes the binding pattern** by module structure
+2. **Finds associated quotations** by naming convention (`*Descriptor`)
+3. **Inspects quotation structure** to extract metadata
+4. **Attaches metadata to SemanticGraph nodes**
+
+```
+User code: let window = Gtk.windowNew 0
+                ↓
+FNCS: "This calls Gtk.Bindings.windowNew"
+                ↓
+FNCS: "Find associated descriptor quotation"
+                ↓
+FNCS: Inspects <@ { CName = "gtk_window_new"; ... } @>
+                ↓
+SemanticGraph node gets:
+  - FFI.CName = "gtk_window_new"
+  - FFI.CallingConvention = CDecl
+  - FFI.OwnershipTransfer = CallerOwns
+  - MemoryRegion = Unmanaged
+```
+
+#### Step 3: Alex Uses Metadata for Code Generation
+
+The metadata flows from SemanticGraph to Alex:
+
+```
+SemanticGraph node (with FFI metadata)
+                ↓
+Alex sees: "FFI call to gtk_window_new, CDecl, returns owned pointer"
+                ↓
+Generates: LLVM call with correct ABI, ownership tracking
+```
+
+### Active Patterns for Recognition
+
+Binding libraries also provide active patterns for PSG traversal:
+
+```fsharp
+/// Active pattern for matching GTK window creation
+let (|GtkWindowCreate|_|) (node: SemanticNode) =
+    match node.Kind with
+    | Application(funcNode, args) when
+        funcNode.Symbol = Some "Gtk.Bindings.windowNew" ->
+        Some { WindowType = extractArg args 0 }
+    | _ -> None
+
+/// Active pattern for matching GTK signal connection
+let (|GtkSignalConnect|_|) (node: SemanticNode) =
+    match node.Kind with
+    | Application(funcNode, args) when
+        funcNode.Symbol = Some "Gtk.Bindings.signalConnect" ->
+        let widget = extractArg args 0
+        let signal = extractArg args 1
+        let callback = extractArg args 2
+        Some { Widget = widget; Signal = signal; Callback = callback }
+    | _ -> None
+```
+
+These patterns enable Alex to recognize and handle specific binding patterns during code generation.
+
+### Quotation Structure Requirements
+
+Binding quotations must follow specific structure for FNCS inspection:
+
+```fsharp
+/// Type descriptor quotation
+type TypeDescriptor = {
+    TypeName: string          // F# type name
+    CName: string             // C/C++ type name
+    Layout: LayoutInfo        // Size, alignment
+    Ownership: OwnershipKind  // Managed | Unmanaged | RefCounted
+    RefCounted: bool          // Uses reference counting
+    Destructor: string option // Cleanup function name
+}
+
+/// Function descriptor quotation
+type FunctionDescriptor = {
+    CName: string                 // C function name
+    Parameters: ParameterInfo[]   // Parameter types and passing
+    ReturnType: TypeRef           // Return type reference
+    CallingConvention: CallConv   // CDecl | StdCall | FastCall
+    OwnershipTransfer: Transfer   // CallerOwns | CalleeOwns | Borrowed
+}
+
+/// Hardware register descriptor (for embedded)
+type RegisterDescriptor = {
+    Name: string              // Register name
+    Address: unativeint       // Memory-mapped address
+    AccessKind: AccessKind    // ReadOnly | WriteOnly | ReadWrite | Volatile
+    ResetValue: uint32        // Value after reset
+    Fields: FieldInfo[]       // Bit field definitions
+}
+```
+
+### Why Quotations, Not Attributes?
+
+| Approach | Limitation |
+|----------|------------|
+| **Attributes** | Limited to simple values (strings, numbers) |
+| **Interfaces** | Require runtime dispatch |
+| **Reflection** | Requires runtime, BCL dependency |
+| **Quotations** | Full F# expressions, compile-time inspectable, BCL-free |
+
+Quotations can express:
+- Nested structures (layouts containing fields)
+- References to other types (pointer to TypeDescriptor)
+- Complex expressions (computed offsets, conditional layouts)
+- All without runtime overhead
+
+---
+
+## Layer 3: User Code
+
+User code, including libraries like Alloy, uses intrinsics and binding libraries. It does NOT declare platform bindings.
+
+### Correct Usage Pattern
+
+```fsharp
+// Alloy/Console.fs - uses FNCS intrinsics directly
+module Alloy.Console
+
+let inline Write (s: string) : unit =
+    Sys.write 1 s.Pointer s.Length |> ignore
+
+let inline WriteLine (s: string) : unit =
+    Write s
+    Sys.write 1 &&'\n' 1 |> ignore
+```
+
+### Incorrect Pattern (Deprecated)
+
+The following pattern is **deprecated** and should not be used:
+
+```fsharp
+// WRONG - Do not declare platform bindings with BCL stubs
+module Platform.Bindings =
+    let writeBytes fd buffer count : int =
+        Unchecked.defaultof<int>  // BCL dependency!
+```
+
+This pattern was used historically but creates BCL dependencies and requires special handling in the compiler.
+
+---
+
+## Standard File Descriptors
+
+Standard file descriptors on Unix-like systems:
 
 | Descriptor | Value | Purpose |
 |------------|-------|---------|
@@ -128,38 +352,34 @@ Standard file descriptors:
 | `stdout` | 1 | Standard output |
 | `stderr` | 2 | Standard error |
 
-## Adding Custom Bindings
+---
 
-Custom platform bindings follow the same pattern:
+## Intrinsic Constraints
 
-```fsharp
-// In application code
-module MyPlatform.Bindings =
-    let customSyscall arg1 arg2 : int = 
-        Unchecked.defaultof<int>
-```
+FNCS intrinsics have restrictions:
 
-The compiler must be configured to recognize custom binding modules.
-
-## Binding Constraints
-
-Platform bindings have restrictions:
-
-1. **No closures**: Bindings cannot capture environment
+1. **No closures**: Intrinsics cannot capture environment
 2. **Primitive types only**: Arguments and returns must be primitive or pointer types
 3. **No exceptions**: Errors returned via return values
-4. **No allocation**: Bindings do not allocate managed memory
+4. **No allocation**: Intrinsics do not allocate managed memory
+5. **No currying**: Intrinsics must be called with all arguments
+
+---
 
 ## Diagnostics
 
 | Code | Message |
 |------|---------|
-| FS8030 | Platform binding not available for target |
-| FS8031 | Invalid platform binding signature |
-| FS8032 | Platform binding requires primitive types |
+| FS8030 | Platform intrinsic not available for target |
+| FS8031 | Invalid intrinsic signature |
+| FS8032 | Intrinsic requires primitive types |
+| FS8033 | Intrinsic called with partial application |
+
+---
 
 ## See Also
 
-- [The Native Library Alloy](the-native-library-alloy.md) - Standard library using bindings
-- [Memory Regions](memory-regions.md) - Pointer types for bindings
+- [The Native Library Alloy](the-native-library-alloy.md) - Standard library using intrinsics
+- [Memory Regions](memory-regions.md) - Pointer types for intrinsics
 - [Access Kinds](access-kinds.md) - Pointer access semantics
+- [FSharpNativeExpr](fsharp-native-expr.md) - How intrinsics appear in the expression tree
