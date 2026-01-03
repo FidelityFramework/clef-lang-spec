@@ -495,6 +495,100 @@ let makeAdder n = fun x -> x + n
 | DU | `!fidelity.union<...>` |
 | Function | `!fidelity.fn<A, B>` |
 
+## Why IL Infrastructure Is Removed from FNCS
+
+F# Native Compiler Services (FNCS) is derived from F# Compiler Services (FCS) but targets native compilation via MLIR, not CLR bytecode. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
+
+### The Architecture Boundary
+
+```
+┌─────────────────────────────────────────────────┐
+│  FNCS (F# Native Compiler Services)             │
+│  - Type checking, resolution, inference         │
+│  - Produces typed tree with native types        │
+│  - NO code generation, NO IL                    │
+└─────────────────────────────────────────────────┘
+                      │
+                      ▼ Typed Tree (native types)
+┌─────────────────────────────────────────────────┐
+│  Alex (Code Generation)                         │
+│  - PSG traversal via Zipper                     │
+│  - Platform bindings for syscalls               │
+│  - MLIR emission                                │
+└─────────────────────────────────────────────────┘
+                      │
+                      ▼ MLIR
+┌─────────────────────────────────────────────────┐
+│  MLIR Optimization Passes                       │
+│  - Loop optimization (SCF dialect)              │
+│  - Arithmetic optimization (arith dialect)      │
+│  - Memory optimization                          │
+└─────────────────────────────────────────────────┘
+                      │
+                      ▼ LLVM IR → Native Binary
+```
+
+### Why IL Operations Are Not Stubbed
+
+The original FCS contains IL-based operations for loop optimization, null handling, and arithmetic. These were initially stubbed during the FNCS fork, but **stubs produce semantically wrong results**:
+
+| Stubbed Function | Wrong Behavior | Why It's Wrong |
+|------------------|----------------|----------------|
+| `mkAsmExpr` | Returns `Coerce`/identity | Should compute arithmetic |
+| `mkILAsmCeq`, `mkILAsmClt` | Returns constant `false` | Should compare values |
+| `mkGetStringLength` | Returns constant `0` | Should return actual length |
+| `mkDecr` | Returns expression unchanged | Should decrement value |
+
+**Principle**: "Delete, don't stub" - Broken stubs hide defects and produce silent wrong behavior. Complete removal makes missing functionality explicit.
+
+### What Functionality Moves Downstream
+
+| IL Infrastructure | Native Equivalent | Location |
+|-------------------|-------------------|----------|
+| `TOp.ILAsm` (arithmetic) | MLIR arith dialect ops | Alex code generation |
+| `TOp.ILCall` (method calls) | MLIR func.call / platform bindings | Alex code generation |
+| Loop optimization | MLIR SCF dialect transforms | MLIR optimization passes |
+| String length/concat | Native string fat pointer ops | Alloy + Alex |
+| Integer conversions | MLIR arith.extsi/extui/trunci | Alex type lowering |
+| Null handling | Not needed - F# Native has no null | See below |
+
+### Null Is Not Representable
+
+NORMATIVE: F# Native has **no null values**. The `null` keyword and null checking operations are not available.
+
+- `mkNull`, `mkNullTest`, `mkNonNullTest`, `mkNonNullCond` - all removed
+- Option types (`voption`) replace nullable references
+- Pattern matching replaces null checks
+
+This is consistent with F# Native's safety guarantees: no null pointer dereferences are possible because null cannot be expressed.
+
+### Removed IL Infrastructure
+
+The following were removed from `TypedTreeOps.fs`:
+
+**IL Instruction Stubs**:
+- `ILDataType` type
+- `AI_ldnull`, `AI_cgt_un`, `AI_clt_un`, `AI_add`, `AI_sub`, `AI_div_un`, etc.
+- `ILInstr` module
+- `mkAsmExpr` function
+
+**Loop Optimization (vestigial - no callers)**:
+- `DetectAndOptimizeForEachExpression`
+- `mkOptimizedRangeLoop`, `mkRangeCount`
+- `mkFastForLoop`
+- Pattern matchers: `Int32Expr`, `RangeInt32Step`, `CompiledForEachExpr`, etc.
+- `IntegralConst` module, `IntegralRange`, `EmptyRange`, `ConstCount` patterns
+
+**Null Operations**:
+- `mkNull`, `mkNullTest`, `mkNonNullTest`, `mkNonNullCond`
+
+**Broken Comparison Stubs**:
+- `mkILAsmCeq`, `mkILAsmClt`, `mkDecr`, `mkGetStringLength`
+
+### The Key Insight
+
+IL-based loop optimization at the typed tree level was **premature optimization at the wrong layer**. Native loop optimization belongs in MLIR passes where the target architecture is known and appropriate loop transformations (vectorization, unrolling, tiling) can be applied.
+
 ## See Also
 
 - [Types and Type Constraints](types-and-type-constraints.md) - Type system overview
