@@ -616,6 +616,24 @@ let arr = Array.create 10 0  // 10 elements, all 0
 | `Array.find pred arr` throws | `Array.tryFind pred arr` → `voption<'T>` |
 | `Array.head arr` throws | `Array.tryHead arr` → `voption<'T>` |
 
+**Array Module Intrinsics (FNCS Layer 1)**:
+
+These operations are fundamental to the array type and are emitted directly by FNCS. They cannot be expressed in pure F# because they require memory allocation and element size knowledge.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `Array.zeroCreate` | `int -> array<'T>` | Allocate n elements, zero-initialized |
+| `Array.create` | `int -> 'T -> array<'T>` | Allocate n elements, all set to value |
+| `Array.init` | `int -> (int -> 'T) -> array<'T>` | Allocate n elements, initialized by function |
+| `Array.copy` | `array<'T> -> array<'T>` | Create a copy of the array |
+| `Array.length` | `array<'T> -> int` | Return the length of the array |
+| `Array.get` | `array<'T> -> int -> 'T` | Get element at index (bounds-checked) |
+| `Array.set` | `array<'T> -> int -> 'T -> unit` | Set element at index (bounds-checked) |
+| `Array.tryItem` | `int -> array<'T> -> voption<'T>` | Safe indexed access returning voption |
+| `Array.isEmpty` | `array<'T> -> bool` | Return true if array has zero length |
+
+**Allocation Semantics**: Arrays are allocated in the current memory region (stack arena or actor arena). The allocation strategy is determined by the memory region context, not by the Array function.
+
 ### 4.3 Span and ReadOnlySpan
 
 ```fsharp
