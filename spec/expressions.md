@@ -168,8 +168,8 @@ slice-range :=
 ## Some Checking and Inference Terminology
 
 The rules applied to check individual expressions are described in the following subsections. Where
-necessary, these sections reference specific inference procedures such as _Name Resolution_ ([§](inference-procedures.md#name-resolution))
-and _Constraint Solving_ ([§](inference-procedures.md#constraint-solving)).
+necessary, these sections reference specific inference procedures such as _Name Resolution_ ([§](inference-name-resolution.md#name-resolution))
+and _Constraint Solving_ ([§](inference-constraint-solving.md#constraint-solving)).
 
 All expressions are assigned a static type through type checking and inference. During type checking,
 each expression is checked with respect to an _initial type_. The initial type establishes some of the
@@ -189,7 +189,7 @@ following terminology:
 Additionally:
 
 - The addition of constraints to the type inference constraint set fails if it causes an inconsistent
-    set of constraints ([§](inference-procedures.md#constraint-solving)). In this case either an error is reported or, if we are only attempting to
+    set of constraints ([§](inference-constraint-solving.md#constraint-solving)). In this case either an error is reported or, if we are only attempting to
     _assert_ the condition, the state of the inference procedure is left unchanged and the test fails.
 
 ## Elaboration and Elaborated Expressions
@@ -418,7 +418,7 @@ which must resolve to a field `F` i in a unique record type `R` as follows:
 - If `field-labeli` is a single identifier `fld` and the initial type is known to be a record type
     `R<_, ..., _>` that has field `Fi` with name `fld`, then the field label resolves to `Fi`.
 - If `field-labeli` is not a single identifier or if the initial type is a variable type, then the field label
-    is resolved by performing _Field Label Resolution_ (see [§](inference-procedures.md#name-resolution)) on `field-labeli`. This procedure
+    is resolved by performing _Field Label Resolution_ (see [§](inference-name-resolution.md#name-resolution)) on `field-labeli`. This procedure
     results in a set of fields `FSeti`. Each element of this set has a corresponding record type, thus
     resulting in a set of record types `RSeti`. The intersection of all `RSeti` must yield a single record
     type `R`, and each field then resolves to the corresponding field in `R`.
@@ -595,9 +595,9 @@ expression is `ty0` and is asserted to be equal to the initial type of the expre
 2. The type `ty0` must be a class or interface type. The base construction argument `args-expr` must
     appear if and only if `ty0` is a class type. The type must have one or more accessible constructors;
     the call to these constructors is resolved and elaborated using _Method Application Resolution_
-    (see [§](inference-procedures.md#method-application-resolution)). Except for `ty0`, each `tyi` must be an interface type.
+    (see [§](inference-application-resolution.md#method-application-resolution)). Except for `ty0`, each `tyi` must be an interface type.
 3. The F# compiler attempts to associate each member with a unique _dispatch slot_ by using
-    _dispatch slot inference_ ([§](inference-procedures.md#dispatch-slot-inference)). If a unique matching dispatch slot is found, then the argument
+    _dispatch slot inference_ ([§](inference-supplementary.md#dispatch-slot-inference)). If a unique matching dispatch slot is found, then the argument
     types and return type of the member are constrained to be precisely those of the dispatch slot.
 4. The arguments, patterns, and expressions that constitute the bodies of all implementing
     members are next checked one by one to verify the following:
@@ -606,14 +606,14 @@ expression is `ty0` and is asserted to be equal to the initial type of the expre
     - If the variable `base-ident` appears, it must be named `base`, and in each member a base
        variable with this name is in scope. Base variables can be used only in the member
        implementations of an object expression, and are subject to the same limitations as byref
-       values described in [§](inference-procedures.md#byref-safety-analysis).
+       values described in [§](inference-supplementary.md#byref-safety-analysis).
 
-The object must satisfy _dispatch slot checking_ ([§](inference-procedures.md#dispatch-slot-checking)) which ensures that a one-to-one mapping
+The object must satisfy _dispatch slot checking_ ([§](inference-supplementary.md#dispatch-slot-checking)) which ensures that a one-to-one mapping
 exists between dispatch slots and their implementations.
 
 Object expressions elaborate to a primitive form. At execution, each object expression creates an
 object whose runtime type is compatible with all of the `tyi` that have a dispatch map that is the
-result of _dispatch slot checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
+result of _dispatch slot checking_ ([§](inference-supplementary.md#dispatch-slot-checking)).
 
 The following example shows how to implement an interface. The overall type of the expression is `INewIdentity`.
 
@@ -1581,20 +1581,20 @@ Map<int,int>.empty.[1]
 ```
 
 If the `long-ident-or-op` starts with the special pseudo-identifier keyword `global`, F# resolves the
-identifier with respect to the global namespace — that is, ignoring all `open` directives (see [§](inference-procedures.md#resolving-application-expressions)). For example:
+identifier with respect to the global namespace — that is, ignoring all `open` directives (see [§](inference-application-resolution.md#resolving-application-expressions)). For example:
 
 ```fsharp
-global.Alloy.Math.PI
+global.Math.PI
 ```
 
-is resolved to `Alloy.Math.PI` ignoring all `open` directives.
+is resolved to `Math.PI` ignoring all `open` directives.
 
-The checking of application expressions is described in detail as an algorithm in [§](inference-procedures.md#resolving-application-expressions). To check an
+The checking of application expressions is described in detail as an algorithm in [§](inference-application-resolution.md#resolving-application-expressions). To check an
 application expression, the expression form is repeatedly decomposed into a _lead_ expression `expr`
-and a list of projections `projs` through the use of _Unqualified Lookup_ ([§](inference-procedures.md#unqualified-lookup)). This in turn uses
+and a list of projections `projs` through the use of _Unqualified Lookup_ ([§](inference-application-resolution.md#unqualified-lookup)). This in turn uses
 procedures such as _Expression-Qualified Lookup_ and _Method Application Resolution_.
 
-As described in [§](inference-procedures.md#resolving-application-expressions), checking an application expression results in an elaborated expression that
+As described in [§](inference-application-resolution.md#resolving-application-expressions), checking an application expression results in an elaborated expression that
 contains a series of lookups and method calls. The elaborated expression may include:
 
 - Uses of named values
@@ -1654,7 +1654,7 @@ record, union or tuple type. If `ty` is a named class or struct type:
     arguments, the expression elaborates to the default “zero-bit pattern” value for `ty`.
 - Otherwise, the type must have one or more accessible constructors. The overloading between
     these potential constructors is resolved and elaborated by using _Method Application Resolution_
-    (see [§](inference-procedures.md#method-application-resolution)).
+    (see [§](inference-application-resolution.md#method-application-resolution)).
 
 If `ty` is a type variable:
 
@@ -1683,7 +1683,7 @@ translation process.
 These rules are applied after applying the rules for dynamic operators ([§](expressions.md#dynamic-operator-expressions)).
 
 The parenthesized operator name is then treated as an identifier and the standard rules for
-unqualified name resolution ([§](inference-procedures.md#name-resolution)) in expressions are applied. The expression may resolve to a
+unqualified name resolution ([§](inference-name-resolution.md#name-resolution)) in expressions are applied. The expression may resolve to a
 specific definition of a user-defined or library-defined operator. For example:
 
 ```fsharp
@@ -1709,7 +1709,7 @@ particular:
 - The library-defined operators, such as `+`, `-`, `*`, `/`, `%`, `**`, `<<<`, `>>>`, `&&&`, `|||`, and `^^^` ([§](the-native-library-alloy.md#basic-operators-and-functions-fsharpcoreoperators)).
 
 If the operator does not resolve to a user-defined or library-defined operator, the name resolution
-rules ([§](inference-procedures.md#name-resolution)) ensure that the operator resolves to an expression that implicitly uses a static member
+rules ([§](inference-name-resolution.md#name-resolution)) ensure that the operator resolves to an expression that implicitly uses a static member
 invocation expression (§ ?) that involves the types of the operands. This means that the effective
 behavior of an operator that is not defined in the F# library is to require a static member that has the
 same name as the operator, on the type of one of the operands of the operator. In the following
@@ -1855,7 +1855,7 @@ indicated
 `idx` → `idx`
 
 Because this is a shallow syntactic translation, the `GetSlice` and `SetSlice` name may be resolved by
-any of the relevant _Name Resolution_ ([§](inference-procedures.md#name-resolution)) techniques, including defining the method as a type
+any of the relevant _Name Resolution_ ([§](inference-name-resolution.md#name-resolution)) techniques, including defining the method as a type
 extension for an existing type.
 
 For example, if a matrix type has the appropriate overloads of the GetSlice method (see below), it is
@@ -1969,7 +1969,7 @@ An expression of the following form is an _assignment expression_ :
 expr1 <- expr2
 ```
 
-A modified version of _Unqualified Lookup_ ([§](inference-procedures.md#unqualified-lookup)) is applied to the expression `expr1` using a fresh
+A modified version of _Unqualified Lookup_ ([§](inference-application-resolution.md#unqualified-lookup)) is applied to the expression `expr1` using a fresh
 expected result type `ty` , thus producing an elaborate expression `expr1`. The last qualification for `expr1`
 must resolve to one of the following constructs:
 
@@ -2446,7 +2446,7 @@ exceptions:
     For example, the following expression is rejected:
        <br>`let f<'T> (x:'T) = x in f 3`
 - Function and value definitions in expressions are not public and are not subject to arity analysis
-    ([§](inference-procedures.md#arity-inference)).
+    ([§](inference-supplementary.md#arity-inference)).
 - Any custom attributes that are specified on the declaration, parameters, and/or return
     arguments are ignored and result in a warning. As a result, function and value definitions in
     expressions may not have the `ThreadStatic` or `ContextStatic` attribute.
@@ -2467,7 +2467,7 @@ mutable? access? pat typar-defns? return-type? = rhs-expr
 
 Checking proceeds as follows:
 
-1. Check the _value-defn_ ([§](inference-procedures.md#checking-and-elaborating-function-value-and-member-definitions)), which defines a group of identifiers `identj` with inferred types `tyj`
+1. Check the _value-defn_ ([§](inference-constraint-solving.md#checking-and-elaborating-function-value-and-member-definitions)), which defines a group of identifiers `identj` with inferred types `tyj`
 
 2. Add the identifiers `identj` to the name resolution environment, each with corresponding type
     `tyj`.
@@ -2482,7 +2482,7 @@ In this case, the following rules apply:
     body-expr
     ```
 
-    where ident1 , typars1 and expr1 are defined in [§](inference-procedures.md#checking-and-elaborating-function-value-and-member-definitions).
+    where ident1 , typars1 and expr1 are defined in [§](inference-constraint-solving.md#checking-and-elaborating-function-value-and-member-definitions).
 
 - Otherwise, the resulting elaborated form of the entire expression is
 
@@ -2524,7 +2524,7 @@ inline? access? ident-or-op typar-defns? pat1 ... patn return-type? = rhs-expr
 
 Checking proceeds as follows:
 
-1. Check the `function-defn` ([§](inference-procedures.md#checking-and-elaborating-function-value-and-member-definitions)), which defines `ident1`, `ty1`, `typars1` and `expr1`
+1. Check the `function-defn` ([§](inference-constraint-solving.md#checking-and-elaborating-function-value-and-member-definitions)), which defines `ident1`, `ty1`, `typars1` and `expr1`
 2. Add the identifier `ident1` to the name resolution environment, each with corresponding type `ty1`.
 3. Check the body `expr` against the initial type of the overall expression.
 
@@ -2535,7 +2535,7 @@ let ident1 < typars1 > = expr1 in
 expr
 ```
 
-where `ident1` , `typars1` and `expr1` are as defined in [§](inference-procedures.md#checking-and-elaborating-function-value-and-member-definitions).
+where `ident1` , `typars1` and `expr1` are as defined in [§](inference-constraint-solving.md#checking-and-elaborating-function-value-and-member-definitions).
 
 ### Recursive Definition Expressions
 
@@ -2565,7 +2565,7 @@ test()
 ```
 
 In the example, the expression defines a set of recursive functions. If one or more recursive values
-are defined, the recursive expressions are analyzed for safety ([§](inference-procedures.md#recursive-safety-analysis)). This may result in warnings
+are defined, the recursive expressions are analyzed for safety ([§](inference-constraint-solving.md#recursive-safety-analysis)). This may result in warnings
 (including some reported as compile-time errors) and runtime checks.
 
 ### Deterministic Disposal Expressions
@@ -2592,7 +2592,7 @@ let ident1 : ty1 = expr1 in expr2.
 ```
 
 Only one value may be defined by a deterministic disposal expression, and the definition is not
-generalized ([§](inference-procedures.md#generalization)). The type `ty1` , is then asserted to be a subtype of `IDisposable`. The `Dispose` method is called on the value when the value goes out of scope. Thus the overall expression elaborates to this:
+generalized ([§](inference-constraint-solving.md#generalization)). The type `ty1` , is then asserted to be a subtype of `IDisposable`. The `Dispose` method is called on the value when the value goes out of scope. Thus the overall expression elaborates to this:
 
 ```fsgrammar
 let ident1 : ty1 = expr1
@@ -2600,7 +2600,7 @@ try expr2
 finally (ident :> IDisposable).Dispose()
 ```
 
-> **F# Native Note**: In F# Native, `use` bindings provide deterministic resource cleanup. Unlike managed F#, there is no null check required since F# Native is null-free by construction.
+> **F# Native Note**: In F# Native, `use` bindings provide deterministic resource cleanup. F# Native is null-free by construction, so disposal code requires no null checks.
 
 ### Pinned Pointer Expressions
 
@@ -3039,7 +3039,7 @@ At runtime an elaborated application of a method is evaluated as follows:
 - The (optional) `e0` and `e1` ,..., _en_ are evaluated in order.
 - If `e0` evaluates to `null`, a `NullReferenceException` is raised.
 - If the method is declared `abstract` — that is, if it is a virtual dispatch slot — then the body of the
-    member is chosen according to the dispatch maps of the value of `e0` ([§](inference-procedures.md#dispatch-slot-checking)).
+    member is chosen according to the dispatch maps of the value of `e0` ([§](inference-supplementary.md#dispatch-slot-checking)).
 - The formal parameters of the method are mapped to corresponding argument values. The body
     of the method member is evaluated in the resulting environment.
 
@@ -3104,7 +3104,7 @@ At runtime, elaborated object expressions
 is evaluated as follows:
 
 - The expression evaluates to an object whose runtime type is compatible with all of the `tyi` and
-    which has the corresponding dispatch map ([§](inference-procedures.md#dispatch-slot-checking)). If present, the base construction expression
+    which has the corresponding dispatch map ([§](inference-supplementary.md#dispatch-slot-checking)). If present, the base construction expression
     `ty0 (args-expr)` is executed as the first step in the construction of the object.
 - The object is given a closure that assigns values to all variables that are referenced in `expr`.
 - The values in the closure are the current values of those variables in the execution environment.

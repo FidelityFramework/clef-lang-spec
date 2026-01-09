@@ -73,7 +73,7 @@ type IOError =
     | DeviceError of code: int
 ```
 
-> **Note**: The exact set of standard error types is subject to further specification as the Alloy library matures.
+> **Note**: The exact set of standard error types is subject to further specification as the standard library matures.
 
 ### The voption Type
 
@@ -85,7 +85,7 @@ type voption<'T> =
     | ValueNone
 ```
 
-Unlike managed F#'s `option<'T>`, which uses `null` to represent `None` internally, `voption<'T>` has an explicit discriminator with no null representation.
+The `voption<'T>` type has an explicit discriminator with no null representation.
 
 ```fsharp
 // Looking up a value that may not exist
@@ -192,7 +192,7 @@ FNCS implements the Language Server Protocol for editor integration. Key conside
 
 1. **Diagnostic Publishing**: Errors are published via `textDocument/publishDiagnostics` in standard LSP format
 2. **Code Actions**: Quick fixes (e.g., "Replace null with ValueNone") are provided via `textDocument/codeAction`
-3. **Hover Information**: Type information displays native types, not BCL equivalents
+3. **Hover Information**: Type information displays native types
 
 ### Ionide Integration Model
 
@@ -237,8 +237,8 @@ The design-time experience for F# Native should be consistent with managed F#:
 | Syntax highlighting | Standard F# highlighting |
 | Error underlining | Red squiggles for errors, yellow for warnings |
 | Hover types | Shows native type representations |
-| Autocomplete | Suggests Alloy library members, not BCL |
-| Go to definition | Navigates to Alloy source or native signatures |
+| Autocomplete | Suggests native library members |
+| Go to definition | Navigates to native library source |
 | Quick fixes | Offers native-appropriate fixes |
 
 ## Error Handling Patterns
@@ -326,5 +326,4 @@ The following areas require additional design work:
 
 - [Types and Type Constraints](types-and-type-constraints.md) - Type system fundamentals
 - [Special Attributes and Types](special-attributes-and-types.md) - Result and voption definitions
-- [The Native Library Alloy](the-native-library-alloy.md) - Standard library error handling functions
 - [Platform Bindings](platform-bindings.md) - Error handling at platform boundaries

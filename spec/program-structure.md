@@ -32,11 +32,11 @@ Processing the source code portions of these inputs consists of the following st
 5. **Importing**. The imported references are resolved to F# source packages or pre-compiled native libraries,
    which are then imported. From the F# perspective, this results in the pre-definition of numerous
    namespace declaration groups ([§](program-structure-and-execution.md#implementation-files)) and types. The namespace
-   declaration groups are then combined to form an initial name resolution environment ([§](inference-procedures.md#name-resolution)).
+   declaration groups are then combined to form an initial name resolution environment ([§](inference-name-resolution.md#name-resolution)).
 
    > **F# Native Note**: F# Native does not use CLI assemblies. Dependencies are specified in the `.fidproj` project file and resolved from source packages or native libraries. Type providers are not available in native compilation.
 6. **Checking**. The results of parsing are checked one by one. Checking involves such procedures as
-   Name Resolution (§14.1), Constraint Solving (§14.5), and Generalization ([§](inference-procedures.md#generalization)), as well as the
+   Name Resolution (§14.1), Constraint Solving (§14.5), and Generalization ([§](inference-constraint-solving.md#generalization)), as well as the
    application of other rules described in this specification.
    Type inference uses variables to represent unknowns in the type inference problem. The various
    checking processes maintain tables of context information including a name resolution

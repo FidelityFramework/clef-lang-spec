@@ -143,15 +143,14 @@ A script file contains a sequence of declarations and expressions:
 
 ```fsharp
 // script.fsnx
-#require "Alloy"
 #load "helpers.fs"
 
-open Alloy.Console
+open Console
 
 let data = [1; 2; 3; 4; 5]
 let sum = List.fold (+) 0 data
 
-WriteLine $"Sum: {sum}"
+writeln $"Sum: {sum}"
 ```
 
 ### Script Directives
@@ -176,8 +175,8 @@ Script files may include a shebang for direct execution:
 #!/usr/bin/env fsni
 // script.fsnx
 
-open Alloy.Console
-WriteLine "Hello from F# Native!"
+open Console
+writeln "Hello from F# Native!"
 ```
 
 ```bash
@@ -377,7 +376,7 @@ The toolchains are parallel rather than plugins because:
 
 1. **Type resolution fundamentally differs**: FNCS resolves `string` to native UTF-8 fat pointer semantics; FCS resolves to `System.String`. These cannot be reconciled at runtime.
 
-2. **SRTP resolution differs**: FNCS resolves SRTP against Alloy's intrinsic type witnesses; FCS resolves against BCL method tables.
+2. **SRTP resolution differs**: FNCS resolves SRTP against native type witnesses; FCS resolves against BCL method tables.
 
 3. **No `obj` escape hatch**: Managed tooling uses `obj` as a universal container for values during type checking and display. F# Native has no such type.
 
@@ -533,7 +532,7 @@ The web playground operates with restrictions:
 | Feature | Availability |
 |---------|--------------|
 | Core language | Full |
-| Alloy library | Full |
+| Native library | Full |
 | File I/O | Sandboxed |
 | Network | Restricted |
 | Custom native code | Not available |

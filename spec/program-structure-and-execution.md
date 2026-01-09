@@ -39,7 +39,7 @@ A sequence of implementation and signature files is checked as follows.
     - Add the top-level types, modules, and namespaces to the environment.
     - For each `AutoOpen` attribute in the library, find the types, modules, and namespaces that the attribute references and add these to the environment.
     
-    > **F# Native Note**: The Alloy standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
+    > **F# Native Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
 
     The resulting environment becomes the active environment for the first file to be processed.
 2. For each file:
@@ -212,7 +212,7 @@ Each implementation file involves a _static initializer_. In F# Native, static i
 - For executables with an explicit entry point function, the static initializers for all files are executed in compilation order before the entry point function is called.
 - For executables with an implicit entry point, the static initializer for the last file is the body of the implicit entry point function.
 
-> **F# Native Note**: Unlike managed F#, there is no lazy on-demand initialization of static values. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable, deterministic behavior essential for embedded and real-time systems.
+> **F# Native Note**: Static initialization is eager and deterministic. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable behavior essential for embedded and real-time systems.
 
 At startup, the static initializer evaluates, in order, the definitions in each file that have observable initialization. Definitions with observable initialization in nested modules and types are included in the static initializer for the overall file.
 

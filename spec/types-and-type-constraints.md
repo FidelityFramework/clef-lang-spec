@@ -6,7 +6,7 @@ The notion of _type_ is central to the static checking of F# Native programs. Th
 - **Syntactic types**, such as the text `option<_>` that might occur in a program text. Syntactic types are converted to static types during the process of type checking and inference.
 - **Static types**, which result from type checking and inference, either by the translation of syntactic types that appear in the source text, or by the application of constraints that are related to particular language constructs. For example, `option<int>` is the fully processed static type that is inferred for an expression `Some(1+1)`. Static types may contain `type variables` as described later in this section.
 
-> **F# Native Note**: Unlike managed F#, F# Native has no runtime type system or reflection. All type information is resolved at compile time by FNCS (F# Native Compiler Services). Types exist purely as compile-time constructs that guide memory layout, code generation, and type-safe operations. There is no `System.Type`, no `GetType()` method, and no runtime type discovery. Pattern matching type tests (`:?`, `:?>`) are resolved statically where possible, or generate compile-time errors when the type relationship cannot be determined.
+> **F# Native Note**: F# Native resolves all type information at compile time through FNCS (F# Native Compiler Services). Types are compile-time constructs that guide memory layout, code generation, and type-safe operations. Pattern matching type tests (`:?`, `:?>`) are resolved statically where possible, or generate compile-time errors when the type relationship cannot be determined.
 
 The following describes the syntactic forms of types as they appear in programs:
 
@@ -96,15 +96,15 @@ static types. For example `int32 * int32` is used to represent the syntactic typ
 source code and the static type that is used during checking and type inference.
 
 The conversion from syntactic types to static types happens in the context of a _name resolution
-environment_ (see [§](inference-procedures.md#name-resolution)), a _floating type variable environment_, which is a mapping from names to type
-variables, and a _type inference environment_ (see [§](inference-procedures.md#constraint-solving)).
+environment_ (see [§](inference-name-resolution.md#name-resolution)), a _floating type variable environment_, which is a mapping from names to type
+variables, and a _type inference environment_ (see [§](inference-constraint-solving.md#constraint-solving)).
 
 The phrase “fresh type” means a static type that is formed from a _fresh type inference variable_. Type
-inference variables are either solved or generalized by _type inference_ ([§](inference-procedures.md#constraint-solving)). During conversion and
+inference variables are either solved or generalized by _type inference_ ([§](inference-constraint-solving.md#constraint-solving)). During conversion and
 throughout the checking of types, expressions, declarations, and entire files, a set of _current
 inference constraints_ is maintained. That is, each static type is processed under input constraints `Χ` ,
 and results in output constraints `Χ’`. Type inference variables and constraints are progressively
-_simplified_ and _eliminated_ based on these equations through _constraint solving_ ([§](inference-procedures.md#constraint-solving)).
+_simplified_ and _eliminated_ based on these equations through _constraint solving_ ([§](inference-constraint-solving.md#constraint-solving)).
 
 ### Named Types
 
@@ -119,7 +119,7 @@ _Named types_ have several forms, as listed in the following table.
 
 Named types are converted to static types as follows:
 
-- _Name Resolution for Types_ (see [§](inference-procedures.md#name-resolution)) resolves `long-ident` to a type definition with formal generic
+- _Name Resolution for Types_ (see [§](inference-name-resolution.md#name-resolution)) resolves `long-ident` to a type definition with formal generic
   parameters `<typar1, ..., typarn>` and formal constraints `C`. The number of type arguments `n` is
   used during the name resolution process to distinguish between similarly named types that take
   different numbers of type arguments.
@@ -137,7 +137,7 @@ A type of the form `'ident` is a _variable_ type. For example, the following are
 'Key
 ```
 
-During checking, _Name Resolution_ (see [§](inference-procedures.md#name-resolution)) is applied to the identifier.
+During checking, _Name Resolution_ (see [§](inference-name-resolution.md#name-resolution)) is applied to the identifier.
 
 - If name resolution succeeds, the result is a variable type that refers to an existing declared type
   parameter.
@@ -145,15 +145,15 @@ During checking, _Name Resolution_ (see [§](inference-procedures.md#name-resolu
   only in the context of a syntactic type that is embedded in an expression or pattern. If the type
   variable name is assigned a type in that environment, F# uses that mapping. Otherwise, a fresh
 
-type inference variable is created (see [§](inference-procedures.md#constraint-solving)) and added to both the type inference environment
+type inference variable is created (see [§](inference-constraint-solving.md#constraint-solving)) and added to both the type inference environment
 and the floating type variable environment.
 
 A type of the form `_` is an _anonymous variable_ type. A fresh type inference variable is created and
-added to the type inference environment (see [§](inference-procedures.md#constraint-solving)) for such a type.
+added to the type inference environment (see [§](inference-constraint-solving.md#constraint-solving)) for such a type.
 
 A type of the form `^ident` is a _statically resolved type variable_. A fresh type inference variable is
-created and added to the type inference environment (see [§](inference-procedures.md#constraint-solving)). This type variable is tagged with
-an attribute that indicates that it can be generalized only at `inline` definitions (see [§](inference-procedures.md#generalization)). The
+created and added to the type inference environment (see [§](inference-constraint-solving.md#constraint-solving)). This type variable is tagged with
+an attribute that indicates that it can be generalized only at `inline` definitions (see [§](inference-constraint-solving.md#generalization)). The
 same restriction on generalization applies to any type variables that are contained in any type that is
 equated with the `^ident` type in a type inference equation.
 
@@ -170,7 +170,7 @@ ty 1 * ... * tyn
 
 Tuple types in F# Native represent anonymous product types with a direct, unboxed memory layout. Fields are laid out contiguously with natural alignment (see [§](expressions.md#tuple-expressions)).
 
-> **F# Native Note**: Unlike managed F#, tuples are NOT represented by `System.Tuple<_,...,_>` library types. They have no object header, no heap allocation, and no GC involvement. A tuple `int * string` is laid out as:
+> **F# Native Note**: Tuples are value types with direct, unboxed memory layout. A tuple `int * string` is laid out as:
 >
 > ```
 > ┌─────────────┬─────────────────────────────┐
@@ -271,7 +271,7 @@ Note that subtype constraints also result implicitly from:
 - Expressions of the form `expr :> type`.
 - Patterns of the form `pattern :> type`.
 - The use of generic values, types, and members with constraints.
-- The implicit use of subsumption when using values and members (see [§](inference-procedures.md#implicit-insertion-of-flexibility-for-uses-of-functions-and-members)).
+- The implicit use of subsumption when using values and members (see [§](inference-application-resolution.md#implicit-insertion-of-flexibility-for-uses-of-functions-and-members)).
 
 A type variable cannot be constrained by two distinct instantiations of the same named type. If two
 such constraints arise during constraint solving, the type instantiations are constrained to be equal.
@@ -325,16 +325,16 @@ In addition:
 
 - Each `typar` must be a statically resolved type variable (see [§](types-and-type-constraints.md#variable-types)) in the form `^ident`. This ensures
   that the constraint is resolved at compile time against a corresponding named type. It also
-  means that generic code cannot use this constraint unless that code is marked inline (see [§](inference-procedures.md#generalization)).
+  means that generic code cannot use this constraint unless that code is marked inline (see [§](inference-constraint-solving.md#generalization)).
 - The `member-sig` cannot be generic; that is, it cannot include explicit type parameter definitions.
-- The conditions that govern when a type satisfies a member constraint are specified in (see [§](inference-procedures.md#solving-member-constraints)).
+- The conditions that govern when a type satisfies a member constraint are specified in (see [§](inference-constraint-solving.md#solving-member-constraints)).
 
 > Note: Member constraints are primarily used to define overloaded functions in the F# library and are used relatively rarely in F# code.<br>
 Uses of overloaded operators do not result in generalized code unless definitions are marked as inline. For example, the function<br><br> `let f x = x + x`<br><br>
 results in a function `f` that can be used only to add one type of value, such as `int` or `float`. The exact type is determined by later constraints.
 
 A type variable may not be involved in the support set of more than one member constraint that has
-the same name, staticness, argument arity, and support set (see [§](inference-procedures.md#solving-member-constraints)). If it is, the argument and
+the same name, staticness, argument arity, and support set (see [§](inference-constraint-solving.md#solving-member-constraints)). If it is, the argument and
 return types in the two member constraints are themselves constrained to be equal. This limitation
 is specifically necessary to simplify type inference, reduce the size of types shown to users, and
 ensure the reporting of useful error messages.
@@ -347,9 +347,9 @@ An _explicit default constructor constraint_ has the following form:
 typar : (new : unit -> 'T)
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : (new : unit -> 'T)` is met if `type` has a parameterless constructor.
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : (new : unit -> 'T)` is met if `type` has a parameterless constructor.
 
-> **F# Native Note**: This constraint is supported for record and class types that have a default constructor. Unlike managed F#, this does not imply any CLI object creation semantics - it simply requires that the type can be constructed with no arguments, which the compiler verifies by examining the type definition.
+> **F# Native Note**: This constraint is supported for record and class types that have a default constructor. The compiler verifies that the type can be constructed with no arguments by examining the type definition.
 
 ### Value Type Constraints
 
@@ -359,7 +359,7 @@ An _explicit value type constraint_ has the following form:
 typar : struct
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : struct` is met if `type` is a value type - that is, a type with direct (non-pointer) representation including:
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : struct` is met if `type` is a value type - that is, a type with direct (non-pointer) representation including:
 
 - Primitive types (`int`, `float`, `bool`, etc.)
 - Struct types (types marked with `[<Struct>]`)
@@ -376,7 +376,7 @@ An _explicit reference type constraint_ has the following form:
 typar : not struct
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : not struct` is met if `type` is a reference type - that is, a type whose values are represented by pointers:
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : not struct` is met if `type` is a reference type - that is, a type whose values are represented by pointers:
 
 - Class types
 - Interface types
@@ -395,7 +395,7 @@ An _explicit enumeration constraint_ has the following form:
 typar : enum<underlying-type>
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : enum<underlying-type>` is met if `type` is an F# enumeration type that has constant literal values of type `underlying-type`.
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : enum<underlying-type>` is met if `type` is an F# enumeration type that has constant literal values of type `underlying-type`.
 
 > Note: This constraint form exists primarily to allow the definition of library functions such as `enum`. It is rarely used directly in F# programming. The `enum` constraint verifies that the type is an enumeration with the specified underlying integral type.
 
@@ -427,7 +427,7 @@ An _unmanaged constraint_ has the following form:
 typar : unmanaged
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : unmanaged` is met if `type` is unmanaged as
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : unmanaged` is met if `type` is unmanaged as
 specified below:
 
 - Types sbyte, `byte`, `char`, `nativeint`, `unativeint`, `float32`, `float`, `int16`, `uint16`, `int32`, `uint32`,
@@ -444,7 +444,7 @@ typar : equality
 typar : comparison
 ```
 
-During constraint solving (see [§](inference-procedures.md#constraint-solving)), the constraint `type : equality` is met if both of the following conditions are true:
+During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : equality` is met if both of the following conditions are true:
 
 - The type is a named type, and the type definition does not have, and is not inferred to have, the `NoEquality` attribute.
 - The type has `equality` dependencies `ty1,..., tyn`, each of which satisfies `tyi: equality`.
@@ -454,7 +454,7 @@ The constraint `type : comparison` is a `comparison constraint`. Such a constrai
 - If the type is a named type, then the type definition does not have, and is not inferred to have, the `NoComparison` attribute, and the type supports ordering operations.
 - If the type has `comparison dependencies` `ty1, ..., tyn`, then each of these must satisfy `tyi : comparison`.
 
-> **F# Native Note**: In F# Native, equality and comparison are resolved through SRTP (Statically Resolved Type Parameters) against the Alloy witness hierarchy, not through interface implementation. The compiler verifies that appropriate `(=)` and `compare` operations exist for the types at compile time. There is no `System.IComparable` interface - comparison capability is a compile-time property verified by FNCS.
+> **F# Native Note**: In F# Native, equality and comparison are resolved through SRTP (Statically Resolved Type Parameters) against the native witness hierarchy. The compiler verifies that appropriate `(=)` and `compare` operations exist for the types at compile time. Comparison capability is a compile-time property verified by FNCS.
 
 An equality constraint is satisfied by:
 - All primitive types (`int`, `float`, `bool`, `string`, etc.)
@@ -518,7 +518,7 @@ let processOrdered<'T when 'T : comparison and 'T :> ICloseable> (x: 'T, y: 'T) 
     if compare x y < 0 then x.Close() else y.Close()
 ```
 
-> **F# Native Note**: Interface constraints like `:> IDisposable` from managed F# are typically resolved through SRTP member constraints in F# Native, since there is no CLI interface system. The Alloy library provides trait-like patterns for common capabilities.
+> **F# Native Note**: Interface constraints like `:> IDisposable` from managed F# are typically resolved through SRTP member constraints in F# Native. The native library provides trait-like patterns for common capabilities.
 
 Explicit type parameter definitions can declare custom attributes on type parameter definitions (see [§](special-attributes-and-types.md)).
 
@@ -573,7 +573,7 @@ Struct types are _value types_ (meaning they have direct, non-pointer representa
 
 Two static types are considered equivalent and indistinguishable if they are equivalent after taking into account both of the following:
 
-- The inference equations that are inferred from the current inference constraints (see [§](inference-procedures.md#constraint-solving)).
+- The inference equations that are inferred from the current inference constraints (see [§](inference-constraint-solving.md#constraint-solving)).
 - The expansion of type abbreviations (see [§](type-definitions.md#type-abbreviations)).
 
 > **F# Native Note**: In F# Native, type abbreviations like `int`, `string`, and `option` are resolved directly to their native representations by FNCS (F# Native Compiler Services). There is no mapping to BCL types like `System.Int32` or `System.String`.
@@ -618,7 +618,7 @@ type C<'T> = 'T * 'T
 Type variables that do not have a binding site are _inference variables_. If an expression is composed
 of multiple sub-expressions, the resulting constraint set is normally the union of the constraints that
 result from checking all the sub-expressions. However, for some constructs (notably function, value
-and member definitions), the checking process applies _generalization_ (see [§](inference-procedures.md#generalization)). Consequently, some
+and member definitions), the checking process applies _generalization_ (see [§](inference-constraint-solving.md#generalization)). Consequently, some
 intermediate inference variables and constraints are factored out of the intermediate constraint sets
 and new implicit definition site(s) are assigned for these variables.
 
@@ -637,7 +637,7 @@ let id<'a> x'a = x'a
 ```
 
 Here, `'a` represents a generic type parameter that is inferred by applying type inference and
-generalization to the original source code (see [§](inference-procedures.md#generalization)), and the annotation represents the definition site
+generalization to the original source code (see [§](inference-constraint-solving.md#generalization)), and the annotation represents the definition site
 of the type variable.
 
 ### Base Type of a Type
@@ -663,7 +663,7 @@ The inheritance hierarchy of class types works as in managed F#, with the declar
 
 The _interface types_ of a named type `C<type-inst>` are defined by the transitive closure of the interface declarations of `C` and the interface types of the base type of `C`, where formal generic parameters are substituted for the actual type instantiation `type-inst`.
 
-> **F# Native Note**: Interface implementation in F# Native is verified at compile time through SRTP resolution against the Alloy witness hierarchy. Arrays support iteration through the `seq<'T>` pattern, not through `System.Collections.Generic.IEnumerable<'T>`.
+> **F# Native Note**: Interface implementation in F# Native is verified at compile time through SRTP resolution against the native witness hierarchy. Arrays support iteration through the `seq<'T>` pattern.
 
 ### Type Equivalence
 
@@ -700,7 +700,7 @@ form `'T :> ty2`, and `ty` is in the inclusive transitive closure of the base an
 
 A static type `ty2` _feasibly coerces_ to static type `ty1` if `ty2` _coerces_ to `ty1` may hold through the addition
 of further constraints to the current inference constraints. The result of adding constraints is defined
-in `Constraint Solving` (see [§](inference-procedures.md#constraint-solving)).
+in `Constraint Solving` (see [§](inference-constraint-solving.md#constraint-solving)).
 
 ### Nullness
 
@@ -749,7 +749,7 @@ The nullness constraint `typar : null` is NOT SUPPORTED. Code using this constra
 
 Default initialization of values to _zero values_ is supported in F# Native for types that have a well-defined zero representation.
 
-> **F# Native Note**: Unlike managed F#, there is no "nullness constraint" category for default initialization. Instead, default initialization is permitted only for types with explicit zero representations.
+> **F# Native Note**: Default initialization is permitted only for types with explicit zero representations.
 
 The following types permit _default initialization_:
 

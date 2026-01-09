@@ -15,7 +15,7 @@ FNCS deliberately does NOT use FCS's `FSharpExpr` type. This is a principled arc
 | Aspect | FSharpExpr (FCS) | FSharpNativeExpr (FNCS) |
 |--------|------------------|-------------------------|
 | **Type System** | CLR types (`System.Int32`, etc.) | Native types (`NativeType.I32`, etc.) |
-| **SRTP Resolution** | .NET method tables | `WitnessResolution` with Alloy witnesses |
+| **SRTP Resolution** | .NET method tables | `WitnessResolution` with native witnesses |
 | **Memory Model** | GC-managed, runtime-determined | Arena/stack affinity, compile-time determined |
 | **Dependencies** | BCL, assembly metadata | BCL-free, freestanding capable |
 | **Runtime** | .NET CLR required | No runtime, standalone binaries |

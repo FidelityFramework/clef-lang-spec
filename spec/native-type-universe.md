@@ -13,13 +13,13 @@ This document specifies the native type universe for fsnative, the F# native com
 1. **Familiar Design-Time Experience**: Use F# type names (`string`, `option`, `int`), not foreign alternatives
 2. **Absolute Null-Freedom**: Everything is `voption<'T>` - no null values anywhere
 3. **Null-Freedom Cascades Through APIs**: Sentinel values become `voption` returns
-4. **Leverage Existing F# Machinery**: Reuse FSharp.Core and Alloy where possible
+4. **Leverage Existing F# Machinery**: Reuse FSharp.Core where possible
 5. **Spec Before Scaffold**: Document before implementing
 
 ### Relationship to Other Documents
 
 - **[fncs-specification.md](fncs-specification.md)**: Defines F# Native Compiler Services, including:
-  - SRTP resolution against Alloy witness hierarchy (Part 3)
+  - SRTP resolution against native witness hierarchy (Part 3)
   - Platform bindings convention (Part 6)
   - Memory region enforcement rules (Parts 9-10)
   - Native-specific diagnostics (Appendix D)
@@ -715,7 +715,7 @@ let y : int option = None
 | `opt.IsSome` | `Option.isSome opt` |
 | `Option.defaultValue v opt` | Same (works identically) |
 
-> **Migration Note**: Alloy shadow type (`type option<'T> = voption<'T>`) will be removed once FNCS provides native resolution.
+> **Note**: FNCS provides native `option` semantics directly - `option<'T>` maps to stack-allocated `voption` at compile time.
 
 ### 5.2 Result
 
@@ -1117,8 +1117,6 @@ Script files (`.fsnx`) follow the same type semantics as compiled modules:
 
 ```fsharp
 // script.fsnx
-#require "Alloy"
-
 let greeting : string = "Hello"  // string with native UTF-8 fat pointer semantics
 let maybe : int option = Some 42  // voption<int>, non-null
 ```
@@ -1225,38 +1223,9 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 
 ## Appendix D: Migration from Shadow Types
 
-> **CRITICAL PRINCIPLE**: All shadow type machinery in Alloy is **TEMPORARY**. These workarounds will be **REMOVED** once fsnative provides proper base types. Alloy will become a pure library with no type system workarounds.
+> **Note**: FNCS provides native type resolution directly. No shadow types or library workarounds are needed.
 
-### Current Alloy Shadow Types (TO BE REMOVED)
-
-| Alloy File | Current Workaround | fsnative Replacement | Action |
-|------------|-------------------|---------------------|--------|
-| `Core.fs:15` | `type option<'T> = voption<'T>` | fsnative native `option` | **REMOVE** |
-| `ValueOption.fs` | `type ValueOption<'T> = voption<'T>` | N/A | **DELETE FILE** |
-| `NativeTypes/String.fs` | Shadow type workaround (to remove) | fsnative: `string` has native semantics | **REMOVE** |
-| `NativeTypes/Array.fs` | Shadow type workaround (to remove) | fsnative: `array<'T>` has native semantics | **REMOVE** |
-| `NativeTypes/NativeInt.fs` | Checked arithmetic returning `voption` | Keep (library functions) | **KEEP** |
-
-### Migration Sequence
-
-1. **Phase 1: fsnative Type Definitions**
-   - Define proper base types in FNCS (fsnative compiler)
-   - Types resolve at compile-time, not via library shadowing
-   - `option<'T>` → compiler knows this is `voption` semantics
-   - `string` → compiler knows this is UTF-8 fat pointer
-
-2. **Phase 2: Alloy Cleanup**
-   - Remove shadow type aliases from `Core.fs`
-   - Delete `ValueOption.fs` entirely
-   - Remove shadow type wrappers (users write `string`, `array<'T>`)
-   - Keep utility functions (checked arithmetic, etc.)
-
-3. **Phase 3: Alloy as Pure Library**
-   - Alloy provides algorithms, data structures, platform bindings
-   - NO type system workarounds
-   - Uses fsnative's native types directly
-
-### FSharp.Core Types to Leverage
+### FSharp.Core Types Leveraged
 
 | Type | Location | Notes |
 |------|----------|-------|
@@ -1265,14 +1234,13 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 | `nativeptr<'T>` | FSharp.NativePtr | Native pointer operations |
 | `Span<'T>` | FSharp.Core | Contiguous memory view |
 
-### Why Shadow Types Were Created (Historical Context)
+### FNCS Type Resolution
 
-Shadow types in Alloy were reactive workarounds created because:
-1. FCS hardcodes `string` → `System.String` (BCL dependency)
-2. FCS hardcodes `option<'T>` → heap-allocated reference type
-3. No clean way to intercept type resolution at the compiler level
-
-The **principled solution** is FNCS (F# Native Compiler Services) - a minimal FCS fork that resolves types to native representations at the source, eliminating the need for library-level workarounds.
+FNCS (F# Native Compiler Services) resolves types to native representations at the source:
+- `string` → UTF-8 fat pointer
+- `option<'T>` → `voption` (stack-allocated)
+- `array<'T>` → fat pointer with native element layout
+- `int` → platform word
 
 ---
 

@@ -148,4 +148,3 @@ region-typed-ptr := Ptr < type , region-type , access-kind >
 
 - [Access Kinds](access-kinds.md) - Read/Write permissions
 - [Platform Bindings](platform-bindings.md) - Platform-specific memory access
-- [The Native Library Alloy](the-native-library-alloy.md) - Memory allocation APIs

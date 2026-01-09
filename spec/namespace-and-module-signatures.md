@@ -287,7 +287,7 @@ val empty : list<'T>
 ```
 
 The reason for this rule is that the second signature indicates that the value is, by default,
-generalizable ([§](inference-procedures.md#generalization)).
+generalizable ([§](inference-constraint-solving.md#generalization)).
 
 ### Signature Conformance for Members
 

@@ -118,7 +118,7 @@ pattern input.
 
 If `long-ident` is more than one-character long or begins with an uppercase character (that is, if
 `System.Char.IsUpperInvariant` is `true` and `System.Char.IsLowerInvariant` is `false` on the first
-character), it is resolved by using _Name Resolution in Patterns_ ([§](inference-procedures.md#name-resolution-in-patterns)). This algorithm produces one
+character), it is resolved by using _Name Resolution in Patterns_ ([§](inference-name-resolution.md#name-resolution-in-patterns)). This algorithm produces one
 of the following:
 
 - A union case
@@ -202,7 +202,7 @@ In this case, `result` is given the value `Case2`.
 ### Active Patterns
 
 If `long-ident` from [§](patterns.md#named-patterns) resolves to an _active pattern case name `CaseNamei`_ then the pattern is an
-active pattern. The rules for name resolution in patterns ([§](inference-procedures.md#name-resolution-in-patterns)) ensure that `CaseNamei` is
+active pattern. The rules for name resolution in patterns ([§](inference-name-resolution.md#name-resolution-in-patterns)) ensure that `CaseNamei` is
 associated with an _active pattern function `f`_ in one of the following forms:
 
 - `(| CaseName |) inp`

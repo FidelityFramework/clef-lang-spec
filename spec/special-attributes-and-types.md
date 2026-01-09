@@ -101,7 +101,7 @@ The F# Native compiler emits the following information as part of compilation:
 | Debug symbols | Source location information for debugging, emitted in platform-native debug format (DWARF on Linux/macOS, PDB on Windows). |
 | Compilation mapping | Metadata indicating how compiled constructs correspond to F# source constructs. |
 
-> **F# Native Note**: Unlike managed F#, the F# Native compiler does not emit CLI metadata attributes. Debug information is provided through native debug formats.
+> **F# Native Note**: Debug information is provided through native debug formats (DWARF on Linux/macOS, PDB on Windows).
 
 ## Attributes Not Applicable to F# Native
 

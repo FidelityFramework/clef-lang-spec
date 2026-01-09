@@ -135,4 +135,3 @@ ptr-type := Ptr < type , region-type , access-kind >
 
 - [Memory Regions](memory-regions.md) - Region type semantics
 - [Platform Bindings](platform-bindings.md) - Platform-specific register access
-- [The Native Library Alloy](the-native-library-alloy.md) - Pointer operations

@@ -30,7 +30,7 @@ FNCS is not an extension or plugin to FCS. It is a separate compiler frontend wi
 | **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native representations (same syntax, native semantics) |
 | **String Literals** | `System.String` (UTF-16, GC-managed) | `string` with native semantics (UTF-8, fat pointer) |
 | **Option Types** | Reference type, nullable | `option<'T>` with value semantics, stack-allocated, non-nullable |
-| **SRTP Resolution** | .NET method tables | Alloy witness hierarchy |
+| **SRTP Resolution** | .NET method tables | Native witness hierarchy |
 | **Base Type** | `System.Object` (`obj`) | None - no universal base type |
 | **Output** | IL generation | Typed tree for native backends |
 
@@ -44,7 +44,7 @@ FNCS adheres to these principles:
 
 **No Universal Base Type**: There is no `obj` type. All types are concrete. Polymorphism is achieved through generics and SRTP, not runtime type erasure. See [Native Type Mappings § The Universal Base Type `obj` Is Not Available](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
-**SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the Alloy library's witness hierarchy, not .NET method tables. This enables compile-time polymorphism without runtime overhead.
+**SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the native witness hierarchy. This enables compile-time polymorphism without runtime overhead.
 
 **Typed Tree Fidelity**: FNCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly. The typed representation is defined by [`FSharpNativeExpr`](fsharp-native-expr.md), FNCS's native expression type that replaces FCS's `FSharpExpr`.
 
@@ -55,7 +55,6 @@ FNCS has a focused responsibility within the Fidelity ecosystem:
 | Component | Responsibility |
 |-----------|---------------|
 | **FNCS** | Type universe, literal typing, type inference, SRTP resolution, PSG construction, editor services |
-| **Alloy** | Native library implementations using FNCS types |
 | **Firefly/Alex** | PSG consumption, platform-aware MLIR generation, native code output |
 
 FNCS produces a Program Semantic Graph (PSG) with native types attached and full symbol information preserved for design-time tooling. Firefly consumes the PSG as "correct by construction" and focuses purely on code generation.
@@ -68,7 +67,7 @@ NORMATIVE: FNCS SHALL resolve `option<'T>` to value semantics (stack-allocated, 
 
 NORMATIVE: FNCS SHALL reject any code that references `obj`, `System.Object`, or performs boxing/unboxing operations.
 
-NORMATIVE: FNCS SHALL resolve SRTP constraints against the native witness hierarchy defined by Alloy, not against .NET method tables.
+NORMATIVE: FNCS SHALL resolve SRTP constraints against the native witness hierarchy.
 
 NORMATIVE: The typed tree output by FNCS SHALL include resolved SRTP witnesses, enabling downstream stages to generate direct calls without runtime dispatch.
 
@@ -253,7 +252,7 @@ The next line of the sample program prints text in the console window.
 Console.WriteLine $"N^2 = {squares}"
 ```
 
-The Alloy library function `Console.WriteLine` is a simple and type-safe way to print text in the console. Consider this example, which prints an integer, a floating-point number, and a string:
+The `Console.WriteLine` function is a simple and type-safe way to print text in the console. Consider this example, which prints an integer, a floating-point number, and a string:
 
 ```fsharp
 Console.WriteLine $"{5} * {0.75} = {5.0 * 0.75}"

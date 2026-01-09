@@ -319,7 +319,7 @@ Arena.allocAligned<'T> : Arena -> alignment:int -> count:int -> nativeptr<'T>
 
 ## Intrinsic Operations
 
-Certain operations have direct hardware support that F# loops cannot match. The `Alloy.Intrinsics` module provides guaranteed-efficient implementations.
+Certain operations have direct hardware support that F# loops cannot match. FNCS intrinsics provide guaranteed-efficient implementations.
 
 ### Bit Manipulation Intrinsics
 
@@ -348,8 +348,6 @@ NORMATIVE: Multi-word arithmetic operations SHALL use carry-propagating instruct
 ### Usage
 
 ```fsharp
-open Alloy.Intrinsics
-
 let extractRegime (bits: uint32) =
     let shifted = bits <<< 1
     let leadingZeros = clz shifted  // Guaranteed 1-2 cycles, not a loop
@@ -548,7 +546,7 @@ The original FCS contains IL-based operations for loop optimization, null handli
 | `TOp.ILAsm` (arithmetic) | MLIR arith dialect ops | Alex code generation |
 | `TOp.ILCall` (method calls) | MLIR func.call / platform bindings | Alex code generation |
 | Loop optimization | MLIR SCF dialect transforms | MLIR optimization passes |
-| String length/concat | Native string fat pointer ops | Alloy + Alex |
+| String length/concat | Native string fat pointer ops | Alex code generation |
 | Integer conversions | MLIR arith.extsi/extui/trunci | Alex type lowering |
 | Null handling | Not needed - F# Native has no null | See below |
 
@@ -592,5 +590,4 @@ IL-based loop optimization at the typed tree level was **premature optimization 
 ## See Also
 
 - [Types and Type Constraints](types-and-type-constraints.md) - Type system overview
-- [The Native Library Alloy](the-native-library-alloy.md) - Type operations
 - [Memory Regions](memory-regions.md) - Pointer types

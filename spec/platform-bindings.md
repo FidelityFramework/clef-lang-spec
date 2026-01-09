@@ -10,7 +10,7 @@ F# Native uses a **three-layer architecture** for platform operations:
 |-------|---------|----------|
 | **Layer 1: FNCS Intrinsics** | Native type universe operations | `Sys.write`, `NativePtr.set` |
 | **Layer 2: Binding Libraries** | External library bindings | GTK, CMSIS, OpenGL |
-| **Layer 3: User Code** | Applications and libraries | Alloy, user programs |
+| **Layer 3: User Code** | Applications and libraries | User programs |
 
 This approach:
 - Avoids BCL dependencies (`System.Runtime.InteropServices`)
@@ -165,7 +165,7 @@ Farscape parses C/C++ headers and generates F# binding libraries:
 module Gtk.Bindings
 
 open BAREWire.Descriptors
-open Alloy.Memory
+open Memory
 
 /// Type descriptor - quotation carries layout and semantics
 let gtkWindowDescriptor: Expr<TypeDescriptor> = <@
@@ -311,19 +311,19 @@ Quotations can express:
 
 ## Layer 3: User Code
 
-User code, including libraries like Alloy, uses intrinsics and binding libraries. It does NOT declare platform bindings.
+User code uses intrinsics and binding libraries. It does NOT declare platform bindings.
 
 ### Correct Usage Pattern
 
 ```fsharp
-// Alloy/Console.fs - uses FNCS intrinsics directly
-module Alloy.Console
+// Console module - uses FNCS intrinsics directly
+module Console
 
-let inline Write (s: string) : unit =
+let inline write (s: string) : unit =
     Sys.write 1 s.Pointer s.Length |> ignore
 
-let inline WriteLine (s: string) : unit =
-    Write s
+let inline writeln (s: string) : unit =
+    write s
     Sys.write 1 &&'\n' 1 |> ignore
 ```
 
@@ -379,7 +379,6 @@ FNCS intrinsics have restrictions:
 
 ## See Also
 
-- [The Native Library Alloy](the-native-library-alloy.md) - Standard library using intrinsics
 - [Memory Regions](memory-regions.md) - Pointer types for intrinsics
 - [Access Kinds](access-kinds.md) - Pointer access semantics
 - [FSharpNativeExpr](fsharp-native-expr.md) - How intrinsics appear in the expression tree

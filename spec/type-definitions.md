@@ -492,7 +492,7 @@ Record types are reference types unless the `Struct` attribute is used (see [§]
 ### Members in Record Types
 
 Record types may declare members ([§](type-definitions.md#members)), overrides, and interface implementations. Like all types
-with overrides and interface implementations, they are subject to _Dispatch Slot Checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
+with overrides and interface implementations, they are subject to _Dispatch Slot Checking_ ([§](inference-supplementary.md#dispatch-slot-checking)).
 
 ### Name Resolution and Record Field Labels
 
@@ -501,7 +501,7 @@ current name resolution environment unless the record type has the `RequireQuali
 attribute.
 
 Record field labels in the _FieldLabels_ table play a special role in _Name Resolution for Members_
-([§](inference-procedures.md#name-resolution)): an expression’s type may be inferred from a record label. For example:
+([§](inference-name-resolution.md#name-resolution)): an expression’s type may be inferred from a record label. For example:
 
 ```fsharp
 type R = { dx : int; dy: int }
@@ -603,7 +603,7 @@ type OneChoice =
 
 Union types may declare members ([§](type-definitions.md#members)), overrides, and interface implementations. As with all
 types that declare overrides and interface implementations, they are subject to _Dispatch Slot
-Checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
+Checking_ ([§](inference-supplementary.md#dispatch-slot-checking)).
 
 ### Structural Hashing, Equality, and Comparison for Union Types
 
@@ -920,7 +920,7 @@ check: 6 = 6
 
 Class types may declare members ([§](type-definitions.md#members)), overrides, and interface implementations. As with all
 types that have overrides and interface implementations, such class types are subject to _Dispatch
-Slot Checking_ ([§](inference-procedures.md#dispatch-slot-checking)).
+Slot Checking_ ([§](inference-supplementary.md#dispatch-slot-checking)).
 
 ### Additional Object Constructors in Classes
 
@@ -1180,7 +1180,7 @@ type MutableComplex =
 
 Struct types may declare members, overrides, and interface implementations. As for all types that
 declare overrides and interface implementations, struct types are subject to _Dispatch Slot Checking_
-([§](inference-procedures.md#dispatch-slot-checking)).
+([§](inference-supplementary.md#dispatch-slot-checking)).
 
 Structs may not have `inherit` declarations.
 
@@ -1421,10 +1421,10 @@ contains the extension is open.
 
 Name resolution for members that are defined in type extensions behaves as follows:
 
-- In method application resolution (see [§](inference-procedures.md#method-application-resolution)), regular members (that is, members that are part of
+- In method application resolution (see [§](inference-application-resolution.md#method-application-resolution)), regular members (that is, members that are part of
     the original definition of a type, plus intrinsic extensions) are preferred to extension members.
 - Extension members that are in scope and have the correct name are included in the group of
-    members considered for method application resolution (see [§](inference-procedures.md#method-application-resolution)).
+    members considered for method application resolution (see [§](inference-application-resolution.md#method-application-resolution)).
 - An intrinsic member is always preferred to an extension member. If an extension member has
     the same name and type signature as a member in the original type definition or an inherited
     member, then it will be inaccessible.
@@ -1571,7 +1571,7 @@ type Test() =
     member t.M2 (x: string) = Test.Id(x) // error, x has type 'string' not 'int'
 ```
 
-A target method that has a full type annotation is eligible for early generalization ([§](inference-procedures.md#generalization)).
+A target method that has a full type annotation is eligible for early generalization ([§](inference-constraint-solving.md#generalization)).
 
 ```fsharp
 type Test() =
@@ -1743,7 +1743,7 @@ The `ident.~opt` can be present if and only if the property member is an instanc
 the identifier `ident` corresponds to the “this” (or “self”) variable associated with the object on which
 the member is being invoked.
 
-Arity analysis ([§](inference-procedures.md#arity-inference)) applies to method members. This is because F# members must compile to methods that accept only a single fixed collection of arguments.
+Arity analysis ([§](inference-supplementary.md#arity-inference)) applies to method members. This is because F# members must compile to methods that accept only a single fixed collection of arguments.
 
 ### Curried Method Members
 
@@ -1754,7 +1754,7 @@ static member StaticMethod2 s1 s2 =
     sprintf "In StaticMethod(%s,%s)" s1 s2
 ```
 
-The rules of arity analysis ([§](inference-procedures.md#arity-inference)) determine the compiled form of these members.
+The rules of arity analysis ([§](inference-supplementary.md#arity-inference)) determine the compiled form of these members.
 
 The following limitations apply to curried method members:
 
@@ -1794,7 +1794,7 @@ member. That is, because members have an arity only up to the first set of tuple
 arguments may not be used with subsequent curried arguments of the member.
 
 The resolution of calls that use named arguments is specified in _Method Application Resolution_ (see
-[§](inference-procedures.md#method-application-resolution)). The rules in that section describe how resolution matches a named argument with either a
+[§](inference-application-resolution.md#method-application-resolution)). The rules in that section describe how resolution matches a named argument with either a
 formal parameter of the same name or a “settable” return property of the same name. For example,
 the following code resolves the named argument to a settable property:
 
@@ -1805,7 +1805,7 @@ Form(Text = "Hello World")
 If an ambiguity exists, assigning the named argument is assigned to a formal parameter rather than
 to a settable return property.
 
-The _Method Application Resolution_ ([§](inference-procedures.md#method-application-resolution)) rules ensure that:
+The _Method Application Resolution_ ([§](inference-application-resolution.md#method-application-resolution)) rules ensure that:
 
 - Named arguments must appear after all other arguments, including optional arguments that
     are matched by position.
@@ -1920,7 +1920,7 @@ T.OneNormalTwoOptional(0, 3, ?arg3 = Some 11)
 ```
 
 The resolution of calls that use optional arguments is specified in _Method Application Resolution_ (see
-[§](inference-procedures.md#method-application-resolution)).
+[§](inference-application-resolution.md#method-application-resolution)).
 
 Optional arguments may not be used in member constraints.
 
@@ -1978,7 +1978,7 @@ It is possible to use these attributes in the following ways, though it is not s
 
 ### Type-directed Conversions at Member Invocations
 
-As described in _Method Application Resolution_ (see [§](inference-procedures.md#method-application-resolution)), three type-directed conversions are
+As described in _Method Application Resolution_ (see [§](inference-application-resolution.md#method-application-resolution)), three type-directed conversions are
 applied at method invocations.
 
 #### Conversion to Delegates
@@ -2416,7 +2416,7 @@ type ClassThatTriesToImplemenTwoInstantiations() =
 Each member of an interface implementation is checked as follows:
 
 - The member must be an instance member definition.
-- _Dispatch Slot Inference_ ([§](inference-procedures.md#dispatch-slot-inference)) is applied.
+- _Dispatch Slot Inference_ ([§](inference-supplementary.md#dispatch-slot-inference)) is applied.
 - The member is checked under the assumption that the “this” variable has the enclosing type.
 
 In the following example, the value `x` has type `C`.

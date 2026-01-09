@@ -26,6 +26,9 @@
         "error-handling",
         "interactive-development",
         "the-native-library-alloy",
+        "intrinsics-convert",
+        "intrinsics-crypto-bits",
+        "reactive-signals",
         "features-for-ml-compatibility"
     ]
 }

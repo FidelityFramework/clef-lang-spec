@@ -94,8 +94,8 @@ Width assumptions guide type checking but are **erased** before code generation.
 
 The architecture uses a three-tier exposure model:
 
-| F# Source | Alloy Alias | FNCS Internal |
-|-----------|-------------|---------------|
+| F# Source | Semantic Alias | FNCS Internal |
+|-----------|----------------|---------------|
 | `int` | (implicit) | `NTUint` |
 | `uint` | (implicit) | `NTUuint` |
 | `platformint` | `platformint` | `NTUint` |

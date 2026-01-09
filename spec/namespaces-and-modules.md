@@ -8,7 +8,7 @@ groups, each of which defines types and modules, and the types and modules may c
 function, and value definitions, which contain expressions.
 
 Declaration elements are processed in the context of an _environment_. The definition of the elements
-of an environment is found in [§](inference-procedures.md#name-resolution).
+of an environment is found in [§](inference-name-resolution.md#name-resolution).
 
 ```fsgrammar
 namespace-decl-group :=
@@ -119,7 +119,7 @@ let addOne x = x + 1
 When a namespace declaration group `N` is checked in an environment `env` , the individual
 declarations are checked in order and an overall _namespace declaration group signature_ `Nsig` is
 inferred for the module. An entry for `N` is then added to the _ModulesAndNamespaces_ table in the
-environment `env` (see [§](inference-procedures.md#opening-modules-and-namespace-declaration-groups)).
+environment `env` (see [§](inference-name-resolution.md#opening-modules-and-namespace-declaration-groups)).
 
 Like module declarations, namespace declaration groups are processed sequentially rather than
 simultaneously, so that later namespace declaration groups are not in scope when earlier ones are
@@ -292,7 +292,7 @@ let freshName() = (count <- count + 1; count)
 ```
 
 Function and value definitions in modules are processed in the same way as function and value
-definitions in expressions ([§](inference-procedures.md#checking-and-elaborating-function-value-and-member-definitions)), with the following adjustments:
+definitions in expressions ([§](inference-constraint-solving.md#checking-and-elaborating-function-value-and-member-definitions)), with the following adjustments:
 
 - Each defined value may have an accessibility annotation ([§](namespaces-and-modules.md#accessibility-annotations)). By default, the accessibility
     annotation of a function or value definition in a module is `public`.
@@ -301,7 +301,7 @@ definitions in expressions ([§](inference-procedures.md#checking-and-elaboratin
     representations in the output binary.
 - Each defined value can be used to satisfy the requirements of any signature for the module
     ([§](namespace-and-module-signatures.md#signature-conformance)).
-- Each defined value is subject to arity analysis ([§](inference-procedures.md#arity-inference)).
+- Each defined value is subject to arity analysis ([§](inference-supplementary.md#arity-inference)).
 - Values may have attributes.
 
 > **F# Native Note**: The `ThreadStatic` and `ContextStatic` attributes are not available in F# Native. Thread-local storage uses platform-specific mechanisms.
@@ -383,7 +383,7 @@ situations. Type functions are typically used for:
 - Pure functions whose result is independent of inferred type arguments, such as empty sets and
     maps.
 
-Type functions receive special treatment during generalization ([§](inference-procedures.md#generalization)) and signature conformance
+Type functions receive special treatment during generalization ([§](inference-constraint-solving.md#generalization)) and signature conformance
 ([§](namespace-and-module-signatures.md#signature-conformance)). They typically have either the `RequiresExplicitTypeArguments` attribute or the
 `GeneralizableValue` attribute. Type functions may not be defined inside types, expressions, or
 computation expressions.
@@ -477,10 +477,10 @@ Import declarations can be used in:
 
 An import declaration is processed by first resolving the `long-ident` to one or more namespace
 declaration groups and/or modules [ `F1`, ..., `Fn` ] by _Name Resolution in Module and Namespace Paths_
-([§](inference-procedures.md#name-resolution-in-module-and-namespace-paths)). For example, `Alloy.Collections` may resolve to one or more namespace
+([§](inference-name-resolution.md#name-resolution-in-module-and-namespace-paths)). For example, `Collections` may resolve to one or more namespace
 declaration groups—one for each source package that contributes a namespace declaration group in the
 current environment. Next, each `Fi` is added to the environment successively by using the technique
-specified in [§](inference-procedures.md#opening-modules-and-namespace-declaration-groups). An error occurs if any `Fi` is a module that has the `RequireQualifiedAccess`
+specified in [§](inference-name-resolution.md#opening-modules-and-namespace-declaration-groups). An error occurs if any `Fi` is a module that has the `RequireQualifiedAccess`
 attribute.
 
 ## Module Abbreviations
@@ -506,7 +506,7 @@ Module abbreviations are implicitly private to the module or namespace declarati
 they appear.
 
 A module abbreviation is processed by first resolving the `long-ident` to a list of modules by _Name
-Resolution in Module and Namespace Paths_ (see [§](inference-procedures.md#name-resolution)). The list is then appended to the set of
+Resolution in Module and Namespace Paths_ (see [§](inference-name-resolution.md#name-resolution)). The list is then appended to the set of
 names that are associated with `ident` in the _ModulesAndNamespaces_ table.
 
 Module abbreviations may not be used to abbreviate namespaces.
