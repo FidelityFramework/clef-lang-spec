@@ -219,7 +219,7 @@ If a node is reachable and references a TypeDef (via its type), that TypeDef is 
 |------|---------|
 | `NativeTypes.fs` | TypeConRef, NativeType definitions |
 | `SemanticGraph.fs` | tryGetRecordFields, Reachability.computeReachable |
-| `CheckExpressions.fs` | Pattern binding type resolution |
+| `Expressions/Patterns.fs` | Pattern binding type resolution |
 | `MemoryWitness.fs` | Field access using tryGetRecordFields |
 | `TypeMapping.fs` | NativeType → MLIRType conversion |
 

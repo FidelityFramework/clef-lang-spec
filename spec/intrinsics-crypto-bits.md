@@ -302,7 +302,8 @@ The pipeline for Crypto and Bits intrinsics follows the standard FNCS→Alex flo
 ```
 F# Source: Crypto.sha1 data
     ↓
-FNCS Type Checking (CheckExpressions.fs)
+FNCS Type Checking (Expressions/Intrinsics.fs, Expressions/Coordinator.fs)
+    - Coordinator dispatches to Intrinsics module for intrinsic resolution
     - Recognizes "Crypto.sha1" pattern
     - Creates IntrinsicInfo { Module=Crypto, Operation="sha1", Category=Pure }
     - Assigns type: byte[] -> byte[]

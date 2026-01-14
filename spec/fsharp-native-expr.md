@@ -2,7 +2,7 @@
 
 > **Status**: Draft
 > **Phase**: A (Core Representation) - Part of FNCS architecture
-> **Last Updated**: 2026-01-03
+> **Last Updated**: 2026-01-12
 
 ## Overview
 
@@ -276,9 +276,168 @@ Each `SemanticKind` maps to an `FSharpNativeExpr` case:
 
 ---
 
-## Part 5: Debugging Output
+## Part 5: Semantic Transformation Invariants
 
-### 5.1 Pretty-Print Format
+The SemanticGraph (and by extension, FSharpNativeExpr) maintains specific **construction invariants** that downstream stages can rely upon. These are enforced during graph construction in FNCS - the graph is "correct by construction."
+
+### 5.1 Lambda Desugaring
+
+F# syntax allows multiple patterns in lambda expressions:
+
+```fsharp
+// Source syntax
+fun x y z -> x + y + z
+fun (a, b) (c, d) -> a + b + c + d
+```
+
+**Invariant**: Multi-parameter lambdas are unified to a **single canonical Lambda node** with a flat parameter list:
+
+| Source Syntax | SemanticGraph Representation |
+|--------------|------------------------------|
+| `fun x -> e` | `Lambda([(x, tx)], body)` |
+| `fun x y -> e` | `Lambda([(x, tx); (y, ty)], body)` |
+| `fun x y z -> e` | `Lambda([(x, tx); (y, ty); (z, tz)], body)` |
+
+**NOT** nested lambdas:
+```
+// WRONG - Not how FNCS represents this
+Lambda(x, Lambda(y, Lambda(z, body)))
+```
+
+This invariant means:
+- All function arities are explicit in the Lambda node
+- No need to "peel" nested lambdas during code generation
+- Function types directly match parameter lists
+
+**Pattern Lambda Desugaring**: Lambdas with patterns (not just variable names) elaborate to pattern matching:
+
+```fsharp
+// Source
+fun (a, b) -> a + b
+
+// Elaborated representation
+Lambda([($0, tuple)],
+  Match($0, [TuplePattern(a, b) -> a + b]))
+```
+
+### 5.2 Curried Call Flattening
+
+Fully-applied curried calls are represented as a **single Application node** with a flat argument list:
+
+```fsharp
+// Source
+let greet prefix name = printfn "%s, %s!" prefix name
+greet "Hello" "World"
+```
+
+**Invariant**: The call `greet "Hello" "World"` is represented as:
+```
+Application(Var(greet), ["Hello"; "World"])
+```
+
+**NOT** nested applications:
+```
+// WRONG - Not how FNCS represents fully-applied calls
+Application(Application(Var(greet), ["Hello"]), ["World"])
+```
+
+This invariant means:
+- Fully-applied calls compile to direct multi-argument calls
+- No intermediate closures are created for fully-applied curried functions
+- Code generation sees all arguments at once
+
+**Partial Application**: When a curried function is partially applied, the Application node contains only the supplied arguments, and the result type reflects the remaining curry:
+
+```fsharp
+let greetHello = greet "Hello"  // Partial application
+// Represented as:
+// Application(Var(greet), ["Hello"])
+// with returnType = TFun(string, unit)
+```
+
+### 5.3 Pipe Operator Reduction
+
+Pipe operators (`|>`, `<|`, `||>`, `<||`) are **fully reduced** during SemanticGraph construction:
+
+```fsharp
+// Source with pipe
+name |> greet prefix
+// Source without pipe (equivalent)
+greet prefix name
+```
+
+**Invariant**: Pipe expressions are immediately transformed to direct application:
+```
+// Both source forms produce the same representation:
+Application(Var(greet), [Var(prefix); Var(name)])
+```
+
+There is **no** `Pipe` node kind in the SemanticGraph. Pipes are syntactic sugar that is resolved during construction.
+
+**Compound Example**:
+```fsharp
+// Source
+Console.readln() |> greet prefix
+```
+
+Desugars to:
+```
+Application(Var(greet),
+  [Var(prefix);
+   Application(Intrinsic(Console.readln), [])])
+```
+
+### 5.4 Combined Transformation Example
+
+The following demonstrates how multiple transformations combine:
+
+```fsharp
+// Source F#
+let greet prefix name = Console.writeln $"{prefix}, {name}!"
+
+let hello prefix =
+    Console.write "Enter your name: "
+    Console.readln() |> greet prefix
+
+[<EntryPoint>]
+let main argv =
+    match argv with
+    | [|prefix|] -> hello prefix
+    | _ -> hello "Hello"
+    0
+```
+
+After FNCS construction, the `hello` function body appears as:
+```
+Lambda([(prefix, string)],
+  Seq([
+    Application(Intrinsic(Console.write), [Literal("Enter your name: ")]),
+    Application(Var(greet), [Var(prefix), Application(Intrinsic(Console.readln), [])])
+  ]))
+```
+
+Key observations:
+1. `hello` is a single-parameter Lambda (not nested)
+2. The pipe `|> greet prefix` is reduced to a flat `Application(greet, [prefix, readln()])`
+3. The call `greet prefix name` is a single Application with two arguments
+4. No intermediate `Pipe` or nested `Application` nodes exist
+
+### 5.5 Invariants Summary
+
+| Transformation | Guarantee |
+|---------------|-----------|
+| Multi-param lambda | Single Lambda node with flat parameter list |
+| Fully-applied curried call | Single Application node with flat argument list |
+| Pipe operators | Reduced to direct Application |
+| Pattern lambda | Elaborated to pattern matching on synthetic variable |
+
+**Downstream Reliance**: These invariants allow Alex (and any other consumer) to treat the SemanticGraph as already normalized. Code generation does not need to perform additional flattening or reduction - the graph is correct by construction.
+
+---
+
+## Part 6: Debugging Output
+
+### 6.1 Pretty-Print Format
 
 FSharpNativeExpr provides a human-readable format for debugging:
 
@@ -305,7 +464,7 @@ Key features:
 - Applications show function and argument list
 - Sequences show child expressions
 
-### 5.2 JSON Format
+### 6.2 JSON Format
 
 Structured JSON output for programmatic analysis:
 
@@ -328,7 +487,7 @@ Structured JSON output for programmatic analysis:
 }
 ```
 
-### 5.3 Intermediate Files
+### 6.3 Intermediate Files
 
 When compiling with `-k` (keep intermediates), FNCS emits:
 
@@ -340,9 +499,9 @@ When compiling with `-k` (keep intermediates), FNCS emits:
 
 ---
 
-## Part 6: Usage Patterns
+## Part 7: Usage Patterns
 
-### 6.1 Debugging Missing Inlines
+### 7.1 Debugging Missing Inlines
 
 When a function appears as an external reference in generated code:
 
@@ -351,7 +510,7 @@ When a function appears as an external reference in generated code:
 3. If `null`, the definition wasn't captured in SemanticGraph
 4. If present, trace to that node in `fncs_phase_5_final.json`
 
-### 6.2 Tracing SRTP Resolution
+### 7.2 Tracing SRTP Resolution
 
 For SRTP operators like `$` (the native string interpolation operator):
 
@@ -360,7 +519,7 @@ For SRTP operators like `$` (the native string interpolation operator):
 3. If `null`, SRTP resolution failed
 4. If present, shows the resolved member and implementation
 
-### 6.3 IDE Integration
+### 7.3 IDE Integration
 
 FSharpNativeExpr enables IDE features:
 

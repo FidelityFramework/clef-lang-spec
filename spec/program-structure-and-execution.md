@@ -273,3 +273,25 @@ The last file that is specified in the compilation order for an executable file 
 The function becomes the entry point to the program. At startup, F# Native executes all static initializers in compilation order, then evaluates the body of the entry point function.
 
 > **F# Native Note**: The entry point function's return value becomes the process exit code. A return value of 0 indicates success; non-zero values indicate errors. For freestanding (no-OS) targets, the return value may be ignored or handled by the runtime stub.
+
+#### Entry Point ABI Boundary
+
+Unlike .NET F#, where the runtime provides an already-marshalled `string[]` to the entry point, F# Native must handle the C ABI boundary explicitly. The entry point is a platform binding, just like syscalls or memory operations.
+
+The F# semantic signature `array<string> -> int` maps to a platform-specific C ABI:
+
+| Platform | C Signature | F# Semantic Type |
+|----------|-------------|------------------|
+| Linux/POSIX | `int main(int argc, char** argv)` | `array<string> -> int` |
+| Windows (console) | `int main(int argc, char** argv)` | `array<string> -> int` |
+| Windows (GUI) | `int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)` | *platform-specific* |
+| Freestanding | `void _start(void)` | `unit -> int` |
+
+The platform descriptor (from `Fidelity.Platform`) defines the `EntryPointABI` via quotations, which specifies:
+- The C function name and signature
+- The parameter conversion strategy (e.g., `char**` to `array<string>`)
+- The return type mapping
+
+This binding is resolved at compile time through the platform binding resolution pass, ensuring the C boundary translation is type-safe and platform-appropriate. The F# code author writes the idiomatic F# signature; the compiler generates the ABI translation based on the platform quotation.
+
+See [Platform Bindings](platform-bindings.md) for the quotation-based platform descriptor model.

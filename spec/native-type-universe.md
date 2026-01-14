@@ -871,6 +871,8 @@ add5 = { fn_ptr: add_impl, env: { x = 5 } }
 
 **Currying Optimization** (fsil): Fully-applied curried calls compile to direct multi-argument calls (no intermediate closures). Partial application creates flat closures capturing applied arguments. Higher-order uses like `List.map f` are typically inlined at call sites.
 
+> **See**: [FSharpNativeExpr § 5.2 Curried Call Flattening](fsharp-native-expr.md#52-curried-call-flattening) for the normative specification of how the SemanticGraph represents curried applications.
+
 ---
 
 ## Part 7: Mutable State
