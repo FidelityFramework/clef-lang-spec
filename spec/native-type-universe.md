@@ -1021,7 +1021,63 @@ let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
 
 **Cache Behavior**: `Stack`, `Arena`, `Sram`, and `Flash` regions are cacheable with normal load/store semantics. `Peripheral` access bypasses cache and uses memory barriers - essential for hardware registers where timing and order matter.
 
-### 8.4 Hardware Peripheral Descriptors
+### 8.4 Arena as FNCS Intrinsic Type
+
+> **Status (January 2026)**: Arena is implemented as an FNCS intrinsic type.
+
+**Type Definition**:
+```fsharp
+Arena<[<Measure>] 'lifetime>
+```
+
+**Memory Layout** (NTUCompound 3):
+```
+Arena<'lifetime>
+┌─────────────────┬─────────────────┬─────────────────┐
+│ Base: nativeint │ Capacity: int   │ Position: int   │
+└─────────────────┴─────────────────┴─────────────────┘
+     8 bytes           8 bytes           8 bytes       = 24 bytes (64-bit)
+```
+
+| Property | Value |
+|----------|-------|
+| **FNCS Type** | Intrinsic with NTUCompound(3) |
+| **Lifetime param** | Measure type for tracking |
+| **Allocation** | Stack-backed (typical) or heap-backed |
+| **MLIR** | Three-word struct with InsertValue/ExtractValue |
+
+**FNCS Intrinsic Operations**:
+
+| Operation | Type Signature |
+|-----------|----------------|
+| `Arena.fromPointer` | `nativeint -> int -> Arena<'lifetime>` |
+| `Arena.alloc` | `Arena<'lifetime> byref -> int -> nativeint` |
+| `Arena.allocAligned` | `Arena<'lifetime> byref -> int -> int -> nativeint` |
+| `Arena.remaining` | `Arena<'lifetime> -> int` |
+| `Arena.reset` | `Arena<'lifetime> byref -> unit` |
+
+**Usage Pattern**:
+```fsharp
+// Arena backed by stack memory
+let arenaMem = NativePtr.stackalloc<byte> 4096
+let mutable arena = Arena.fromPointer (NativePtr.toNativeInt arenaMem) 4096
+
+// Allocate from arena
+let buffer = Arena.alloc &arena 256
+
+// Arena freed when stack frame exits
+```
+
+**Byref Parameter**: Operations that mutate arena state (alloc, reset) take `Arena<'lifetime> byref` to enable in-place position updates without copying the 24-byte struct.
+
+**Lifetime Inference Principle**: Arena demonstrates the three-level approach:
+- **Level 3 (Explicit)**: Current - full manual control
+- **Level 2 (Hints)**: Future - `arena { }` computation expressions
+- **Level 1 (Inferred)**: Future - compiler escape analysis
+
+> **See**: [memory-regions.md](memory-regions.md#arena) for detailed Arena semantics.
+
+### 8.5 Hardware Peripheral Descriptors
 
 > **See**: Farscape documentation for peripheral binding generation.
 

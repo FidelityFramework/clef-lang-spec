@@ -43,18 +43,52 @@ let example () =
 
 Arena-allocated values are bulk-allocated and freed together.
 
+> **Status (January 2026)**: Arena is implemented as an FNCS intrinsic type with compiler-provided operations.
+
+**Type Definition**:
 ```fsharp
-Arena.using (fun arena ->
-    let a = Arena.alloc<int> arena 100
-    let b = Arena.alloc<float> arena 50
-    // Both freed when arena scope exits
-)
+// Arena<[<Measure>] 'lifetime> - FNCS intrinsic type
+// Layout: NTUCompound(3) = { Base: nativeint, Capacity: int, Position: int }
 ```
+
+**Current Implementation (Level 3 - Explicit)**:
+```fsharp
+// Create arena from stack-allocated backing memory
+let arenaMem = NativePtr.stackalloc<byte> 4096
+let mutable arena = Arena.fromPointer (NativePtr.toNativeInt arenaMem) 4096
+
+// Allocate from arena (note: byref parameter for mutation)
+let buffer = Arena.alloc &arena 256  // Returns nativeint
+let aligned = Arena.allocAligned &arena 64 16  // 64 bytes, 16-byte aligned
+
+// Query and reset
+let remaining = Arena.remaining arena
+Arena.reset &arena  // Position back to 0
+```
+
+**Arena Operations** (FNCS Intrinsics):
+
+| Operation | Type | Description |
+|-----------|------|-------------|
+| `fromPointer` | `nativeint -> int -> Arena<'lifetime>` | Create arena from backing memory |
+| `alloc` | `Arena<'lifetime> byref -> int -> nativeint` | Bump allocate bytes |
+| `allocAligned` | `Arena<'lifetime> byref -> int -> int -> nativeint` | Aligned allocation |
+| `remaining` | `Arena<'lifetime> -> int` | Query remaining capacity |
+| `reset` | `Arena<'lifetime> byref -> unit` | Reset position to 0 |
+
+**Lifetime Parameter**: The `'lifetime` measure parameter enables future lifetime tracking. Currently documentation-level; compiler enforcement planned.
+
+**Three Levels of Control** (Lifetime Inference Principle):
+1. **Level 3 (Explicit)**: Full control via `Arena.fromPointer`, `Arena.alloc &arena` (implemented)
+2. **Level 2 (Hints)**: `arena { }` computation expression (future)
+3. **Level 1 (Inferred)**: Compiler escape analysis infers arena needs (future)
 
 **Properties**:
 - No individual deallocation
+- O(1) bump allocation
 - Cache-friendly locality
 - Scope-bounded lifetime
+- Backing memory can come from stack or heap
 
 ### Peripheral
 
