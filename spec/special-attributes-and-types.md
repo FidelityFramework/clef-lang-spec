@@ -52,10 +52,58 @@ These attributes control memory layout for native compilation:
 
 ### Inline and Optimization Attributes
 
-| Attribute | Description |
+| Attribute/Keyword | Description |
 | --- | --- |
+| `inline` | The `inline` keyword on function definitions enables body expansion at call sites. See below for escape analysis semantics. |
 | `[<InlineIfLambda>]` | Indicates that a lambda argument should be inlined at call sites for performance. |
 | `[<NoDynamicInvocation>]` | When applied to an inline function or member definition, indicates that the function cannot be invoked dynamically. In F# Native, this is the default behavior since there is no dynamic invocation. |
+
+#### Inline Functions and Escape Analysis
+
+In F# Native, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, FNCS captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
+
+**The Escape Problem**: When a function allocates memory via `NativePtr.stackalloc` and returns a pointer to that memory, the pointer becomes invalid when the function returns (the stack frame is deallocated).
+
+```fsharp
+// WITHOUT inline - pointer escapes and dangles
+let readln () : string =
+    let buffer = NativePtr.stackalloc<byte> 256  // Allocated in readln's frame
+    let len = readLineInto buffer 256
+    NativeStr.fromPointer buffer len             // Returns pointer to readln's stack!
+    // When readln returns, buffer is deallocated - pointer is now INVALID
+
+let hello() =
+    let name = readln()  // name points to deallocated memory!
+    greet name           // Undefined behavior
+```
+
+**The Solution**: Marking the function `inline` causes FNCS to expand the function body at the call site, lifting the allocation to the caller's frame:
+
+```fsharp
+// WITH inline - allocation lifted to caller's frame
+let inline readln () : string =
+    let buffer = NativePtr.stackalloc<byte> 256
+    let len = readLineInto buffer 256
+    NativeStr.fromPointer buffer len
+
+let hello() =
+    // AFTER inline expansion, semantically becomes:
+    let buffer = NativePtr.stackalloc<byte> 256  // Now in hello's frame!
+    let len = readLineInto buffer 256
+    let name = NativeStr.fromPointer buffer len  // Pointer valid through hello's scope
+    greet name                                    // Safe - hello's frame is alive
+```
+
+**When to Use `inline` for Escape Analysis**:
+
+Functions should be marked `inline` when they:
+1. Allocate memory via `NativePtr.stackalloc` or `Arena.alloc`
+2. Return a pointer, reference, or fat pointer (like `string`) to that memory
+3. The caller needs the returned value to remain valid
+
+This pattern is common in platform libraries (e.g., `Console.readln`) where the implementation detail of stack allocation should be transparent to application code.
+
+> **Design Note**: This mechanism supports Level 1 (Implicit) memory management from the [Memory Regions](memory-regions.md) design - developers write standard F# code while the compiler ensures memory safety through inline expansion.
 
 ### Entry Point Attribute
 

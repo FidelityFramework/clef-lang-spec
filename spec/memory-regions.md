@@ -81,7 +81,7 @@ Arena.reset &arena  // Position back to 0
 **Three Levels of Control** (Lifetime Inference Principle):
 1. **Level 3 (Explicit)**: Full control via `Arena.fromPointer`, `Arena.alloc &arena` (implemented)
 2. **Level 2 (Hints)**: `arena { }` computation expression (future)
-3. **Level 1 (Inferred)**: Compiler escape analysis infers arena needs (future)
+3. **Level 1 (Inferred)**: Escape analysis via `inline` expansion - see [Inline Functions and Escape Analysis](special-attributes-and-types.md#inline-functions-and-escape-analysis) (implemented)
 
 **Properties**:
 - No individual deallocation
