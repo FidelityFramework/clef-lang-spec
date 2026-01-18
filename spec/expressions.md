@@ -2574,6 +2574,47 @@ In the example, the expression defines a set of recursive functions. If one or m
 are defined, the recursive expressions are analyzed for safety ([§](inference-constraint-solving.md#recursive-safety-analysis)). This may result in warnings
 (including some reported as compile-time errors) and runtime checks.
 
+#### Nested Recursive Functions and Captures
+
+> **F# Native Note**: When a recursive function is defined inside another function, it may capture variables from the enclosing scope. These captures must be tracked and propagated to code generation.
+
+```fsharp
+let sumTo (n: int) : int =
+    let rec loop acc i =
+        if i > n then acc    // 'n' is captured from enclosing scope
+        else loop (acc + i) (i + 1)
+    loop 0 1
+```
+
+In this example, the nested `loop` function captures `n` from `sumTo`. The capture analysis (see [Closure Representation §4.2](closure-representation.md#42-capture-analysis-in-fncs)) SHALL identify `n` as a captured variable for `loop`, even though `loop` is a named recursive binding rather than an anonymous lambda.
+
+Contrast with:
+```fsharp
+let factorialTail (n: int) : int =
+    let rec loop acc n =     // 'n' is a parameter, shadows outer 'n'
+        if n <= 1 then acc
+        else loop (acc * n) (n - 1)
+    loop 1 n
+```
+
+Here, `loop` has its own parameter `n` that shadows the outer `n`, so no capture occurs.
+
+**Calling Convention**: Nested named functions use **parameter-passing** for captures rather than the closure struct model (see [Closure Representation §8](closure-representation.md#8-nested-named-functions-vs-escaping-closures)). Captures are prepended as additional function parameters:
+
+```
+// Source: let rec loop acc i = if i > n then acc else ...
+// Generated signature: loop(n: int, acc: int, i: int) -> int
+//                           ↑ capture   ↑ explicit parameters
+```
+
+At call sites, the enclosing scope supplies capture values directly:
+```fsharp
+loop 0 1      // Source syntax
+loop(n, 0, 1) // Generated call (n passed as first argument)
+```
+
+**Implementation Note**: Named function bindings that are nested (i.e., defined within another function) SHALL have capture analysis performed. Top-level function bindings never capture because there is no enclosing scope from which to capture.
+
 ### Deterministic Disposal Expressions
 
 A _deterministic disposal expression_ has the form:

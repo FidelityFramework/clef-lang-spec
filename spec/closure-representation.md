@@ -261,16 +261,101 @@ OCaml uses a uniform representation where closures are tagged blocks. F# Native 
 - No GC heap (regions instead)
 - Struct-based layout (no boxing)
 
-## 8. Implementation in FNCS/Firefly Pipeline
+## 8. Nested Named Functions vs Escaping Closures
 
-### 8.1 FNCS Phase
+F# Native distinguishes two categories of functions that capture variables:
+
+### 8.1 Escaping Closures (Closure Struct Model)
+
+Anonymous lambdas and function values that "escape" their defining scope use the flat closure struct described in §3:
+
+```fsharp
+let makeAdder n =
+    fun x -> x + n  // Anonymous lambda, may escape
+```
+
+The lambda `fun x -> x + n` is a **first-class value** that can be:
+- Returned from a function
+- Stored in a data structure
+- Passed to higher-order functions
+
+For escaping closures, FNCS creates a closure struct:
+```
+{ code_ptr: ptr, env: { n: int } }
+```
+
+**Call Site**: The caller extracts `code_ptr` and `env_ptr`, passing `env_ptr` as the first argument.
+
+### 8.2 Nested Named Functions (Parameter-Passing Model)
+
+Named functions defined inside another function are typically NOT escaping—they are called only from their defining scope:
+
+```fsharp
+let sumTo n =
+    let rec loop acc i =
+        if i > n then acc     // 'n' captured from enclosing scope
+        else loop (acc + i) (i + 1)
+    loop 0 1
+```
+
+Here `loop` is:
+- Defined with a name (`let rec loop`)
+- Called directly from `sumTo`
+- Never returned or stored as a value
+
+For nested named functions, F# Native uses **parameter-passing** instead of closure structs:
+- Captures become **additional function parameters**
+- Callers pass capture values directly at call sites
+- No heap/stack allocation for closure struct
+
+**Generated Signature**:
+```
+loop: (n: int, acc: int, i: int) -> int
+       ↑ capture   ↑ explicit params
+```
+
+**Call Site**: `loop(n, 0, 1)` — capture `n` passed as first argument.
+
+### 8.3 Classification Criteria
+
+| Criterion | Escaping Closure | Nested Named Function |
+|-----------|-----------------|----------------------|
+| Definition form | `fun x -> ...` | `let [rec] name ...` |
+| PSG parent | Application, Sequential, etc. | Binding node |
+| Can escape scope | Yes | No |
+| Representation | `{code_ptr, env}` struct | Direct function |
+| Capture passing | Via env_ptr extraction | As explicit parameters |
+| Allocation | Stack/region for struct | None |
+
+### 8.4 Why the Distinction Matters
+
+The parameter-passing model for nested named functions provides:
+
+1. **Zero allocation**: No closure struct construction at each call
+2. **Better inlining**: Direct calls are easier to inline
+3. **Simpler codegen**: No extractvalue/getelementptr for env access
+4. **Cache efficiency**: All values in registers, no memory indirection
+
+The tradeoff is that nested named functions cannot be used as first-class values. This is intentional—if the function needs to escape, use an anonymous lambda.
+
+### 8.5 Implementation Note
+
+In SSA assignment, the distinction is made by checking:
+1. Lambda has `enclosingFunction = Some _` (nested)
+2. Lambda's parent node is a `Binding` (named function)
+
+If both conditions hold, no `ClosureLayout` is computed—captures flow via parameters.
+
+## 9. Implementation in FNCS/Firefly Pipeline
+
+### 9.1 FNCS Phase
 
 FNCS constructs the PSG with complete lambda information:
 - `SemanticKind.Lambda(parameters, body, captures)`
 - Captures computed during scope analysis
 - Mutability tracked in `CaptureInfo.IsMutable`
 
-### 8.2 Alex Preprocessing Phase
+### 9.2 Alex Preprocessing Phase
 
 Two closure-related nanopasses run in sequence:
 
@@ -284,7 +369,7 @@ Two closure-related nanopasses run in sequence:
    - Assigns SSAs for env allocation, stores
    - Records `ClosureCoeffect` with full layout info
 
-### 8.3 Witness Phase
+### 9.3 Witness Phase
 
 `LambdaWitness` observes:
 - If `ClosureCoeffect` present: emit flat closure struct
@@ -292,13 +377,15 @@ Two closure-related nanopasses run in sequence:
 
 No computation in witnesses - all layout pre-computed.
 
-## 9. Normative Requirements
+## 10. Normative Requirements
 
-1. **Flat Representation**: All closures SHALL use flat environment representation
+1. **Flat Representation**: Escaping closures SHALL use flat environment representation
 2. **Capture Mode**: Mutable bindings SHALL be captured by reference; immutable by value
 3. **Escape Safety**: Closures capturing mutable bindings SHALL NOT escape the binding's scope
 4. **No Heap**: Closures SHALL NOT be allocated on GC-managed heap
 5. **Cache Alignment**: Small closures (≤64 bytes) SHOULD be aligned to cache lines
+6. **Nested Named Functions**: Named functions defined within another function SHALL use parameter-passing for captures, not closure structs
+7. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding
 
 ## References
 
