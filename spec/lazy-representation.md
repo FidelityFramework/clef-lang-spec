@@ -65,7 +65,7 @@ Typical sizes on 64-bit platforms:
 
 ## 4. Thunk Calling Convention
 
-### 4.1 Option B: Struct Pointer Passing
+### 4.1 Struct Pointer Passing
 
 F# Native uses the **struct pointer passing** convention for thunks. The thunk receives a pointer to its containing lazy struct and extracts captures itself.
 
@@ -304,7 +304,7 @@ llvm.cond_br %computed, ^already_computed, ^need_compute
     // Extract code pointer
     %code_ptr = llvm.extractvalue %lazy_val[2] : !llvm.struct<...> -> !llvm.ptr
     
-    // Get pointer to lazy struct (for Option B calling convention)
+    // Get pointer to lazy struct (struct pointer passing convention)
     %lazy_ptr = llvm.alloca 1 x !llvm.struct<...> : ... -> !llvm.ptr
     llvm.store %lazy_val, %lazy_ptr : ...
     

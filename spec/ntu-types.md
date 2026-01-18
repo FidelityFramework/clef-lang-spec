@@ -90,7 +90,7 @@ Width assumptions guide type checking but are **erased** before code generation.
 
 ## 4. Mapping to F# Source Types
 
-### 4.1 Option B: NTU Internal with Semantic Aliases
+### 4.1 Layered Type Abstraction
 
 The architecture uses a three-tier exposure model:
 
