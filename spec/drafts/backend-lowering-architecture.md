@@ -97,6 +97,35 @@ func.func @main() -> i32 {
 }
 ```
 
+### 3.3 Dialect Mixing Within Function Bodies
+
+MLIR allows mixing portable and backend-specific operations within function bodies. Key rules:
+
+1. **`func.call` inside `llvm.func`**: Valid. A `llvm.func` can call a `func.func` using `func.call`.
+2. **`llvm.call` requires `llvm.func` target**: The `llvm.call` operation can only call functions defined as `llvm.func`.
+3. **Arithmetic inside any function**: Portable `arith.*` operations work in both `func.func` and `llvm.func` bodies.
+
+**Example: `_start` calling `main`**
+
+In freestanding mode, `_start` is an `llvm.func` (its address may be taken by the linker), but it needs to call `main` which is a `func.func`:
+
+```mlir
+llvm.func @_start() -> i32 {
+    // Read argc/argv via inline asm (LLVM-specific)
+    %argc = llvm.inline_asm "mov (%rsp), $0", "=r" : () -> i64
+    %argv = llvm.inline_asm "lea 8(%rsp), $0", "=r" : () -> !llvm.ptr
+    
+    // Call main - uses func.call since main is func.func
+    %result = func.call @main(%argc, %argv) : (i64, !llvm.ptr) -> i64
+    
+    // Exit syscall (LLVM-specific)
+    llvm.inline_asm has_side_effects "syscall", "..." %result : ...
+    llvm.unreachable
+}
+```
+
+> **NORMATIVE**: `llvm.call` SHALL only be used to call functions defined as `llvm.func`. To call a `func.func` from within an `llvm.func` body, use `func.call`.
+
 ## 4. Classification Guide
 
 ### 4.1 Use Portable Dialects When

@@ -103,6 +103,8 @@ llvm.func @thunk_example(%lazy_ptr: !llvm.ptr) -> i64 {
 }
 ```
 
+> **NORMATIVE**: Lazy thunks SHALL use `llvm.func` regardless of capture count. Even a lazy thunk with no captures (e.g., `lazy 42`) must be defined as `llvm.func` because its address is taken via `llvm.mlir.addressof` and stored in the lazy struct. The `llvm.mlir.addressof` operation requires the target to be `llvm.func`, `llvm.mlir.global`, or `llvm.mlir.alias` - it cannot reference a `func.func`.
+
 ### 4.3 Alternative Considered: Parameter Passing
 
 An alternative convention passes captures as function parameters:
