@@ -422,7 +422,53 @@ Key observations:
 3. The call `greet prefix name` is a single Application with two arguments
 4. No intermediate `Pipe` or nested `Application` nodes exist
 
-### 5.5 Invariants Summary
+### 5.5 Recursive Binding NodeId Resolution
+
+Recursive bindings (`let rec`) present a unique challenge: the function references itself before its definition is complete.
+
+```fsharp
+// Source
+let rec factorial n =
+    if n <= 1 then 1
+    else n * factorial (n - 1)  // VarRef to 'factorial' - but we're defining it!
+```
+
+**The Problem**: When checking the body of `factorial`, we encounter a `VarRef` to `factorial`. But at that point, we haven't finished creating the Binding node, so we don't have a `NodeId` to link to.
+
+**The Solution**: Pre-create Binding nodes to obtain NodeIds before checking bodies:
+
+```fsharp
+// Conceptual flow for let rec bindings:
+// 1. Pre-create Binding nodes (get NodeIds)
+// 2. Add bindings to environment WITH their NodeIds
+// 3. Check body (VarRefs resolve via environment)
+// 4. Connect body to Binding node via SetChildren
+```
+
+**Invariant**: All VarRefs—including self-references in recursive functions—have `defId = Some nodeId`:
+
+```
+// CORRECT - Self-reference has defId
+VarRef ("factorial", Some (NodeId 526))
+
+// WRONG - Missing defId
+VarRef ("factorial", None)
+```
+
+This invariant applies to:
+- **Simple recursion**: `let rec f x = ... f ...`
+- **Nested recursion**: `let f x = let rec loop y = ... loop ... in loop x`
+- **Mutual recursion**: `let rec f x = ... g ... and g y = ... f ...`
+
+**Key Principle**: The NodeId must exist before we need to reference it. For recursive bindings:
+1. Create the Binding node (get NodeId)
+2. Add to environment with that NodeId
+3. Check body (VarRefs resolve via environment)
+4. Connect body to Binding node
+
+**Downstream Reliance**: Alex and other consumers can safely assume every VarRef has a valid `defId` for name lookup. There are no "forward reference" special cases to handle.
+
+### 5.6 Invariants Summary
 
 | Transformation | Guarantee |
 |---------------|-----------|
@@ -430,6 +476,7 @@ Key observations:
 | Fully-applied curried call | Single Application node with flat argument list |
 | Pipe operators | Reduced to direct Application |
 | Pattern lambda | Elaborated to pattern matching on synthetic variable |
+| Recursive bindings | All VarRefs (including self-references) have valid `defId` |
 
 **Downstream Reliance**: These invariants allow Alex (and any other consumer) to treat the SemanticGraph as already normalized. Code generation does not need to perform additional flattening or reduction - the graph is correct by construction.
 

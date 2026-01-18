@@ -643,9 +643,15 @@ Lazy.create (fun () -> expr)
 ```
 
 The behavior of the `Lazy` type ensures that expression `expr` is evaluated on demand in
-response to a `.Value` operation on the lazy value.
+response to a `Lazy.force` operation on the lazy value.
 
-> **F# Native Note**: In F# Native, `Lazy<'T>` is a value type that stores a thunk and memoizes its result on first evaluation. There is no garbage collector involvement.
+> **F# Native Note**: In F# Native, `Lazy<'T>` is implemented as an extension of the flat closure architecture. The lazy struct contains a computed flag, value slot, thunk code pointer, and inlined captures. Forcing uses the thunk calling convention where the thunk receives a pointer to its containing struct. See [Lazy Value Representation](lazy-representation.md) for complete specification.
+>
+> Key properties:
+> - No garbage collector involvement
+> - Captures computed at compile time via binding classification
+> - Module-level bindings are referenced directly, not captured
+> - Pure thunk semantics initially (memoization planned with arena support)
 
 ### Computation Expressions
 
