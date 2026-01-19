@@ -161,6 +161,8 @@ This configuration flows through:
 
 ## See Also
 
+- [Program Semantic Graph](program-semantic-graph.md) - PSG structure consumed by Alex
+- [Type Representation Architecture](type-representation-architecture.md) - NativeType and TypeConRef
 - [Closure Representation](closure-representation.md) - Flat closure memory layout
 - [Lazy Representation](lazy-representation.md) - Lazy as extended closure
 - [Platform Bindings](platform-bindings.md) - Platform descriptor and syscalls

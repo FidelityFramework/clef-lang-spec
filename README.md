@@ -37,7 +37,6 @@ fsnative-spec is part of the **Fidelity** native F# compilation ecosystem:
 |---------|------|
 | **[fsnative](https://github.com/speakeztech/fsnative)** | F# Native Compiler Services (FNCS): parsing, type checking, PSG construction |
 | **[Firefly](https://github.com/speakeztech/firefly)** | AOT compiler: consumes PSG → MLIR → Native binary |
-| **[Alloy](https://github.com/speakeztech/alloy)** | Native standard library with platform bindings |
 | **[BAREWire](https://github.com/speakeztech/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
 | **[Farscape](https://github.com/speakeztech/farscape)** | C/C++ header parsing for native library bindings |
 | **[XParsec](https://github.com/speakeztech/xparsec)** | Parser combinators powering PSG traversal and header parsing |
@@ -163,7 +162,7 @@ This means:
 - SRTP constraints resolve against built-in definitions
 - The compiler contains the complete type system
 
-Alloy provides library *functions* that operate on these intrinsic types. The types themselves are defined by fsnative per this specification.
+The native library provides functions that operate on these intrinsic types. The types themselves are defined by fsnative per this specification.
 
 ## Document Organization
 
@@ -185,24 +184,36 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 3 | Lexical Analysis | `lexical-analysis.md` | Stable |
 | 4 | Basic Grammar Elements | `basic-grammar-elements.md` | Stable |
 | 5 | Types and Type Constraints | `types-and-type-constraints.md` | Revised |
-| 6 | **Native Type Mappings** | `native-type-mappings.md` | **New** |
-| 7 | Expressions | `expressions.md` | Revised |
-| 8 | Patterns | `patterns.md` | Stable |
-| 9 | Type Definitions | `type-definitions.md` | Revised |
-| 10 | Units of Measure | `units-of-measure.md` | Stable |
-| 11 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
-| 12 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
-| 13 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
-| 14 | **Memory Regions** | `memory-regions.md` | **New** |
-| 15 | **Access Kinds** | `access-kinds.md` | **New** |
-| 16 | **Platform Bindings** | `platform-bindings.md` | **New** |
-| 17 | Inference Procedures | `inference-procedures.md` | Revised |
-| 18 | Lexical Filtering | `lexical-filtering.md` | Stable |
-| 19 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
-| 20 | **Error Handling** | `error-handling.md` | **New** |
-| 21 | **Interactive Development** | `interactive-development.md` | **New** |
-| 22 | The Native Library Alloy | `the-native-library-alloy.md` | **Rewritten** |
-| 23 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Stable |
+| 6 | **Type Representation Architecture** | `type-representation-architecture.md` | **New** |
+| 7 | **Native Type Mappings** | `native-type-mappings.md` | **New** |
+| 8 | **Native Type Universe** | `native-type-universe.md` | **New** |
+| 9 | Expressions | `expressions.md` | Revised |
+| 10 | Patterns | `patterns.md` | Stable |
+| 11 | Type Definitions | `type-definitions.md` | Revised |
+| 12 | Units of Measure | `units-of-measure.md` | Stable |
+| 13 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
+| 14 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
+| 15 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
+| 16 | **Program Semantic Graph** | `program-semantic-graph.md` | **New** |
+| 17 | **Memory Regions** | `memory-regions.md` | **New** |
+| 18 | **Closure Representation** | `closure-representation.md` | **New** |
+| 19 | **Lazy Representation** | `lazy-representation.md` | **New** |
+| 20 | **Seq Representation** | `seq-representation.md` | **New** |
+| 21 | **Seq Operations Representation** | `seq-operations-representation.md` | **New** |
+| 22 | **Access Kinds** | `access-kinds.md` | **New** |
+| 23 | **Platform Bindings** | `platform-bindings.md` | **New** |
+| 24 | **Backend Lowering Architecture** | `backend-lowering-architecture.md` | **New** |
+| 25 | Inference Procedures | `inference-procedures.md` | Revised |
+| 26 | **F# Native Expressions** | `fsharp-native-expr.md` | **New** |
+| 27 | Lexical Filtering | `lexical-filtering.md` | Stable |
+| 28 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
+| 29 | **Error Handling** | `error-handling.md` | **New** |
+| 30 | **Interactive Development** | `interactive-development.md` | **New** |
+| 31 | **NTU Conversion Model** | `ntu-conversion-model.md` | **New** |
+| 32 | **Intrinsics: Convert** | `intrinsics-convert.md` | **New** |
+| 33 | **Intrinsics: Crypto/Bits** | `intrinsics-crypto-bits.md` | **New** |
+| 34 | **Reactive Signals** | `reactive-signals.md` | **New** |
+| 35 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Stable |
 
 ### Removed Chapters
 

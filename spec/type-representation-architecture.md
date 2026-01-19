@@ -269,3 +269,9 @@ let emitRecordConstruction typeName fieldExprs graph =
 | Generic type | `TApp(tyconRef, args)` | Lookup + substitution |
 
 The key insight: **Records are not special.** They are named types like any other, represented uniformly as `TApp`. The fact that they have fields is an implementation detail accessed via lookup, not embedded in the type representation.
+
+## See Also
+
+- [Program Semantic Graph](program-semantic-graph.md) - SemanticGraph structure carrying type information
+- [Backend Lowering Architecture](backend-lowering-architecture.md) - Type lowering to MLIR
+- [Native Type Mappings](native-type-mappings.md) - F# to native type correspondence
