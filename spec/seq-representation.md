@@ -357,9 +357,16 @@ let fibonacci count = seq {
 
 **MoveNext ^s1**: Must compute `temp` locally, not load from struct.
 
+## 11. Related Chapters
+
+This chapter covers `seq { }` expressions (PRD-15). For **Seq module operations** (map, filter, take, fold, collect), see:
+
+- [Seq Operations Representation](seq-operations-representation.md) - Wrapper structures, copy semantics, composition model
+
 ## References
 
 - [Closure Representation](closure-representation.md) - Base flat closure architecture
 - [Lazy Representation](lazy-representation.md) - Extended closure with memoization state
+- [Seq Operations Representation](seq-operations-representation.md) - Seq module operations (PRD-16)
 - PRD-15: SimpleSeq - Implementation requirements
 - PRD-16: SeqOperations - Composed sequence operations
