@@ -791,6 +791,83 @@ list<'T>
 - Performance-critical loops
 - Large collections with mutations
 
+### 5.4 Map
+
+```fsharp
+let lookup : Map<string, int> = Map.ofList [("a", 1); ("b", 2)]
+let empty : Map<int, string> = Map.empty
+```
+
+**Memory Layout** (AVL tree nodes):
+```
+Map<'K, 'V>  (AVL tree node)
+┌────────────────────┬────────────────────┬─────────────────────┬─────────────────────┬──────────┐
+│ key: 'K            │ value: 'V          │ left: ptr<Map>      │ right: ptr<Map>     │ height: i8│
+└────────────────────┴────────────────────┴─────────────────────┴─────────────────────┴──────────┘
+     sizeof<'K>           sizeof<'V>            8 bytes              8 bytes            1 byte
+```
+
+| Property | Value |
+|----------|-------|
+| **Empty map** | Null pointer (no allocation) |
+| **Structure** | Self-balancing AVL tree |
+| **Immutable** | Always (structural sharing on update) |
+| **Allocation** | Arena or stack (not GC heap) |
+| **Key constraint** | `'K : comparison` |
+| **MLIR** | `!fidelity.map<K, V>` |
+
+**AVL Balance Property**: Height difference between left and right subtrees is at most 1. Rebalancing occurs on `Map.add` when this property would be violated.
+
+**When to Use**:
+- Key-value associations with O(log n) lookup
+- Ordered iteration by key
+- Immutable dictionary semantics
+
+**When NOT to Use** (prefer Dictionary or array):
+- Frequent updates (mutable dictionary better)
+- Small fixed key sets (array with enum index)
+- Hash-based O(1) lookup needed
+
+> **See**: [Map Representation](map-representation.md) for detailed AVL algorithms and HOF specifications.
+
+### 5.5 Set
+
+```fsharp
+let numbers : Set<int> = Set.ofList [1; 2; 3]
+let empty : Set<string> = Set.empty
+```
+
+**Memory Layout** (AVL tree nodes):
+```
+Set<'T>  (AVL tree node)
+┌────────────────────┬─────────────────────┬─────────────────────┬──────────┐
+│ value: 'T          │ left: ptr<Set>      │ right: ptr<Set>     │ height: i8│
+└────────────────────┴─────────────────────┴─────────────────────┴──────────┘
+     sizeof<'T>            8 bytes              8 bytes            1 byte
+```
+
+| Property | Value |
+|----------|-------|
+| **Empty set** | Null pointer (no allocation) |
+| **Structure** | Self-balancing AVL tree |
+| **Immutable** | Always (structural sharing on update) |
+| **Allocation** | Arena or stack (not GC heap) |
+| **Element constraint** | `'T : comparison` |
+| **MLIR** | `!fidelity.set<T>` |
+
+**Relationship to Map**: `Set<'T>` is structurally equivalent to `Map<'T, unit>` but with optimized layout (no value field).
+
+**When to Use**:
+- Membership testing with O(log n) lookup
+- Ordered unique elements
+- Set operations (union, intersect, difference)
+
+**When NOT to Use** (prefer HashSet or array):
+- Very frequent membership tests (hash-based O(1) better)
+- When order doesn't matter and hash is cheaper
+
+> **See**: [Set Representation](set-representation.md) for detailed AVL algorithms and HOF specifications.
+
 ---
 
 ## Part 6: Function Types
