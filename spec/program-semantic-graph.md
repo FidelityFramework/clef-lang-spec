@@ -1,7 +1,7 @@
 # Program Semantic Graph
 
 > **Status**: Normative
-> **Last Updated**: 2026-01-19 (Added Section 12: PSG Saturation)
+> **Last Updated**: 2026-01-21 (Added Section 13: Enrichment, Section 14: Coeffect Analysis)
 
 ## 1. Overview
 
@@ -432,6 +432,194 @@ After saturation, the following additional invariants SHALL hold:
 2. **Block structure**: State machine blocks are explicit, traversable nodes
 3. **No deferred synthesis**: Code generators need not build structure during emission
 4. **SSA assignability**: All nodes can have SSAs assigned by walking structure
+
+## 13. Enrichment
+
+### 13.1 Terminology
+
+**Enrichment** is the parent concept encompassing two related processes:
+
+| Term | Origin | Description |
+|------|--------|-------------|
+| **Elaboration** | PLT | Making implicit program structure explicit |
+| **Saturation** | Fidelity | Filling the PSG with all information needed for lowering |
+
+Both processes synthesize PSG nodes that do not appear directly in source code.
+
+### 13.2 Enrichment Categories
+
+Two categories of enrichment are defined, distinguished by metadata:
+
+| Category | `Elaboration.Kind` | Purpose |
+|----------|-------------------|---------|
+| **Intrinsic Elaboration** | `"Intrinsic"` | Implement intrinsic operation semantics |
+| **Baker Saturation** | `"Baker"` | Decompose language features to primitives |
+
+#### 13.2.1 Intrinsic Elaboration
+
+Intrinsic elaboration synthesizes PSG structure to implement the semantics of intrinsic operations.
+
+**Example**: `Console.write "Hello"` may elaborate to:
+- String length extraction nodes
+- Buffer pointer calculation nodes
+- System call invocation nodes
+
+#### 13.2.2 Baker Saturation
+
+Baker saturation decomposes higher-order language constructs into primitive operations:
+
+| Source Construct | Baker Decomposition |
+|------------------|---------------------|
+| `List.map f xs` | Recursion using `isEmpty`, `head`, `tail`, `cons` |
+| `seq { ... }` | State machine structure (§12.5) |
+| `lazy expr` | Thunk structure with memoization |
+
+### 13.3 Enrichment Metadata
+
+**NORMATIVE**: Enriched nodes SHALL carry metadata identifying their origin.
+
+```fsharp
+module ElaborationMetadata =
+    /// What kind of enrichment: "Intrinsic" or "Baker"
+    [<Literal>]
+    let Kind = "Elaboration.Kind"
+
+    /// What construct triggered enrichment (e.g., "List.map", "Console.write")
+    [<Literal>]
+    let For = "Elaboration.For"
+
+    /// Links related nodes from the same enrichment expansion
+    [<Literal>]
+    let Id = "Elaboration.Id"
+```
+
+### 13.4 Source-Based vs Enriched Nodes
+
+| Node Type | Metadata | Meaning |
+|-----------|----------|---------|
+| Source-based | None | Direct from user's source code |
+| Intrinsic-elaborated | `Kind = "Intrinsic"` | Synthesized for intrinsic implementation |
+| Baker-saturated | `Kind = "Baker"` | Synthesized for language feature decomposition |
+
+**NORMATIVE**: The absence of `Elaboration.Kind` metadata SHALL indicate a source-based node.
+
+### 13.5 Expansion ID Linking
+
+When enrichment creates multiple related nodes, they share an `Elaboration.Id`:
+
+```
+Node 42: Kind="Baker", For="List.map", Id=7
+Node 43: Kind="Baker", For="List.map", Id=7   ← Same expansion
+Node 44: Kind="Baker", For="List.map", Id=7   ← Same expansion
+Node 45: (no metadata)                         ← Source-based
+```
+
+This enables:
+- Grouping related enriched nodes in tooling
+- "Pierce the veil" debugging (showing source vs synthesized)
+- Verification that enrichment preserves semantics
+
+## 14. Coeffect Analysis
+
+### 14.1 Definition
+
+**Coeffect analysis** computes metadata about PSG structure to inform lowering decisions. Unlike enrichment, coeffect analysis does NOT create new PSG nodes—it computes mappings, indices, and tables.
+
+| Aspect | Enrichment | Coeffect Analysis |
+|--------|------------|-------------------|
+| **Creates nodes** | Yes | No |
+| **Modifies PSG structure** | Yes | No |
+| **Output** | Enriched PSG | Metadata/indices |
+| **Purpose** | Implement semantics | Inform lowering |
+
+### 14.2 Pipeline Position
+
+**NORMATIVE**: Coeffect analysis SHALL execute AFTER enrichment completes.
+
+```
+PSG Construction → Enrichment → Coeffect Analysis → Lowering
+```
+
+This ordering is required because analyses must see ALL nodes, including those synthesized by enrichment.
+
+### 14.3 Standard Coeffect Analyses
+
+#### 14.3.1 SSA Assignment
+
+SSA (Static Single Assignment) analysis computes unique names for each binding:
+
+```fsharp
+type SSAAssignment = {
+    NodeToSSA: Map<NodeId, SSA>
+    BindingVersions: Map<string, int>
+}
+```
+
+- Each binding definition receives a unique SSA name
+- Mutable bindings receive versioned names (x_0, x_1, ...)
+
+#### 14.3.2 Mutability Analysis
+
+Mutability analysis identifies mutable state patterns:
+
+```fsharp
+type MutabilityAnalysis = {
+    AddressedMutableBindings: Set<NodeId>
+    ModifiedVarsInLoopBodies: Set<NodeId>
+    ModuleLevelMutableBindings: (string * NodeId * NodeId) list
+}
+```
+
+#### 14.3.3 Yield State Analysis
+
+For sequence expressions, yield state analysis computes state machine layout:
+
+```fsharp
+type YieldStateAnalysis = {
+    SeqExprId: NodeId
+    NumYields: int
+    BodyKind: SeqBodyKind
+    Yields: (NodeId * int * NodeId) list
+    InternalState: (string * NodeId * int) list
+}
+```
+
+#### 14.3.4 Pattern Binding Analysis
+
+For match expressions, pattern binding analysis computes binding scopes:
+
+```fsharp
+type PatternBindingAnalysis = {
+    EntryPatternBindings: (NodeId * string * NativeType) list
+    CasePatternBindings: Map<int, (NodeId * string * NativeType) list>
+}
+```
+
+### 14.4 Demand-Driven Computation
+
+**NORMATIVE**: Coeffect analyses SHOULD be demand-driven.
+
+| PSG Contains | Required Analysis |
+|--------------|-------------------|
+| Seq expressions | Yield state analysis |
+| Mutable bindings | Mutability analysis |
+| Match expressions | Pattern binding analysis |
+| Any bindings | SSA assignment |
+
+This principle ("only pay for what you use") ensures compilation efficiency.
+
+### 14.5 The Control-Flow / Dataflow Pivot
+
+Coeffect analysis enables the **control-flow / dataflow pivot**:
+
+- **F# source**: Declarative, compositional (dataflow style)
+- **Native code**: Imperative, sequential (control-flow oriented)
+
+Coeffect analysis provides metadata enabling the compiler to pivot between representations while preserving semantics.
+
+**Example**: With yield state analysis, a seq expression can lower to:
+- State machine (control-flow emphasis)
+- Vectorized operation (dataflow emphasis, if applicable)
 
 ## See Also
 
