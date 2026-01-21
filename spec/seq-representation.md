@@ -21,9 +21,57 @@ PRD-15 (SimpleSeq)    → State machine closure: {state, current, code_ptr, cap�
 
 **Key Insight**: A sequence expression creates a struct containing both captured values from the enclosing scope AND internal mutable state declared within the seq body.
 
-## 3. Memory Layout Specification
+## 3. Primitive Sequence Values
 
-### 3.1 Seq Structure
+### 3.1 Seq.empty
+
+`Seq.empty<'T>` is the degenerate sequence containing no elements. It is a polymorphic value:
+
+```fsharp
+Seq.empty<'T> : seq<'T>
+```
+
+**Representation**: `Seq.empty` creates a minimal seq struct with:
+- `state = -1` (already exhausted)
+- `current = default<'T>` (never accessed)
+- `code_ptr` pointing to a trivial MoveNext that returns `false`
+- No captures, no internal state
+
+```
+Seq.empty<T>
+┌─────────────────────────────────────────────────────────────────────────┐
+│ state: i32 = -1       (4 bytes) - already done                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ current: T            (sizeof(T) bytes) - undefined (never read)        │
+├─────────────────────────────────────────────────────────────────────────┤
+│ code_ptr: ptr         (8 bytes) - trivial MoveNext (always false)       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**MoveNext for Seq.empty**:
+```
+func @seq_empty_movenext(%ptr: !llvm.ptr) -> i1 {
+    return %false : i1
+}
+```
+
+Alternatively, an implementation MAY optimize `Seq.empty` to immediately set `state = -1` without a code pointer, as the MoveNext is never meaningfully called.
+
+**SSA Cost**: 3 (undef struct, insert state=-1, insert code_ptr)
+
+### 3.2 Relationship to seq { }
+
+`Seq.empty<'T>` is semantically equivalent to:
+
+```fsharp
+seq<'T> { }  // Empty seq expression
+```
+
+However, `Seq.empty` is a primitive that avoids state machine generation entirely. An implementation SHOULD recognize `seq { }` with no body and lower it to the same representation as `Seq.empty`.
+
+## 4. Memory Layout Specification
+
+### 4.1 Seq Structure
 
 A seq value in F# Native is a struct containing:
 
@@ -84,9 +132,9 @@ let multiplesOf factor count = seq {
 | 1..N | After yield N - resumption point |
 | -1 | Done - sequence exhausted |
 
-## 4. MoveNext Calling Convention
+## 5. MoveNext Calling Convention
 
-### 4.1 Struct Pointer Passing
+### 5.1 Struct Pointer Passing
 
 Following the lazy thunk pattern, MoveNext receives a pointer to its containing seq struct:
 
@@ -97,7 +145,7 @@ moveNext: (ptr<Seq<T>>) -> i1
 
 Returns `true` if a value was yielded (available in `current`), `false` if exhausted.
 
-### 4.2 State Machine Structure
+### 5.2 State Machine Structure
 
 For while-based seq expressions, the MoveNext function has this CFG:
 
@@ -130,9 +178,9 @@ entry:
     return false
 ```
 
-## 5. PSG Structure and Sequential Flattening
+## 6. PSG Structure and Sequential Flattening
 
-### 5.1 The Nested Sequential Problem
+### 6.1 The Nested Sequential Problem
 
 F# source code with statements before/after yield results in deeply nested `Sequential` nodes in the PSG:
 
@@ -154,7 +202,7 @@ WhileBody = Sequential([
 ])
 ```
 
-### 5.2 Naive Split Failure
+### 6.2 Naive Split Failure
 
 A naive `splitAtYield` that only looks at top-level nodes fails:
 
@@ -168,7 +216,7 @@ splitAtYield([Set(sum), Sequential([Yield, Set(i)])], [])
 
 The post-yield `Set(i <- i + 1)` is **inside** the nested Sequential, not after it in the outer list.
 
-### 5.3 NORMATIVE: Sequential Flattening Requirement
+### 6.3 NORMATIVE: Sequential Flattening Requirement
 
 **All nested Sequential nodes MUST be flattened before splitting at yield.**
 
@@ -200,7 +248,7 @@ splitAtYield([Set(sum), Yield, Set(i)], [])
                                                      CORRECT!
 ```
 
-### 5.4 Complete Split Algorithm
+### 6.4 Complete Split Algorithm
 
 ```fsharp
 let (preYield, postYield) =
@@ -221,9 +269,9 @@ let (preYield, postYield) =
     splitAtYield flattenedBody []
 ```
 
-## 6. Post-Yield Expression Handling
+## 7. Post-Yield Expression Handling
 
-### 6.1 Supported Expression Types
+### 7.1 Supported Expression Types
 
 The `emitPostYield` function must handle these PSG node kinds:
 
@@ -233,7 +281,7 @@ The `emitPostYield` function must handle these PSG node kinds:
 | `Binding` (immutable) | `let temp = a + b` | Compute value, track in local map |
 | `Sequential` | Multiple statements | Recursively process children |
 
-### 6.2 Local Binding Tracking
+### 7.2 Local Binding Tracking
 
 For sequences like fibonacci:
 ```fsharp
@@ -263,9 +311,9 @@ for expr in postYieldExprs do
         valueOps @ storeToStruct target valueSSA
 ```
 
-## 7. WhileBasedMoveNextInfo
+## 8. WhileBasedMoveNextInfo
 
-### 7.1 Structure
+### 8.1 Structure
 
 ```fsharp
 type WhileBasedYieldInfo = {
@@ -280,14 +328,14 @@ type WhileBasedYieldInfo = {
 }
 ```
 
-### 7.2 Population Requirements
+### 8.2 Population Requirements
 
 1. `InitExprs`: All `let mutable` bindings between seq body start and while loop
 2. `PreYieldExprs`: Non-yield nodes before yield in FLATTENED while body
 3. `PostYieldExprs`: Non-yield nodes after yield in FLATTENED while body
 4. `ConditionalYield`: Set if yield appears inside `if` within while body
 
-## 8. SSA Cost Formula
+## 9. SSA Cost Formula
 
 For a seq expression with `N` captures and `M` internal state variables:
 
@@ -305,19 +353,20 @@ SSA cost = 5 + N + (2 × M)
 | insert captures | N |
 | internal state (const 0 + insert each) | 2 × M |
 
-## 9. Normative Requirements
+## 10. Normative Requirements
 
 1. **Flat Representation**: Seq values SHALL use flat closure representation with captures AND internal state inlined
 2. **Struct Layout**: Field order SHALL be: state, current, code_ptr, captures, internal_state
 3. **Capture Indices**: Captures SHALL begin at index 3
-4. **Internal State Indices**: Internal state SHALL begin at index 3 + capture_count
-5. **Sequential Flattening**: Nested Sequentials in while body SHALL be flattened before pre/post yield splitting
-6. **MoveNext Convention**: MoveNext SHALL receive pointer to containing seq struct
-7. **State Machine**: State 0 = initial, positive = after yield N, -1 = done
+4. **Seq.empty Representation**: `Seq.empty<'T>` SHALL be represented as a minimal seq struct with state=-1
+5. **Internal State Indices**: Internal state SHALL begin at index 3 + capture_count
+6. **Sequential Flattening**: Nested Sequentials in while body SHALL be flattened before pre/post yield splitting
+7. **MoveNext Convention**: MoveNext SHALL receive pointer to containing seq struct
+8. **State Machine**: State 0 = initial, positive = after yield N, -1 = done
 
-## 10. Test Cases
+## 11. Test Cases
 
-### 10.1 triangularNumbers (Pre-yield + Post-yield)
+### 11.1 triangularNumbers (Pre-yield + Post-yield)
 
 ```fsharp
 let triangularNumbers count = seq {
@@ -337,7 +386,7 @@ let triangularNumbers count = seq {
 - `^s1`: i=i+1, br check
 - `^yield`: sum=sum+i, current=sum, state=1, return true
 
-### 10.2 fibonacci (LetBinding in Post-yield)
+### 11.2 fibonacci (LetBinding in Post-yield)
 
 ```fsharp
 let fibonacci count = seq {
@@ -357,7 +406,7 @@ let fibonacci count = seq {
 
 **MoveNext ^s1**: Must compute `temp` locally, not load from struct.
 
-## 11. Related Chapters
+## 12. Related Chapters
 
 This chapter covers `seq { }` expressions (PRD-15). For **Seq module operations** (map, filter, take, fold, collect), see:
 

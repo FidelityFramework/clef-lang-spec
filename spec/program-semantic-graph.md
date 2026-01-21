@@ -1,7 +1,7 @@
 # Program Semantic Graph
 
 > **Status**: Normative
-> **Last Updated**: 2026-01-19
+> **Last Updated**: 2026-01-19 (Added Section 12: PSG Saturation)
 
 ## 1. Overview
 
@@ -319,6 +319,119 @@ The PSG supports multiple traversal patterns:
 | Post-order structural | Visit children before parents |
 
 Alex uses these traversal patterns to generate MLIR in the correct order, respecting both structural and semantic dependencies.
+
+## 12. PSG Saturation
+
+### 12.1 The Saturation Principle
+
+**NORMATIVE**: FNCS SHALL saturate the PSG with all semantic structure required for compilation, including synthetic constructs not directly expressed in source code.
+
+The term **saturation** refers to making the PSG semantically complete—containing all information needed for downstream compilation without requiring structure synthesis during code generation.
+
+### 12.2 Motivation
+
+Certain F# constructs require runtime structures that don't appear directly in source code:
+
+| Source Construct | Synthetic Structure | Location in PSG |
+|------------------|---------------------|-----------------|
+| `seq { }` | MoveNext state machine | SeqStateMachine nodes |
+| `async { }` | Continuation state machine | (Future) AsyncStateMachine nodes |
+| Pattern matching | Decision tree / switch | Match decomposition |
+
+Without saturation, code generators must synthesize these structures during emission, leading to:
+- Mutable state tracking during emission
+- Structure-building logic in the wrong architectural layer
+- Coupling between emission and semantic analysis
+- SSA allocation during emission rather than in nanopasses
+
+### 12.3 Architectural Separation
+
+The saturation principle enforces clean layer separation:
+
+| Layer | Responsibility | NOT Responsible For |
+|-------|----------------|---------------------|
+| **FNCS/PSGSaturation** | Build all semantic structure | Target-specific details |
+| **PSGElaboration** | Add target-specific coeffects (SSA, platform bindings) | Semantic structure |
+| **Alex/FNCSTransfer** | Witness and emit | Structure building, SSA allocation |
+
+**Key insight**: Structure building is a semantic concern. FNCS knows F# semantics. Code generators should witness structure, not build it.
+
+### 12.4 Saturation Pass Architecture
+
+PSG construction flows through saturation phases:
+
+```
+Phase 1: Structural Construction    SynExpr → PSG with basic nodes
+Phase 2: Symbol Correlation         + FSharpSymbol attachments
+Phase 3: Reachability Analysis      + IsReachable marks
+Phase 4: Typed Tree Overlay         + Types, SRTP resolution
+Phase 5: PSG Saturation             + Synthetic structures (MoveNext, etc.)
+```
+
+The saturation phase (Phase 5) transforms high-level semantic constructs into explicit operational structure:
+
+```
+SeqExpr(body, captures)
+    ↓ PSG Saturation
+SeqStateMachine {
+    StateVariables: [...]
+    Captures: [...]
+    InitBlock: NodeId
+    CheckBlock: NodeId
+    YieldBlock: NodeId
+    PostYieldBlock: NodeId
+    DoneBlock: NodeId
+}
+```
+
+### 12.5 Sequence Expression Saturation
+
+For `seq { }` expressions, saturation produces explicit state machine structure:
+
+**Input (pre-saturation)**:
+```fsharp
+SeqExpr of body: NodeId * captures: CaptureInfo list
+```
+
+**Output (post-saturation)**:
+```fsharp
+SeqStateMachine of {
+    BodyKind: SeqBodyKind           // Sequential or WhileBased
+    StateVariables: StateVar list   // Internal mutable state
+    Captures: CaptureInfo list      // Captured values
+    InitBlock: BlockSpec            // State 0 initialization
+    CheckBlock: BlockSpec           // While condition evaluation
+    YieldBlock: BlockSpec           // Value production
+    PostYieldBlock: BlockSpec       // Post-yield state transitions
+    ConditionalYield: ConditionSpec option  // If-guarded yield
+}
+```
+
+This explicit structure enables:
+- SSAAssignment to walk block nodes and assign SSAs normally
+- FNCSTransfer to witness structure without synthesis
+- Clear separation between semantic analysis and code generation
+
+### 12.6 Comparison to F# Compiler
+
+F# Native's saturation phase parallels `LowerSequenceExpressions.fs` in the F# compiler:
+
+| F# Compiler | F# Native | Purpose |
+|-------------|-----------|---------|
+| `CheckSequenceExpressions.fs` | PSG Builder | Initial semantic structure |
+| `LowerSequenceExpressions.fs` | **PSG Saturation** | State machine elaboration |
+| `IlxGen.fs` | FNCSTransfer | Target code emission |
+
+The key insight from nanopass architecture: saturation happens at the **language level** (PSG), not in code generation.
+
+### 12.7 Invariants for Saturated PSG
+
+After saturation, the following additional invariants SHALL hold:
+
+1. **Synthetic completeness**: All constructs requiring runtime structure have explicit nodes
+2. **Block structure**: State machine blocks are explicit, traversable nodes
+3. **No deferred synthesis**: Code generators need not build structure during emission
+4. **SSA assignability**: All nodes can have SSAs assigned by walking structure
 
 ## See Also
 
