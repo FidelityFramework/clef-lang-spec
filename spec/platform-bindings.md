@@ -392,28 +392,33 @@ type PlatformDescriptor = {
     TypeLayouts: Map<string, TypeLayout>  // Type sizes and alignments
     SyscallConvention: SyscallConvention  // Syscall ABI
     MemoryRegions: MemoryRegion list      // Stack, Heap, Text, Data, etc.
-    EntryPointABI: EntryPointABI          // Program entry point ABI
+    FreestandingStartup: FreestandingStartup option  // Entry point for freestanding mode
 }
 ```
 
-### Entry Point ABI
+### Freestanding Startup
 
-The `EntryPointABI` defines the C boundary for program entry. This is a key difference from .NET F#, where the runtime handles ABI translation invisibly.
+For freestanding builds (no libc), the platform descriptor includes startup information:
 
 ```fsharp
-type EntryPointKind =
-    | ArgcArgv      // POSIX: int main(int argc, char** argv)
-    | WinMain       // Windows GUI: WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
-    | Naked         // Freestanding: void _start(void)
-
-type EntryPointABI = {
-    Kind: EntryPointKind
-    CFunctionName: string               // "main", "_start", "WinMain"
-    CParameters: (string * string) list // [("argc", "i32"); ("argv", "ptr")]
-    CReturnType: string                 // "i32"
-    FSharpSignature: string             // "array<string> -> int"
+type FreestandingStartup = {
+    EntrySymbol: string    // "_start" on Linux
+    ExitSyscall: int64     // 60 on Linux x86-64
 }
 ```
+
+When `output_kind = "freestanding"` is specified in the project file, the compiler:
+
+1. Generates a `_start` wrapper function
+2. `_start` creates an empty string array, calls the F# `main`, and calls `Sys.exit`
+3. Links with `-Wl,-e,_start` to set the entry point
+
+### Console Mode
+
+For console builds (with libc), no special entry point handling is needed:
+- libc provides `_start` which initializes the runtime and calls `main`
+- The F# `main` function is emitted with C-compatible signature
+- The F# type `array<string> -> int` maps to the platform C ABI
 
 ### Linux x86-64 Example
 
@@ -431,12 +436,11 @@ let platform: Expr<PlatformDescriptor> = <@
           SyscallNumberRegister = RAX
           SyscallInstruction = Syscall }
       MemoryRegions = (* ... *)
-      EntryPointABI =
-        { Kind = ArgcArgv
-          CFunctionName = "main"
-          CParameters = [("argc", "i32"); ("argv", "ptr")]
-          CReturnType = "i32"
-          FSharpSignature = "array<string> -> int" } }
+      FreestandingStartup = Some {
+        EntrySymbol = "_start"
+        ExitSyscall = 60L
+      }
+    }
 @>
 ```
 
@@ -444,14 +448,12 @@ let platform: Expr<PlatformDescriptor> = <@
 
 The platform descriptor is inspected at compile time:
 
-1. **FNCS** reads the platform descriptor quotation from `Fidelity.Platform`
-2. **Platform Binding Resolution** (a nanopass in Alex) extracts relevant bindings
-3. **Entry point processing** uses `EntryPointABI` to:
-   - Generate the correct C function signature
-   - Create ABI translation code (e.g., `char**` to `array<string>`)
-   - Ensure type safety at the boundary
+1. **FNCS** reads the platform descriptor from `Fidelity.Platform`
+2. For freestanding mode, **Intrinsic Elaboration** generates the `_start` wrapper
+3. The wrapper uses `Sys.emptyStringArray` and `Sys.exit` intrinsics
+4. Alex emits MLIR; the linker sets the entry point via `-Wl,-e,_start`
 
-The F# code author writes idiomatic F# (`argv: string[]`); the compiler handles the ABI translation based on the platform quotation.
+The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 
 ---
 

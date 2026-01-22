@@ -274,24 +274,44 @@ The function becomes the entry point to the program. At startup, F# Native execu
 
 > **F# Native Note**: The entry point function's return value becomes the process exit code. A return value of 0 indicates success; non-zero values indicate errors. For freestanding (no-OS) targets, the return value may be ignored or handled by the runtime stub.
 
-#### Entry Point ABI Boundary
+#### Entry Point Modes
 
-Unlike .NET F#, where the runtime provides an already-marshalled `string[]` to the entry point, F# Native must handle the C ABI boundary explicitly. The entry point is a platform binding, just like syscalls or memory operations.
+F# Native supports multiple entry point modes, specified via `output_kind` in the project file:
 
-The F# semantic signature `array<string> -> int` maps to a platform-specific C ABI:
+| Mode | Entry Symbol | libc Required | Description |
+|------|-------------|---------------|-------------|
+| **Console** | `main` | Yes | Standard mode; libc provides `_start` which calls user's `main` |
+| **Freestanding** | `_start` | No | Bare metal; compiler generates `_start` wrapper |
+| **Library** | None | Optional | Shared library with exported symbols |
 
-| Platform | C Signature | F# Semantic Type |
-|----------|-------------|------------------|
-| Linux/POSIX | `int main(int argc, char** argv)` | `array<string> -> int` |
-| Windows (console) | `int main(int argc, char** argv)` | `array<string> -> int` |
-| Windows (GUI) | `int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)` | *platform-specific* |
-| Freestanding | `void _start(void)` | `unit -> int` |
+#### Freestanding Entry Point Generation
 
-The platform descriptor (from `Fidelity.Platform`) defines the `EntryPointABI` via quotations, which specifies:
-- The C function name and signature
-- The parameter conversion strategy (e.g., `char**` to `array<string>`)
-- The return type mapping
+For freestanding builds (`output_kind = "freestanding"`), the compiler generates a `_start` wrapper function that:
 
-This binding is resolved at compile time through the platform binding resolution pass, ensuring the C boundary translation is type-safe and platform-appropriate. The F# code author writes the idiomatic F# signature; the compiler generates the ABI translation based on the platform quotation.
+1. Creates an empty `string array` (F# convention; full argc/argv conversion is future work)
+2. Calls the user's `main` function with this argument
+3. Calls `Sys.exit` with the return value
 
-See [Platform Bindings](platform-bindings.md) for the quotation-based platform descriptor model.
+The generated `_start` has F# type `unit -> unit`:
+- Takes no parameters (startup context comes from the platform)
+- Returns unit (because `Sys.exit` never returns; the syscall terminates the process)
+
+```
+_start : unit -> unit
+    argv ← Sys.emptyStringArray()     // Empty string array
+    result ← main(argv)               // Call F# main
+    Sys.exit(result)                  // Terminate with exit code (never returns)
+```
+
+> **Implementation Note**: `Sys.exit` has type `int -> unit`. Although the syscall never returns, the binding honors the type contract by emitting an unreachable unit return value. This maintains type consistency throughout the compilation pipeline.
+
+#### Console Mode (libc)
+
+For console builds (`output_kind = "console"`), the platform's libc provides `_start`, which:
+1. Initializes the C runtime
+2. Converts argc/argv from the stack
+3. Calls the user's `main` symbol
+
+The compiler generates `main` with a signature compatible with the platform's C ABI. The F# type `array<string> -> int` maps to the platform-appropriate C signature.
+
+See [Platform Bindings](platform-bindings.md) for platform descriptor conventions.

@@ -1,7 +1,7 @@
 # Option Operations Representation in F# Native
 
 > **Status**: Normative
-> **Last Updated**: 2026-01-20
+> **Last Updated**: 2026-01-22
 > **Depends On**: [Native Type Universe § 5.1 Option](native-type-universe.md#51-option)
 
 ## 1. Overview
@@ -16,17 +16,20 @@ Options follow the layout specified in [Native Type Universe § 5.1](native-type
 
 ```
 option<'T>  (voption semantics)
-┌──────────┬────────────────────┐
-│ Tag (i8) │ Payload: 'T        │
-└──────────┴────────────────────┘
-   1 byte     sizeof<'T>         + padding
+┌─────────────┬────────────────────┐
+│ Tag (≥ i8)  │ Payload: 'T        │
+└─────────────┴────────────────────┘
+   ≥1 byte       sizeof<'T>        + padding
 ```
 
 | Property | Value |
 |----------|-------|
 | **Tag values** | `None` = 0, `Some` = 1 |
+| **Tag width** | Platform policy; minimum `i8` (see [DU Representation § 2.2.1](discriminated-union-representation.md#221-platform-aware-tag-width-policy)) |
 | **Stack allocated** | Always (never heap) |
 | **Null-freedom** | `None` is tag 0, NOT null pointer |
+
+**Note**: Option has 2 cases, so the minimum tag is `i8` (1 byte). Platform policy MAY use larger tags for alignment efficiency on word-aligned architectures. The tag is NEVER `i1` (bit) because bits are not addressable and DU tags are case indices, not booleans.
 
 ## 3. Operation Classification
 
@@ -325,11 +328,12 @@ Option operations are extremely lightweight:
 ## 6. Normative Requirements
 
 1. **Stack Allocation**: Option values SHALL always be stack-allocated (voption semantics)
-2. **Tag Encoding**: `None` = 0, `Some` = 1 as i8 tag field
+2. **Tag Encoding**: `None` = 0, `Some` = 1; tag width per platform policy (minimum `i8`)
 3. **No Null**: `None` is NOT represented as null pointer—it's a valid struct with tag=0
 4. **Decomposition**: Option HOFs SHALL be decomposed by Baker to primitive operations
 5. **Lazy Defaults**: `defaultWith` and `orElseWith` SHALL only evaluate thunk when needed
 6. **Vacuous Truth**: `Option.forall` on `None` SHALL return `true`
+7. **Tag Is Not Boolean**: Tag MUST be at least `i8`, NEVER `i1`—tags are case indices, not truth values
 
 ## 7. Relationship to Result
 

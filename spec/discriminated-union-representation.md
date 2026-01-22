@@ -1,7 +1,7 @@
 # Discriminated Union Representation in F# Native
 
 > **Status**: Draft
-> **Last Updated**: 2026-01-21
+> **Last Updated**: 2026-01-22
 
 ## Informative References
 
@@ -75,19 +75,45 @@ At each instantiation site, SRTP resolves `'T` to a concrete type with known `Si
 For a DU type `T` with cases `C₁, ..., Cₙ`:
 
 ```
-LAYOUT(T):
-    tag_size = if n ≤ 256 then 1 else if n ≤ 65536 then 2 else 4
-    
+LAYOUT(T, platform):
+    tag_size = TAG_WIDTH(n, platform)   // Platform-aware tag width policy
+
     for each case Cᵢ with payload types P₁, ..., Pₘ:
         case_size[i] = tag_size + Σ SIZEOF(Pⱼ) + alignment_padding
         case_align[i] = max(tag_align, max(ALIGNOF(Pⱼ)))
-    
+
     // Storage sized for largest case
     storage_size = max(case_size[i])
     storage_align = max(case_align[i])
-    
+
     return (storage_size, storage_align, per_case_layouts)
 ```
+
+### 2.2.1 Platform-Aware Tag Width Policy
+
+Tag width is a **platform policy**, not a universal constant. The semantic requirement is that the tag must distinguish N cases (requiring `ceil(log2(N))` bits of information), but the actual width balances:
+
+- **Minimum representation**: Smallest byte-addressable unit that holds case indices
+- **Alignment efficiency**: Sub-word tags create padding on word-aligned platforms
+- **Memory pressure**: Constrained embedded targets prioritize minimum bytes
+- **Access patterns**: Some architectures penalize unaligned or sub-word access
+
+```
+TAG_WIDTH(n, platform):
+    // Minimum width to represent case indices 0..n-1
+    min_width = if n ≤ 256 then 1 else if n ≤ 65536 then 2 else 4
+
+    // Platform policy MAY choose larger for alignment
+    // (e.g., word-sized tags on 64-bit for cache efficiency)
+    return platform.tag_width_policy(n, min_width)
+```
+
+**Default policy**: Use minimum width on all platforms. Implementations MAY provide platform-specific policies that use larger tags for alignment when memory is not constrained.
+
+**Important**: Tag width is NEVER less than 1 byte (`i8`). Even 2-case DUs (like `option`) use `i8` because:
+- Bits (`i1`) are not directly addressable on any platform
+- DU tags are case indices (0, 1, 2, ...), not boolean truth values
+- The abstraction is "minimum bytes to hold case count", not "minimum bits"
 
 ### 2.3 Complex Type Resolution
 
@@ -173,13 +199,23 @@ DU Storage Block (in region)
 
 ### 3.3 Tag Encoding
 
-| Case Count | Tag Type | Range |
-|------------|----------|-------|
-| 1-256      | `i8`     | 0-255 |
-| 257-65536  | `i16`    | 0-65535 |
-| >65536     | `i32`    | (rare, supported) |
+Tag width is determined by platform policy (see §2.2.1). The **minimum** widths are:
+
+| Case Count | Minimum Tag Type | Range |
+|------------|------------------|-------|
+| 1-256      | `i8`             | 0-255 |
+| 257-65536  | `i16`            | 0-65535 |
+| >65536     | `i32`            | (rare, supported) |
 
 Tag values are assigned in declaration order, starting from 0.
+
+**Platform considerations**:
+- On memory-constrained targets (e.g., Cortex-M with 32KB RAM), use minimum widths
+- On word-aligned 64-bit targets, platforms MAY use `i64` tags to avoid padding
+- Example: `option<int64>` with `i8` tag = `{i8, 7 padding, i64}` = 16 bytes
+- Same type with `i64` tag = `{i64, i64}` = 16 bytes, but naturally aligned
+
+The choice is a platform optimization, not a semantic requirement. All platforms MUST support at least the minimum widths.
 
 ### 3.4 Payload Storage Strategies
 
