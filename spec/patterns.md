@@ -587,3 +587,98 @@ match (1, 2) with
 | (3, x) when (printfn "not printed"; true) -> 0
 | (_, y) -> y
 ```
+
+## Pattern Match Lowering
+
+Pattern matching is compiled through a process called _pattern match compilation_, which transforms
+high-level pattern constructs into decision trees composed of conditionals and value extractions.
+
+### Decision Tree Structure
+
+A match expression with multiple cases compiles to a chain of `IfThenElse` nodes:
+
+```fsharp
+match x with
+| Case1 -> body1
+| Case2 -> body2
+```
+
+Compiles to a decision tree:
+
+```
+IfThenElse(
+    guard: <test for Case1>,
+    then: body1,
+    else: IfThenElse(
+        guard: <test for Case2>,
+        then: body2,
+        else: <match failure>
+    )
+)
+```
+
+### Record Pattern Extraction
+
+Record patterns extract field values using `FieldGet` operations. For example:
+
+```fsharp
+match person with
+| { Name = n; Age = a } -> ...
+```
+
+Each field binding (`n`, `a`) becomes a `PatternBinding` node whose child is a `FieldGet` that
+extracts the corresponding field from the scrutinee. The `PatternBinding` node aliases the
+SSA value produced by its `FieldGet` child—no additional allocation occurs.
+
+### Guard Hoisting Rule
+
+**Critical invariant**: When a guard expression references pattern-bound variables, those bindings
+must be extracted _before_ the guard is evaluated.
+
+```fsharp
+match person with
+| { Age = a } when a < 18 -> "minor"
+| _ -> "adult"
+```
+
+The guard `a < 18` references `a`, which is bound by the record pattern. The lowering hoists
+the pattern binding extraction before the `IfThenElse`:
+
+```
+Sequential [
+    PatternBinding("a", FieldGet(scrutinee, "Age"))  // extracted BEFORE guard
+    IfThenElse(
+        guard: a < 18,
+        then: "minor",
+        else: "adult"
+    )
+]
+```
+
+Without this hoisting, the guard would reference an undefined binding. This transformation
+is performed during match compilation in the Baker saturation phase.
+
+### Union Case Pattern Extraction
+
+Union case patterns with payloads compile similarly:
+
+```fsharp
+match opt with
+| Some x -> x
+| None -> 0
+```
+
+Compiles to:
+
+```
+IfThenElse(
+    guard: DUGetTag(opt) == Some,
+    then: Sequential [
+        PatternBinding("x", DUEliminate(opt, Some, 0))
+        x
+    ],
+    else: 0
+)
+```
+
+The `DUEliminate` operation extracts the payload at the given index from the union case.
