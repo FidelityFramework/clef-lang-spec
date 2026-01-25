@@ -106,6 +106,25 @@ inference constraints_ is maintained. That is, each static type is processed und
 and results in output constraints `Χ’`. Type inference variables and constraints are progressively
 _simplified_ and _eliminated_ based on these equations through _constraint solving_ ([§](inference-constraint-solving.md#constraint-solving)).
 
+### Unified Type Representation
+
+FNCS uses a unified type representation throughout type checking and inference. Type constructors from the Native Type Universe (NTU) are recognized during construction, producing `NativeType` values directly with type variables preserved.
+
+When FNCS encounters a type expression such as `nativeptr<'T>`:
+
+1. The type constructor `nativeptr` is recognized as part of the NTU
+2. A `NativeType.TNativePtr` value is produced
+3. The type variable `'T` is preserved as `NativeType.TVar`
+4. Hindley-Milner type inference proceeds with full polymorphism
+
+Type variables participate fully in:
+- Unification during type checking
+- Constraint propagation
+- Let-polymorphism (generalization at let-binding sites)
+- SRTP constraint collection and resolution
+
+Monomorphization—the instantiation of polymorphic types with concrete types—occurs during PSG saturation when code generation requires concrete representations. This timing preserves optimization opportunities and maintains principal types throughout type inference.
+
 ### Named Types
 
 _Named types_ have several forms, as listed in the following table.
@@ -115,7 +134,7 @@ _Named types_ have several forms, as listed in the following table.
 | `long-ident <ty1, ..., tyn>` | Named type with one or more suffixed type arguments.                                                                                                                                                                 |
 | `long-ident`               | Named type with no type arguments                                                                                                                                                                                    |
 | `type long-ident`          | Named type with one type argument; processed the same as `long-ident<type>`                                                                                                                                          |
-| `ty1 -> ty2`               | A function type, where: <br> ▪ ty1 is the domain of the function values associated with the type<br> ▪ ty2 is the range.<br>In compiled code it is represented by the named type<br>`FSharp.Core.FastFunc<ty1, ty2>`. |
+| `ty1 -> ty2`               | A function type, where: <br> ▪ ty1 is the domain of the function values associated with the type<br> ▪ ty2 is the range.<br>In F# Native, function types compile to native closures (see [Closure Representation](closure-representation.md)). |
 
 Named types are converted to static types as follows:
 
