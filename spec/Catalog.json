@@ -21,6 +21,7 @@
         "memory-regions",
         "closure-representation",
         "lazy-representation",
+        "incremental-computation",
         "seq-representation",
         "seq-operations-representation",
         "list-operations-representation",
