@@ -281,20 +281,34 @@ Reachability flows from entry points through structural and semantic edges:
 
 ## 9. Platform Context
 
-The platform context carries target-specific information:
+The platform context carries target-specific information. Width dimensions are resolved via a `Dimensions` map rather than discrete `WordSize`/`PointerSize` fields, aligning with the parameterized width model in NTU types (see [ntu-types.md](ntu-types.md)):
 
 ```fsharp
 type PlatformContext = {
     PlatformId: string
-    WordSize: int
-    PointerSize: int
+    /// Width dimension resolutions (bits)
+    Dimensions: Map<WidthDimension, int>  // Pointer → 64, Register → 64, etc.
     PointerAlign: int
     PlatformLibraryPath: string option
     Predicates: Map<PlatformPredicate, bool>
+    FreestandingStartup: FreestandingStartup option
 }
+
+module PlatformContext =
+    /// Resolve an NTUWidth to concrete bits
+    let resolveWidth (ctx: PlatformContext) (width: NTUWidth) : int =
+        match width with
+        | NTUWidth.Fixed bits -> bits
+        | NTUWidth.Resolved dim -> ctx.Dimensions.[dim]
+
+    /// Convenience: pointer width in bytes
+    let pointerSize (ctx: PlatformContext) = ctx.Dimensions.[WidthDimension.Pointer] / 8
+
+    /// Convenience: machine word width in bytes
+    let wordSize (ctx: PlatformContext) = ctx.Dimensions.[WidthDimension.Register] / 8
 ```
 
-This information flows from the project file through FNCS to the PSG, enabling platform-aware type resolution and code generation.
+This information flows from the project file through FNCS to the PSG, enabling platform-aware type resolution and code generation. Alex uses `resolveWidth` to determine concrete MLIR types for `Resolved` widths.
 
 ## 10. Invariants
 

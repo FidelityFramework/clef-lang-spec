@@ -387,7 +387,7 @@ The **Platform Descriptor** is a quotation-based structure that defines all plat
 type PlatformDescriptor = {
     Architecture: Architecture          // X86_64, ARM64, RISCV64, etc.
     OperatingSystem: OperatingSystem    // Linux, Windows, MacOS, BareMetal
-    WordSize: int                       // 32 or 64
+    Dimensions: Map<WidthDimension, int> // Pointer → 64, Register → 64, etc.
     Endianness: Endianness              // Little or Big
     TypeLayouts: Map<string, TypeLayout>  // Type sizes and alignments
     SyscallConvention: SyscallConvention  // Syscall ABI
@@ -426,7 +426,7 @@ For console builds (with libc), no special entry point handling is needed:
 let platform: Expr<PlatformDescriptor> = <@
     { Architecture = X86_64
       OperatingSystem = Linux
-      WordSize = 64
+      Dimensions = Map.ofList [ (Pointer, 64); (Register, 64) ]
       Endianness = Little
       TypeLayouts = (* ... *)
       SyscallConvention =

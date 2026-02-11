@@ -2,76 +2,101 @@
 
 > **Status**: Draft
 > **Normative**: Yes
-> **Last Updated**: 2026-01-04
+> **Last Updated**: 2026-02-11
 
 ## 1. Overview
 
 This chapter specifies the NTU (Native Type Universe) nomenclature used internally by FNCS for platform-generic types. NTU types resolve via quotation-based platform bindings, following the F* pattern where type WIDTH is an erased assumption.
 
+Width is a first-class dimension in NTU. Numeric types are parameterized by `NTUWidth`, which can be `Fixed` (known at all times) or `Resolved` (platform-dependent, resolved by Alex via `PlatformContext`). This replaces 16 discrete integer/float variants with 3 parameterized kinds.
+
 ### 1.1 Core Principle
 
 **Platform awareness flows FROM THE TOP via quotation-based binding libraries, not from FNCS type inference.**
 
-FNCS validates type **identity** (NTUint vs NTUint64). Alex witnesses platform quotations to determine type **width** (32-bit vs 64-bit).
+FNCS validates type **identity** (e.g. `NTUint (Resolved Register)` vs `NTUint (Fixed 64)`). Alex witnesses platform quotations to determine type **width** (32-bit vs 64-bit).
 
 ## 2. NTU Type Categories
 
-### 2.1 Platform-Dependent Types (Quotation-Resolved)
+### 2.1 Width Dimensions
+
+Width is parameterized, not baked into variant names. The `WidthDimension` type names are NTU-native — they are NOT named after C types.
+
+```fsharp
+/// Platform-resolved width dimensions
+type WidthDimension =
+    | Pointer    // Address width (64-bit on x86_64, 32-bit on ARM32)
+    | Register   // Machine register / natural word width
+
+/// How the width of a numeric type is determined
+type NTUWidth =
+    | Fixed of bits: int              // Known at all times: 8, 16, 32, 64
+    | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
+```
+
+### 2.2 Parameterized Numeric Types
+
+| NTUKind | Width | Description | MLIR Type |
+|---------|-------|-------------|-----------|
+| `NTUint (Fixed 8)` | 8-bit signed | `int8` / `sbyte` | `i8` |
+| `NTUint (Fixed 16)` | 16-bit signed | `int16` | `i16` |
+| `NTUint (Fixed 32)` | 32-bit signed | `int32` | `i32` |
+| `NTUint (Fixed 64)` | 64-bit signed | `int64` | `i64` |
+| `NTUint (Resolved Register)` | Platform word, signed | `int` | platform-dependent |
+| `NTUint (Resolved Pointer)` | Pointer-sized, signed | `nativeint` | `index` |
+| `NTUuint (Fixed 8)` | 8-bit unsigned | `uint8` / `byte` | `i8` |
+| `NTUuint (Fixed 16)` | 16-bit unsigned | `uint16` | `i16` |
+| `NTUuint (Fixed 32)` | 32-bit unsigned | `uint32` | `i32` |
+| `NTUuint (Fixed 64)` | 64-bit unsigned | `uint64` | `i64` |
+| `NTUuint (Resolved Register)` | Platform word, unsigned | `uint` | platform-dependent |
+| `NTUuint (Resolved Pointer)` | Pointer-sized, unsigned | `unativeint` | `index` |
+| `NTUfloat (Fixed 32)` | 32-bit IEEE 754 | `float32` | `f32` |
+| `NTUfloat (Fixed 64)` | 64-bit IEEE 754 | `float` | `f64` |
+
+### 2.3 Pointer and Semantic Types (Implicit Pointer Width)
 
 | NTU Type | Semantic Meaning | Resolution |
 |----------|------------------|------------|
-| `NTUint` | Platform word, signed | Platform quotation |
-| `NTUuint` | Platform word, unsigned | Platform quotation |
-| `NTUnint` | Native int (pointer-sized, signed) | Platform quotation |
-| `NTUunint` | Native uint (pointer-sized, unsigned) | Platform quotation |
-| `NTUptr<'T>` | Native pointer to type T | Platform quotation |
-| `NTUsize` | Size type (`size_t` equivalent) | Platform quotation |
-| `NTUdiff` | Pointer difference (`ptrdiff_t` equivalent) | Platform quotation |
-
-### 2.2 Fixed-Width Types (Platform-Independent)
-
-| NTU Type | Bit Width | MLIR Type |
-|----------|-----------|-----------|
-| `NTUint8` | 8-bit signed | `i8` |
-| `NTUint16` | 16-bit signed | `i16` |
-| `NTUint32` | 32-bit signed | `i32` |
-| `NTUint64` | 64-bit signed | `i64` |
-| `NTUuint8` | 8-bit unsigned | `ui8` |
-| `NTUuint16` | 16-bit unsigned | `ui16` |
-| `NTUuint32` | 32-bit unsigned | `ui32` |
-| `NTUuint64` | 64-bit unsigned | `ui64` |
-| `NTUfloat32` | 32-bit float | `f32` |
-| `NTUfloat64` | 64-bit float | `f64` |
+| `NTUptr` | Native pointer to type T | Pointer dimension |
+| `NTUfnptr` | Function pointer (no closures) | Pointer dimension |
+| `NTUsize` | Size type (unsigned, pointer-width) | Pointer dimension |
+| `NTUdiff` | Pointer difference (signed, pointer-width) | Pointer dimension |
 
 ## 3. Type Identity and Type Width
 
 ### 3.1 Type Identity (FNCS Responsibility)
 
-FNCS enforces type identity constraints:
+FNCS enforces type identity constraints. With parameterized width, type identity includes the width dimension:
 
 ```
-NTUint ≠ NTUint32    // Different types
-NTUint ≠ NTUint64    // Different types
-NTUint = NTUint      // Same type
+NTUint(Resolved Register) ≠ NTUint(Fixed 32)    // Different types
+NTUint(Resolved Register) ≠ NTUint(Fixed 64)    // Different types
+NTUint(Resolved Register) = NTUint(Resolved Register)  // Same type
 
 // Valid
-let add (x: NTUint) (y: NTUint) : NTUint = x + y
+let add (x: int) (y: int) : int = x + y   // Both NTUint(Resolved Register)
 
 // Type Error
-let invalid (x: NTUint) (y: NTUint64) = x + y
+let invalid (x: int) (y: int64) = x + y   // NTUint(Resolved Register) ≠ NTUint(Fixed 64)
 ```
 
 ### 3.2 Type Width (Alex Responsibility)
 
-Alex resolves type width via platform quotations:
+Alex resolves type width via platform quotations and the `PlatformContext.Dimensions` map:
 
-| NTU Type | x86_64 Width | ARM32 Width | ARM64 Width |
-|----------|--------------|-------------|-------------|
-| NTUint | 64 bits | 32 bits | 64 bits |
-| NTUuint | 64 bits | 32 bits | 64 bits |
-| NTUptr<_> | 64 bits | 32 bits | 64 bits |
-| NTUsize | 64 bits | 32 bits | 64 bits |
-| NTUdiff | 64 bits | 32 bits | 64 bits |
+| Width Dimension | x86_64 | ARM32 | ARM64 |
+|-----------------|--------|-------|-------|
+| `Pointer` | 64 bits | 32 bits | 64 bits |
+| `Register` | 64 bits | 32 bits | 64 bits |
+
+Example resolutions:
+
+| NTUKind | x86_64 | ARM32 | ARM64 |
+|---------|--------|-------|-------|
+| `NTUint (Resolved Register)` | 64 bits | 32 bits | 64 bits |
+| `NTUint (Resolved Pointer)` | 64 bits | 32 bits | 64 bits |
+| `NTUint (Fixed 32)` | 32 bits | 32 bits | 32 bits |
+| `NTUfloat (Fixed 64)` | 64 bits | 64 bits | 64 bits |
 
 ### 3.3 Erased Width Assumptions
 
@@ -94,17 +119,23 @@ Width assumptions guide type checking but are **erased** before code generation.
 
 The architecture uses a three-tier exposure model:
 
-| F# Source | Semantic Alias | FNCS Internal |
-|-----------|----------------|---------------|
-| `int` | (implicit) | `NTUint` |
-| `uint` | (implicit) | `NTUuint` |
-| `platformint` | `platformint` | `NTUint` |
-| `platformuint` | `platformuint` | `NTUuint` |
-| `platformsize` | `platformsize` | `NTUsize` |
-| `int32` | (implicit) | `NTUint32` |
-| `int64` | (implicit) | `NTUint64` |
-| `nativeint` | (implicit) | `NTUnint` |
-| `nativeptr<'T>` | (implicit) | `NTUptr<'T>` |
+| F# Source | FNCS Internal (NTUKind) |
+|-----------|-------------------------|
+| `int` | `NTUint (Resolved Register)` |
+| `uint` | `NTUuint (Resolved Register)` |
+| `int8` / `sbyte` | `NTUint (Fixed 8)` |
+| `int16` | `NTUint (Fixed 16)` |
+| `int32` | `NTUint (Fixed 32)` |
+| `int64` | `NTUint (Fixed 64)` |
+| `uint8` / `byte` | `NTUuint (Fixed 8)` |
+| `uint16` | `NTUuint (Fixed 16)` |
+| `uint32` | `NTUuint (Fixed 32)` |
+| `uint64` | `NTUuint (Fixed 64)` |
+| `nativeint` | `NTUint (Resolved Pointer)` |
+| `unativeint` | `NTUuint (Resolved Pointer)` |
+| `float32` | `NTUfloat (Fixed 32)` |
+| `float` | `NTUfloat (Fixed 64)` |
+| `nativeptr<'T>` | `NTUptr` |
 
 ### 4.2 Developer Experience
 
@@ -122,60 +153,71 @@ let write (fd: platformint) (buf: nativeptr<byte>) (count: platformsize) : platf
 
 ## 5. NTUKind Implementation
 
-### 5.1 Discriminated Union Definition
+### 5.1 Width and Kind Definitions
 
 ```fsharp
-/// NTU (Native Type Universe) type kinds
+/// Platform-resolved width dimensions — NTU-native vocabulary.
+[<RequireQualifiedAccess>]
+type WidthDimension =
+    | Pointer       // Address width (pointer-sized)
+    | Register      // Machine register / natural word width
+
+/// How the width of a numeric type is determined.
+[<RequireQualifiedAccess>]
+type NTUWidth =
+    | Fixed of bits: int              // Known at all times: 8, 16, 32, 64
+    | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
+
+/// NTU (Native Type Universe) type kinds.
+/// Numeric types parameterized by width — 3 kinds replace 16 discrete variants.
 [<RequireQualifiedAccess>]
 type NTUKind =
-    // Platform-dependent (resolved via quotations)
-    | NTUint      // Platform word, signed
-    | NTUuint     // Platform word, unsigned
-    | NTUnint     // Native int (pointer-sized signed)
-    | NTUunint    // Native uint (pointer-sized unsigned)
-    | NTUptr      // Pointer to type
-    | NTUsize     // size_t equivalent
-    | NTUdiff     // ptrdiff_t equivalent
-    
-    // Fixed width (platform-independent)
-    | NTUint8
-    | NTUint16
-    | NTUint32
-    | NTUint64
-    | NTUuint8
-    | NTUuint16
-    | NTUuint32
-    | NTUuint64
-    | NTUfloat32
-    | NTUfloat64
+    // Parameterized numeric types (width as dimension)
+    | NTUint of NTUWidth      // Signed integer of any width
+    | NTUuint of NTUWidth     // Unsigned integer of any width
+    | NTUfloat of NTUWidth    // IEEE float of any width
+    // Pointer types (width = Pointer, implicit)
+    | NTUptr                  // Native pointer
+    | NTUfnptr                // Function pointer
+    | NTUsize                 // Size type (unsigned, pointer-width)
+    | NTUdiff                 // Pointer difference (signed, pointer-width)
+    // Special types
+    | NTUstring | NTUbool | NTUchar | NTUunit | NTUdecimal
+    | NTUlazy | NTUseq
+    // Collection types
+    | NTUarray | NTUlist | NTUmap | NTUset
+    // Compound value types
+    | NTUuuid | NTUdatetime | NTUtimespan
 ```
 
-### 5.2 NTULayout Record
+### 5.2 PlatformContext (Width Resolution)
 
 ```fsharp
-/// Platform-resolved type layout (erased at runtime)
-type NTULayout = {
-    /// The NTU kind
-    Kind: NTUKind
-    
-    /// Assumed size in bytes (erased)
-    AssumedSize: int option
-    
-    /// Assumed alignment in bytes (erased)
-    AssumedAlignment: int option
+type PlatformContext = {
+    PlatformId: string
+    /// Width dimension resolutions (bits)
+    Dimensions: Map<WidthDimension, int>  // Pointer → 64, Register → 64, etc.
+    PointerAlign: int
+    PlatformLibraryPath: string option
+    Predicates: Map<PlatformPredicate, bool>
+    FreestandingStartup: FreestandingStartup option
 }
 
-module NTULayout =
-    /// Create layout for platform-dependent type
-    let platformDependent kind = { Kind = kind; AssumedSize = None; AssumedAlignment = None }
-    
-    /// Create layout for fixed-width type
-    let fixed kind size align = { Kind = kind; AssumedSize = Some size; AssumedAlignment = Some align }
-    
-    /// Standard NTU layouts
-    let ntuInt = platformDependent NTUKind.NTUint
-    let ntuInt32 = fixed NTUKind.NTUint32 4 4
-    let ntuInt64 = fixed NTUKind.NTUint64 8 8
+module PlatformContext =
+    /// Resolve an NTUWidth to concrete bits
+    let resolveWidth (ctx: PlatformContext) (width: NTUWidth) : int =
+        match width with
+        | NTUWidth.Fixed bits -> bits
+        | NTUWidth.Resolved dim -> ctx.Dimensions.[dim]
+
+    let defaultLinux_x86_64 = {
+        PlatformId = "Linux_x86_64"
+        Dimensions = Map.ofList [ (WidthDimension.Pointer, 64); (WidthDimension.Register, 64) ]
+        PointerAlign = 8
+        PlatformLibraryPath = None
+        Predicates = Map.ofList [ ... ]
+        FreestandingStartup = None
+    }
 ```
 
 ## 6. Unification Rules
@@ -183,14 +225,17 @@ module NTULayout =
 ### 6.1 NTU Types Unify Only with Themselves
 
 ```fsharp
-// Valid unification
-unify(NTUint, NTUint) = Success
+// Valid unification — same kind and same width
+unify(NTUint(Resolved Register), NTUint(Resolved Register)) = Success
 
-// Invalid unification - different NTU kinds
-unify(NTUint, NTUint64) = Error(TypeMismatch)
-unify(NTUint, NTUint32) = Error(TypeMismatch)
+// Invalid unification — same kind but different width
+unify(NTUint(Resolved Register), NTUint(Fixed 64)) = Error(TypeMismatch)
+unify(NTUint(Resolved Register), NTUint(Fixed 32)) = Error(TypeMismatch)
 
-// Pointer types - element types must unify
+// Invalid unification — different kinds
+unify(NTUint(Fixed 32), NTUuint(Fixed 32)) = Error(TypeMismatch)
+
+// Pointer types — element types must unify
 unify(NTUptr<int>, NTUptr<int>) = Success
 unify(NTUptr<int>, NTUptr<float>) = Error(TypeMismatch)
 ```
@@ -214,35 +259,31 @@ let y: int = int 42L
 ### 7.1 Resolution Flow
 
 ```
-F# Source (int) 
+F# Source (int)
     ↓
-FNCS: Maps to NTUint
+FNCS: Maps to NTUint(Resolved Register)
     ↓
-SemanticGraph: Carries NTUint annotation
+SemanticGraph: Carries NTUint(Resolved Register) annotation
     ↓
-Alex: Reads platform quotation
+Alex: Resolves Register dimension via PlatformContext.Dimensions
     ↓
 MLIR: i64 (on x86_64) or i32 (on ARM32)
 ```
 
 ### 7.2 Platform Quotation Structure
 
+Width resolution is now dimension-based. Platform quotations provide the `Dimensions` map that `PlatformContext.resolveWidth` uses:
+
 ```fsharp
-// From Fidelity.Platform library
-type NTUResolutions = {
-    NTUint: int    // Size in bytes
-    NTUuint: int
-    NTUptr: int
-    NTUsize: int
-    NTUdiff: int
-}
+// From Fidelity.Platform library — dimension resolution map
+type NTUResolutions = Map<WidthDimension, int>
 
 let linux_x86_64: Expr<NTUResolutions> = <@
-    { NTUint = 8; NTUuint = 8; NTUptr = 8; NTUsize = 8; NTUdiff = 8 }
+    Map.ofList [ (Pointer, 64); (Register, 64) ]
 @>
 
 let linux_arm32: Expr<NTUResolutions> = <@
-    { NTUint = 4; NTUuint = 4; NTUptr = 4; NTUsize = 4; NTUdiff = 4 }
+    Map.ofList [ (Pointer, 32); (Register, 32) ]
 @>
 ```
 
@@ -252,23 +293,25 @@ let linux_arm32: Expr<NTUResolutions> = <@
 
 | NTU Type | MLIR Type (x86_64) | MLIR Type (ARM32) |
 |----------|-------------------|-------------------|
-| NTUint | `i64` | `i32` |
-| NTUuint | `i64` | `i32` |
-| NTUnint | `i64` | `i32` |
-| NTUunint | `i64` | `i32` |
-| NTUptr<_> | `!llvm.ptr` | `!llvm.ptr` |
-| NTUsize | `i64` | `i32` |
-| NTUdiff | `i64` | `i32` |
-| NTUint32 | `i32` | `i32` |
-| NTUint64 | `i64` | `i64` |
-| NTUfloat32 | `f32` | `f32` |
-| NTUfloat64 | `f64` | `f64` |
+| `NTUint (Resolved Register)` | `i64` | `i32` |
+| `NTUuint (Resolved Register)` | `i64` | `i32` |
+| `NTUint (Resolved Pointer)` | `i64` | `i32` |
+| `NTUuint (Resolved Pointer)` | `i64` | `i32` |
+| `NTUint (Fixed 8)` | `i8` | `i8` |
+| `NTUint (Fixed 16)` | `i16` | `i16` |
+| `NTUint (Fixed 32)` | `i32` | `i32` |
+| `NTUint (Fixed 64)` | `i64` | `i64` |
+| `NTUfloat (Fixed 32)` | `f32` | `f32` |
+| `NTUfloat (Fixed 64)` | `f64` | `f64` |
+| `NTUptr` | `!llvm.ptr` | `!llvm.ptr` |
+| `NTUsize` | `i64` | `i32` |
+| `NTUdiff` | `i64` | `i32` |
 
 ## 9. Conformance Requirements
 
 ### 9.1 FNCS Requirements
 
-1. **MUST** distinguish NTU type identity (NTUint vs NTUint64)
+1. **MUST** distinguish NTU type identity (`NTUint (Resolved Register)` vs `NTUint (Fixed 64)`)
 2. **MUST NOT** assume platform-dependent type widths
 3. **MUST** propagate NTU annotations through SemanticGraph
 4. **MUST** reject operations between incompatible NTU types
