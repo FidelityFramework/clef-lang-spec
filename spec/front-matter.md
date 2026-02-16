@@ -3,7 +3,7 @@ title: "Front Matter"
 weight: 1
 ---
 
-This is the normative language specification for **Clef**, a concurrent, natively compiled language in the ML family.
+This is the normative language specification for **Clef**, a concurrent, natively compiled language.
 
 Clef uses ML-family syntax to express operations across CPUs, GPUs, NPUs (Neural Processing Units), FPGAs (Field-Programmable Gate Arrays), and other compute accelerators. The language is built around concurrency as a first-class concern: the actor model, incremental computation via `Incremental<'T>`, delimited continuations, and interaction nets are central to both the language's semantics and its compilation model. Where F# treated its `MailboxProcessor` as a library convenience within the .NET ecosystem, Clef elevates message-passing concurrency to a foundational language primitive.
 
