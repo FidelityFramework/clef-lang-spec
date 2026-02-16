@@ -6,15 +6,15 @@
 
 ## 1. Overview
 
-This chapter specifies the NTU (Native Type Universe) nomenclature used internally by FNCS for platform-generic types. NTU types resolve via quotation-based platform bindings, following the F* pattern where type WIDTH is an erased assumption.
+This chapter specifies the NTU (Native Type Universe) nomenclature used internally by CCS for platform-generic types. NTU types resolve via quotation-based platform bindings, following the F* pattern where type WIDTH is an erased assumption.
 
 Width is a first-class dimension in NTU. Numeric types are parameterized by `NTUWidth`, which can be `Fixed` (known at all times) or `Resolved` (platform-dependent, resolved by Alex via `PlatformContext`). This replaces 16 discrete integer/float variants with 3 parameterized kinds.
 
 ### 1.1 Core Principle
 
-**Platform awareness flows FROM THE TOP via quotation-based binding libraries, not from FNCS type inference.**
+**Platform awareness flows FROM THE TOP via quotation-based binding libraries, not from CCS type inference.**
 
-FNCS validates type **identity** (e.g. `NTUint (Resolved Register)` vs `NTUint (Fixed 64)`). Alex witnesses platform quotations to determine type **width** (32-bit vs 64-bit).
+CCS validates type **identity** (e.g. `NTUint (Resolved Register)` vs `NTUint (Fixed 64)`). Alex witnesses platform quotations to determine type **width** (32-bit vs 64-bit).
 
 ## 2. NTU Type Categories
 
@@ -64,9 +64,9 @@ type NTUWidth =
 
 ## 3. Type Identity and Type Width
 
-### 3.1 Type Identity (FNCS Responsibility)
+### 3.1 Type Identity (CCS Responsibility)
 
-FNCS enforces type identity constraints. With parameterized width, type identity includes the width dimension:
+CCS enforces type identity constraints. With parameterized width, type identity includes the width dimension:
 
 ```
 NTUint(Resolved Register) ≠ NTUint(Fixed 32)    // Different types
@@ -119,7 +119,7 @@ Width assumptions guide type checking but are **erased** before code generation.
 
 The architecture uses a three-tier exposure model:
 
-| F# Source | FNCS Internal (NTUKind) |
+| F# Source | CCS Internal (NTUKind) |
 |-----------|-------------------------|
 | `int` | `NTUint (Resolved Register)` |
 | `uint` | `NTUuint (Resolved Register)` |
@@ -141,7 +141,7 @@ The architecture uses a three-tier exposure model:
 
 **Level 1 (Default)**: Developers use standard F# type names.
 ```fsharp
-let x: int = 42  // FNCS sees NTUint
+let x: int = 42  // CCS sees NTUint
 let arr: array<int> = [| 1; 2; 3 |]
 ```
 
@@ -261,7 +261,7 @@ let y: int = int 42L
 ```
 F# Source (int)
     ↓
-FNCS: Maps to NTUint(Resolved Register)
+CCS: Maps to NTUint(Resolved Register)
     ↓
 SemanticGraph: Carries NTUint(Resolved Register) annotation
     ↓
@@ -309,7 +309,7 @@ let linux_arm32: Expr<NTUResolutions> = <@
 
 ## 9. Conformance Requirements
 
-### 9.1 FNCS Requirements
+### 9.1 CCS Requirements
 
 1. **MUST** distinguish NTU type identity (`NTUint (Resolved Register)` vs `NTUint (Fixed 64)`)
 2. **MUST NOT** assume platform-dependent type widths

@@ -1,4 +1,4 @@
-# Sequence Operations Representation in F# Native
+# Sequence Operations Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-F# Native implements sequence operations (`Seq.map`, `Seq.filter`, `Seq.take`, `Seq.fold`, `Seq.collect`) as **wrapper sequences** that compose the flat closure architecture. This chapter specifies the memory representation, copy semantics, and composition model for sequence transformations.
+Clef implements sequence operations (`Seq.map`, `Seq.filter`, `Seq.take`, `Seq.fold`, `Seq.collect`) as **wrapper sequences** that compose the flat closure architecture. This chapter specifies the memory representation, copy semantics, and composition model for sequence transformations.
 
 **Key Insight**: Seq operations create wrapper sequences that contain both an inner sequence AND a transformation closure—both inlined (copied by value), following the flat closure model.
 

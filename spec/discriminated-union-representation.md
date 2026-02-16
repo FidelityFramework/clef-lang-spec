@@ -1,4 +1,4 @@
-# Discriminated Union Representation in F# Native
+# Discriminated Union Representation in Clef
 
 > **Status**: Draft
 > **Last Updated**: 2026-01-22
@@ -53,7 +53,7 @@ A naive "max-size union" representation loses type information:
 
 ### 2.1 Static Type Resolution
 
-DUs in F# Native are **eagerly typed** - all case payload types are fully resolved at compile time. Combined with SRTP (Statically Resolved Type Parameters), this guarantees deterministic layout computation:
+DUs in Clef are **eagerly typed** - all case payload types are fully resolved at compile time. Combined with SRTP (Statically Resolved Type Parameters), this guarantees deterministic layout computation:
 
 ```fsharp
 type Container<'T when 'T : (static member Size : int)> =

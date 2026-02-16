@@ -1,13 +1,13 @@
-# Types and Type Constraints Revisions for fsnative-spec
+# Types and Type Constraints Revisions for clef-lang-spec
 
 ## Overview
-The `spec/types-and-type-constraints.md` file was extensively revised to remove BCL/.NET assumptions and align with F# Native semantics.
+The `spec/types-and-type-constraints.md` file was extensively revised to remove BCL/.NET assumptions and align with Clef semantics.
 
 ## Key Revisions Made
 
 ### 1. Opening Section
 - Removed "Runtime types" as a fourth meaning of type (no System.Type, no GetType())
-- Added F# Native Note explaining compile-time-only type system
+- Added Clef Note explaining compile-time-only type system
 
 ### 2. Constraint Grammar
 - Removed CLI comments (CLI default constructor, CLI non-Nullable struct, CLI reference type)
@@ -19,7 +19,7 @@ The `spec/types-and-type-constraints.md` file was extensively revised to remove 
 - Explained stack/arena allocation
 
 ### 4. Struct Tuple Types
-- Noted that struct vs reference tuple distinction doesn't apply in F# Native
+- Noted that struct vs reference tuple distinction doesn't apply in Clef
 - Both compile to same unboxed representation
 
 ### 5. Array Types
@@ -84,7 +84,7 @@ The `spec/types-and-type-constraints.md` file was extensively revised to remove 
 - Noted int ≠ int32 distinction
 
 ## Style Conventions Established
-- Use `> **F# Native Note**:` blocks for native-specific explanations
+- Use `> **Clef Note**:` blocks for native-specific explanations
 - Memory layout diagrams use ASCII box drawing
-- Reference fsnative/docs/fidelity/native-type-universe.md for detailed type specs
-- Keep managed F# references only in explanatory "what F# Native does NOT have" context
+- Reference Clef/docs/fidelity/native-type-universe.md for detailed type specs
+- Keep managed F# references only in explanatory "what Clef does NOT have" context

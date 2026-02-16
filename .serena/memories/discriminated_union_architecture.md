@@ -2,7 +2,7 @@
 
 ## Core Design Decision
 
-DUs in F# Native are represented as **pointers to region-allocated storage** with **case eliminators** for type-safe payload extraction.
+DUs in Clef are represented as **pointers to region-allocated storage** with **case eliminators** for type-safe payload extraction.
 
 ## Key Principles
 
@@ -43,4 +43,4 @@ Baker should produce these instead of generic `FieldGet` nodes.
 
 ## Specification
 
-Full spec at: `fsnative-spec/spec/discriminated-union-representation.md`
+Full spec at: `clef-lang-spec/spec/discriminated-union-representation.md`

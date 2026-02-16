@@ -86,7 +86,7 @@ interface type that occurs in the tree of supported interface types, when the tr
 ordered from most derived to least derived, and iterated left-to-right in the order of the
 interface declarations.
 
-> **F# Native Note**: F# Native does not inherit array subtyping from a managed runtime. Array types implement collection interfaces as defined by the native library.
+> **Clef Note**: Clef does not inherit array subtyping from a managed runtime. Array types implement collection interfaces as defined by the native library.
 
 New constraints of the form `type :> 'b` are solved again as `type = 'b`.
 

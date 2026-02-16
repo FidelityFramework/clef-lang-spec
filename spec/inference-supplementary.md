@@ -299,4 +299,4 @@ imposes additional _ad hoc_ constraints:
 
 `Set.empty<A>` requires `A : comparison`
 
-> **F# Native Note**: The native library defines collection types with appropriate constraints. `Map<'Key,'Value>` requires `'Key : comparison`, and `Set<'T>` requires `'T : comparison`. These constraints are enforced at compile time.
+> **Clef Note**: The native library defines collection types with appropriate constraints. `Map<'Key,'Value>` requires `'Key : comparison`, and `Set<'T>` requires `'T : comparison`. These constraints are enforced at compile time.

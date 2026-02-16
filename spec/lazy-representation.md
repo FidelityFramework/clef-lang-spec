@@ -1,10 +1,10 @@
-# Lazy Value Representation in F# Native
+# Lazy Value Representation in Clef
 
-> **Normative specification for lazy value memory layout and thunk semantics in fsnative compilation.**
+> **Normative specification for lazy value memory layout and thunk semantics in Clef compilation.**
 
 ## 1. Overview
 
-F# Native implements `Lazy<'T>` as an extension of the flat closure architecture. Lazy values are thunks that defer computation until forced. This chapter specifies the memory representation, capture semantics, thunk calling convention, and memoization behavior.
+Clef implements `Lazy<'T>` as an extension of the flat closure architecture. Lazy values are thunks that defer computation until forced. This chapter specifies the memory representation, capture semantics, thunk calling convention, and memoization behavior.
 
 ## 2. Relationship to Closures
 
@@ -16,7 +16,7 @@ Lazy values build directly on the flat closure representation specified in [Clos
 
 ### 3.1 Lazy Structure
 
-A lazy value in F# Native is a struct containing:
+A lazy value in Clef is a struct containing:
 
 ```
 Lazy<T> with captures [c₁: T₁, ..., cₘ: Tₘ]
@@ -67,7 +67,7 @@ Typical sizes on 64-bit platforms:
 
 ### 4.1 Struct Pointer Passing
 
-F# Native uses the **struct pointer passing** convention for thunks. The thunk receives a pointer to its containing lazy struct and extracts captures itself.
+Clef uses the **struct pointer passing** convention for thunks. The thunk receives a pointer to its containing lazy struct and extracts captures itself.
 
 **Thunk Signature**:
 ```
@@ -135,7 +135,7 @@ Capture analysis for lazy values must distinguish:
 
 ### 5.2 IsModuleLevel Tracking
 
-FNCS tracks binding scope in `ResolvedBinding`:
+CCS tracks binding scope in `ResolvedBinding`:
 
 ```fsharp
 type ResolvedBinding = {
@@ -330,7 +330,7 @@ llvm.cond_br %computed, ^already_computed, ^need_compute
 
 ### 9.1 Current Implementation: Pure Thunk Semantics
 
-The initial F# Native implementation provides **pure thunk semantics**:
+The initial Clef implementation provides **pure thunk semantics**:
 - Forcing always executes the computation
 - No memoization state is updated
 - Correct for pure computations (same result each time)
@@ -416,9 +416,9 @@ Lazy.create (fun () -> expr)
 6. **No Heap**: Lazy values SHALL NOT be allocated on GC-managed heap
 7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
 
-## 12. Implementation in FNCS/Firefly Pipeline
+## 12. Implementation in CCS/Firefly Pipeline
 
-### 12.1 FNCS Phase
+### 12.1 CCS Phase
 
 1. **checkLazy** in Coordinator.fs:
    - Checks the lazy body expression

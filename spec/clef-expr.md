@@ -1,18 +1,18 @@
-# FSharpNativeExpr: FNCS Typed Expression Representation
+# ClefExpr: CCS Typed Expression Representation
 
 > **Status**: Draft
-> **Phase**: A (Core Representation) - Part of FNCS architecture
+> **Phase**: A (Core Representation) - Part of CCS architecture
 > **Last Updated**: 2026-01-12
 
 ## Overview
 
-`FSharpNativeExpr` is FNCS's native typed expression representation. It provides an **expression-centric view** over the SemanticGraph, the core intermediate representation used by F# Native compilation.
+`ClefExpr` is CCS's native typed expression representation. It provides an **expression-centric view** over the SemanticGraph, the core intermediate representation used by Clef compilation.
 
-### Why FSharpNativeExpr Exists
+### Why ClefExpr Exists
 
-FNCS deliberately does NOT use FCS's `FSharpExpr` type. This is a principled architectural decision:
+CCS deliberately does NOT use FCS's `FSharpExpr` type. This is a principled architectural decision:
 
-| Aspect | FSharpExpr (FCS) | FSharpNativeExpr (FNCS) |
+| Aspect | FSharpExpr (FCS) | ClefExpr (CCS) |
 |--------|------------------|-------------------------|
 | **Type System** | CLR types (`System.Int32`, etc.) | Native types (`NativeType.I32`, etc.) |
 | **SRTP Resolution** | .NET method tables | `WitnessResolution` with native witnesses |
@@ -20,12 +20,12 @@ FNCS deliberately does NOT use FCS's `FSharpExpr` type. This is a principled arc
 | **Dependencies** | BCL, assembly metadata | BCL-free, freestanding capable |
 | **Runtime** | .NET CLR required | No runtime, standalone binaries |
 
-FSharpNativeExpr is a **projection** over SemanticGraph - it materializes expression trees on demand from the underlying graph structure.
+ClefExpr is a **projection** over SemanticGraph - it materializes expression trees on demand from the underlying graph structure.
 
 ### Relationship to Other Documents
 
-- **[introduction.md](introduction.md)**: FNCS architectural overview
-- **[native-type-universe.md](native-type-universe.md)**: The `NativeType` system that FSharpNativeExpr uses
+- **[introduction.md](introduction.md)**: CCS architectural overview
+- **[native-type-universe.md](native-type-universe.md)**: The `NativeType` system that ClefExpr uses
 - **[inference-procedures.md](inference-procedures.md)**: How types are inferred and attached
 
 ---
@@ -41,7 +41,7 @@ The SemanticGraph stores program structure as a graph of nodes connected by edge
 - Optional `WitnessResolution` (for SRTP calls)
 - Reachability marks (`IsReachable` for soft-delete)
 
-FSharpNativeExpr transforms this graph representation into a tree representation that's easier to:
+ClefExpr transforms this graph representation into a tree representation that's easier to:
 - Pretty-print for debugging
 - Serialize to JSON for intermediate inspection
 - Navigate for IDE features (hover, go-to-definition)
@@ -49,14 +49,14 @@ FSharpNativeExpr transforms this graph representation into a tree representation
 
 ### 1.2 Key Principle: Projection, Not Transformation
 
-FSharpNativeExpr does **not** copy or transform data. It is a **view** that traverses the SemanticGraph and presents it in expression form. The underlying SemanticGraph remains the source of truth.
+ClefExpr does **not** copy or transform data. It is a **view** that traverses the SemanticGraph and presents it in expression form. The underlying SemanticGraph remains the source of truth.
 
 ```
 SemanticGraph (nodes + edges)
         ↓
-  FSharpNativeExpr.fromNode
+  ClefExpr.fromNode
         ↓
-FSharpNativeExpr (expression tree)
+ClefExpr (expression tree)
 ```
 
 This design means:
@@ -72,17 +72,17 @@ This design means:
 
 ```fsharp
 [<RequireQualifiedAccess; NoComparison; NoEquality>]
-type FSharpNativeExpr =
+type ClefExpr =
     // Bindings
-    | LetBinding of name: string * isMutable: bool * value: FSharpNativeExpr *
-                    body: FSharpNativeExpr option * ty: NativeType
-    | LetRecBindings of bindings: (string * FSharpNativeExpr) list *
-                        body: FSharpNativeExpr option
+    | LetBinding of name: string * isMutable: bool * value: ClefExpr *
+                    body: ClefExpr option * ty: NativeType
+    | LetRecBindings of bindings: (string * ClefExpr) list *
+                        body: ClefExpr option
 
     // Functions
-    | Lambda of parameters: (string * NativeType) list * body: FSharpNativeExpr *
+    | Lambda of parameters: (string * NativeType) list * body: ClefExpr *
                 returnType: NativeType * srtp: WitnessResolution option
-    | Application of func: FSharpNativeExpr * args: FSharpNativeExpr list *
+    | Application of func: ClefExpr * args: ClefExpr list *
                     returnType: NativeType * srtp: WitnessResolution option
 
     // Values
@@ -91,31 +91,31 @@ type FSharpNativeExpr =
                   definitionId: NodeId option
 
     // Control Flow
-    | IfThenElse of guard: FSharpNativeExpr * thenBranch: FSharpNativeExpr *
-                   elseBranch: FSharpNativeExpr option * ty: NativeType
-    | Match of scrutinee: FSharpNativeExpr * cases: NativeMatchCase list * ty: NativeType
-    | Sequential of exprs: FSharpNativeExpr list * ty: NativeType
-    | WhileLoop of guard: FSharpNativeExpr * body: FSharpNativeExpr
-    | ForLoop of var: string * start: FSharpNativeExpr * finish: FSharpNativeExpr *
-                isUp: bool * body: FSharpNativeExpr
+    | IfThenElse of guard: ClefExpr * thenBranch: ClefExpr *
+                   elseBranch: ClefExpr option * ty: NativeType
+    | Match of scrutinee: ClefExpr * cases: NativeMatchCase list * ty: NativeType
+    | Sequential of exprs: ClefExpr list * ty: NativeType
+    | WhileLoop of guard: ClefExpr * body: ClefExpr
+    | ForLoop of var: string * start: ClefExpr * finish: ClefExpr *
+                isUp: bool * body: ClefExpr
 
     // Data Structures
-    | RecordExpr of fields: (string * FSharpNativeExpr) list *
-                   copyFrom: FSharpNativeExpr option * ty: NativeType
-    | UnionCase of caseName: string * payload: FSharpNativeExpr option * ty: NativeType
-    | TupleExpr of elements: FSharpNativeExpr list * ty: NativeType
+    | RecordExpr of fields: (string * ClefExpr) list *
+                   copyFrom: ClefExpr option * ty: NativeType
+    | UnionCase of caseName: string * payload: ClefExpr option * ty: NativeType
+    | TupleExpr of elements: ClefExpr list * ty: NativeType
 
     // Platform Integration (Layer 1 & 2 bindings)
-    | Intrinsic of name: string * args: FSharpNativeExpr list * ty: NativeType
-    | FFICall of descriptor: FFIDescriptor * args: FSharpNativeExpr list * ty: NativeType
+    | Intrinsic of name: string * args: ClefExpr list * ty: NativeType
+    | FFICall of descriptor: FFIDescriptor * args: ClefExpr list * ty: NativeType
 
     // SRTP (Statically Resolved Type Parameters)
     | TraitCall of memberName: string * constrainedTypes: NativeType list *
-                  arg: FSharpNativeExpr * resolution: WitnessResolution option * ty: NativeType
+                  arg: ClefExpr * resolution: WitnessResolution option * ty: NativeType
 
     // Structure
-    | ModuleDef of name: string * members: FSharpNativeExpr list
-    | TypeDef of name: string * kind: TypeDefKind * members: FSharpNativeExpr list
+    | ModuleDef of name: string * members: ClefExpr list
+    | TypeDef of name: string * kind: TypeDefKind * members: ClefExpr list
 
     // Error Recovery
     | Error of message: string * range: SourceRange
@@ -127,8 +127,8 @@ type FSharpNativeExpr =
 /// Native match case for pattern matching
 type NativeMatchCase = {
     Pattern: NativePattern
-    Guard: FSharpNativeExpr option
-    Body: FSharpNativeExpr
+    Guard: ClefExpr option
+    Body: ClefExpr
 }
 
 /// Pattern for match cases
@@ -175,19 +175,19 @@ Example JSON output:
 }
 ```
 
-### 3.2 FNCS Intrinsics (Layer 1)
+### 3.2 CCS Intrinsics (Layer 1)
 
-Intrinsics represent calls to FNCS-recognized native operations (syscalls, pointer operations, etc.):
+Intrinsics represent calls to CCS-recognized native operations (syscalls, pointer operations, etc.):
 
 ```fsharp
-| Intrinsic of name: string * args: FSharpNativeExpr list * ty: NativeType
+| Intrinsic of name: string * args: ClefExpr list * ty: NativeType
 ```
 
 - `name`: The intrinsic name (e.g., `"Sys.write"`, `"NativePtr.set"`)
 - `args`: The argument expressions
 - `ty`: The return type
 
-FNCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and Alex provides platform-specific implementations.
+CCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and Alex provides platform-specific implementations.
 
 Example JSON output:
 ```json
@@ -208,7 +208,7 @@ Example JSON output:
 FFI calls represent bindings to external libraries with quotation-carried metadata:
 
 ```fsharp
-| FFICall of descriptor: FFIDescriptor * args: FSharpNativeExpr list * ty: NativeType
+| FFICall of descriptor: FFIDescriptor * args: ClefExpr list * ty: NativeType
 ```
 
 - `descriptor`: Metadata extracted from binding quotations (C name, calling convention, etc.)
@@ -225,7 +225,7 @@ SRTP (Statically Resolved Type Parameters) are fully resolved at compile time:
 
 ```fsharp
 | TraitCall of memberName: string * constrainedTypes: NativeType list *
-              arg: FSharpNativeExpr * resolution: WitnessResolution option * ty: NativeType
+              arg: ClefExpr * resolution: WitnessResolution option * ty: NativeType
 ```
 
 The `resolution` field contains:
@@ -247,22 +247,22 @@ When `resolution` is `Some`, the SRTP was successfully resolved. When `None`, re
 ### 4.1 Entry Points
 
 ```fsharp
-module FSharpNativeExpr =
+module ClefExpr =
     /// Get expression trees for all entry points
-    let fromEntryPoints (graph: SemanticGraph) : FSharpNativeExpr list
+    let fromEntryPoints (graph: SemanticGraph) : ClefExpr list
 
     /// Get expression tree starting at a specific node
-    let fromNode (graph: SemanticGraph) (nodeId: NodeId) : FSharpNativeExpr
+    let fromNode (graph: SemanticGraph) (nodeId: NodeId) : ClefExpr
 
     /// Find expression for a named binding
-    let fromBinding (graph: SemanticGraph) (name: string) : FSharpNativeExpr option
+    let fromBinding (graph: SemanticGraph) (name: string) : ClefExpr option
 ```
 
 ### 4.2 Conversion Rules
 
-Each `SemanticKind` maps to an `FSharpNativeExpr` case:
+Each `SemanticKind` maps to an `ClefExpr` case:
 
-| SemanticKind | FSharpNativeExpr |
+| SemanticKind | ClefExpr |
 |--------------|------------------|
 | `Binding(name, isMut, _, _)` | `LetBinding` with value from children |
 | `Lambda(params, bodyId)` | `Lambda` with body from graph traversal |
@@ -278,7 +278,7 @@ Each `SemanticKind` maps to an `FSharpNativeExpr` case:
 
 ## Part 5: Semantic Transformation Invariants
 
-The SemanticGraph (and by extension, FSharpNativeExpr) maintains specific **construction invariants** that downstream stages can rely upon. These are enforced during graph construction in FNCS - the graph is "correct by construction."
+The SemanticGraph (and by extension, ClefExpr) maintains specific **construction invariants** that downstream stages can rely upon. These are enforced during graph construction in CCS - the graph is "correct by construction."
 
 ### 5.1 Lambda Desugaring
 
@@ -300,7 +300,7 @@ fun (a, b) (c, d) -> a + b + c + d
 
 **NOT** nested lambdas:
 ```
-// WRONG - Not how FNCS represents this
+// WRONG - Not how CCS represents this
 Lambda(x, Lambda(y, Lambda(z, body)))
 ```
 
@@ -337,7 +337,7 @@ Application(Var(greet), ["Hello"; "World"])
 
 **NOT** nested applications:
 ```
-// WRONG - Not how FNCS represents fully-applied calls
+// WRONG - Not how CCS represents fully-applied calls
 Application(Application(Var(greet), ["Hello"]), ["World"])
 ```
 
@@ -407,7 +407,7 @@ let main argv =
     0
 ```
 
-After FNCS construction, the `hello` function body appears as:
+After CCS construction, the `hello` function body appears as:
 ```
 Lambda([(prefix, string)],
   Seq([
@@ -486,10 +486,10 @@ This invariant applies to:
 
 ### 6.1 Pretty-Print Format
 
-FSharpNativeExpr provides a human-readable format for debugging:
+ClefExpr provides a human-readable format for debugging:
 
 ```fsharp
-let prettyPrint (indent: int) (expr: FSharpNativeExpr) : string
+let prettyPrint (indent: int) (expr: ClefExpr) : string
 ```
 
 Example output:
@@ -536,13 +536,13 @@ Structured JSON output for programmatic analysis:
 
 ### 6.3 Intermediate Files
 
-When compiling with `-k` (keep intermediates), FNCS emits:
+When compiling with `-k` (keep intermediates), CCS emits:
 
 | File | Description |
 |------|-------------|
-| `fncs_expr.json` | Full expression tree in JSON format |
-| `fncs_expr.txt` | Pretty-printed text for human reading |
-| `fncs_phase_*.json` | SemanticGraph at each phase |
+| `ccs_expr.json` | Full expression tree in JSON format |
+| `ccs_expr.txt` | Pretty-printed text for human reading |
+| `ccs_phase_*.json` | SemanticGraph at each phase |
 
 ---
 
@@ -552,23 +552,23 @@ When compiling with `-k` (keep intermediates), FNCS emits:
 
 When a function appears as an external reference in generated code:
 
-1. Open `fncs_expr.txt` and find the function call
+1. Open `ccs_expr.txt` and find the function call
 2. Check the `definitionId` on the Variable
 3. If `null`, the definition wasn't captured in SemanticGraph
-4. If present, trace to that node in `fncs_phase_5_final.json`
+4. If present, trace to that node in `ccs_phase_5_final.json`
 
 ### 7.2 Tracing SRTP Resolution
 
 For SRTP operators like `$` (the native string interpolation operator):
 
-1. Find `TraitCall` nodes in `fncs_expr.json`
+1. Find `TraitCall` nodes in `ccs_expr.json`
 2. Check the `resolution` field
 3. If `null`, SRTP resolution failed
 4. If present, shows the resolved member and implementation
 
 ### 7.3 IDE Integration
 
-FSharpNativeExpr enables IDE features:
+ClefExpr enables IDE features:
 
 - **Hover**: Traverse to node, show `ty` field
 - **Go-to-Definition**: Follow `definitionId` to definition node
@@ -580,20 +580,20 @@ FSharpNativeExpr enables IDE features:
 
 The full type definition is in:
 ```
-/home/hhh/repos/fsnative/src/Compiler/Checking.Native/FSharpNativeExpr.fs
+/home/hhh/repos/clef/src/Compiler/Checking.Native/ClefExpr.fs
 ```
 
 Key modules:
-- `FSharpNativeExpr` - The discriminated union type
+- `ClefExpr` - The discriminated union type
 - `NativePattern` - Pattern types for match cases
 - `NativeMatchCase` - Match case with pattern, guard, body
-- `FSharpNativeExpr` module - Conversion and pretty-printing functions
+- `ClefExpr` module - Conversion and pretty-printing functions
 
 ---
 
 ## Appendix B: Comparison with FCS FSharpExpr
 
-| Feature | FSharpExpr | FSharpNativeExpr |
+| Feature | FSharpExpr | ClefExpr |
 |---------|------------|------------------|
 | Source | FCS typed tree | SemanticGraph projection |
 | Types | `FSharpType` (CLR) | `NativeType` (native) |
@@ -603,7 +603,7 @@ Key modules:
 | BCL dependency | Required | None |
 | Freestanding | No | Yes |
 
-FSharpNativeExpr is not a port or modification of FSharpExpr - it is a clean-room implementation with native-first semantics.
+ClefExpr is not a port or modification of FSharpExpr - it is a clean-room implementation with native-first semantics.
 
 ---
 
@@ -611,9 +611,9 @@ FSharpNativeExpr is not a port or modification of FSharpExpr - it is a clean-roo
 
 ### January 2026 - Initial Implementation
 
-FSharpNativeExpr was introduced as part of the FNCS nanopass infrastructure to provide:
+ClefExpr was introduced as part of the CCS nanopass infrastructure to provide:
 1. Inspectable intermediates for debugging
 2. Expression-centric view for tooling
 3. Clean break from FCS's BCL-dependent representation
 
-The implementation follows the principle that SemanticGraph is the source of truth, and FSharpNativeExpr is a derived view for convenience.
+The implementation follows the principle that SemanticGraph is the source of truth, and ClefExpr is a derived view for convenience.

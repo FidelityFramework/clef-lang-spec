@@ -9,13 +9,13 @@ During spec revision, we're removing CLI/BCL references. However, some concepts 
 
 ### 1. Null → voption
 - CLI F# uses `null` for absent values in some contexts
-- fsnative uses `voption<'T>` (value option) with `ValueSome`/`ValueNone`
+- Clef uses `voption<'T>` (value option) with `ValueSome`/`ValueNone`
 - **Spec needs**: How voption is the idiomatic way to express "may not have a value"
 - **Guard rail**: Compiler should guide users toward voption, not null
 
 ### 2. Exceptions → Result<'T, 'E>
 - CLI F# raises exceptions: `NullReferenceException`, `InvalidCastException`, `IndexOutOfBoundsException`
-- fsnative uses `Result<'T, 'E>` for explicit error handling
+- Clef uses `Result<'T, 'E>` for explicit error handling
 - **Spec needs**: Define standard error types, how Result flows through code
 - **Guard rail**: Operations that can fail should return Result, not throw
 
@@ -70,8 +70,8 @@ During spec revision, we're removing CLI/BCL references. However, some concepts 
    - These are *tooling* issues, not *language* issues
 
 5. **Design Principle**: Semantic differences are acceptable; syntactic incompatibility is not
-   - fsnative code should parse as valid F#
-   - fsnative code should type-check with fsnative type rules
+   - Clef code should parse as valid F#
+   - Clef code should type-check with Clef type rules
    - The compiled behavior differs, but the source is "F# shaped"
 
 ### Implication for Spec
@@ -99,7 +99,7 @@ When encountering null/exception patterns:
 
 **After (native) - NOT just deletion:**
 ```
-- The instance `expr` is evaluated. Since F# Native is null-free, the instance is always valid.
+- The instance `expr` is evaluated. Since Clef is null-free, the instance is always valid.
 ```
 
 This acknowledges the concept while explaining why the error case doesn't apply.

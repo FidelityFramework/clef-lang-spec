@@ -4,7 +4,7 @@
 
 ## Key Distinction
 
-F# Native distinguishes two categories of functions with captures:
+Clef distinguishes two categories of functions with captures:
 
 ### 1. Escaping Closures (Closure Struct Model)
 - Anonymous lambdas: `fun x -> x + captured`

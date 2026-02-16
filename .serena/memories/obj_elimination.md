@@ -1,10 +1,10 @@
-# Elimination of `obj` from F# Native
+# Elimination of `obj` from Clef
 
 ## Core Decision
 
-**`obj` (System.Object) is NOT available in F# Native.** The compiler SHALL reject any code that references `obj`.
+**`obj` (System.Object) is NOT available in Clef.** The compiler SHALL reject any code that references `obj`.
 
-This is as fundamental to F# Native as `voption` for optional values.
+This is as fundamental to Clef as `voption` for optional values.
 
 ## Rationale
 
@@ -23,7 +23,7 @@ In managed F#, all types inherit from `System.Object` (aliased as `obj`). This e
 
 ## Impact on F# Constructs
 
-| Construct | Managed F# | F# Native |
+| Construct | Managed F# | Clef |
 |-----------|------------|-----------|
 | `box x` | Wraps value in heap object | NOT AVAILABLE |
 | `unbox x` | Extracts value from object | NOT AVAILABLE |
@@ -40,7 +40,7 @@ In managed F#, all types inherit from `System.Object` (aliased as `obj`). This e
 Object expressions MUST implement at least one interface type:
 
 ```fsharp
-// NOT AVAILABLE in F# Native
+// NOT AVAILABLE in Clef
 { new obj() with member x.ToString() = "Hello" }
 
 // VALID - implements interface
@@ -80,11 +80,11 @@ Without `obj`, fsni cannot use reflection-based `%A` formatting. Instead:
 
 ### Parallel Toolchain Required
 
-F# Native requires parallel tooling rather than extending managed F# tools:
+Clef requires parallel tooling rather than extending managed F# tools:
 
-| Managed F# | F# Native | Why Parallel? |
+| Managed F# | Clef | Why Parallel? |
 |------------|-----------|---------------|
-| FCS | FNCS | Type resolution fundamentally differs |
+| FCS | CCS | Type resolution fundamentally differs |
 | FSAC | FSNAC | No `obj` escape hatch for type checking |
 | NuGet | Fargo | Source-based vs binary packages |
 | FSI | fsni | SRTP-based value display |
@@ -97,13 +97,13 @@ FSAC uses `obj` internally for:
 - FSI evaluation results
 
 FSNAC must be a separate implementation that:
-- Uses FNCS for type resolution
+- Uses CCS for type resolution
 - Generates SRTP-based formatters
 - Has no dependency on `obj` anywhere
 
 ### Coexistence Model
 
-F# Native tooling coexists with Fable/managed F# via project-type routing:
+Clef tooling coexists with Fable/managed F# via project-type routing:
 - `.fsproj` → FSAC
 - `.fidproj` → FSNAC
 - Same workspace, different backends

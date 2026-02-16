@@ -170,7 +170,7 @@ where tensor layout affects memory access patterns and computation scheduling.
 ### 2.6 Temporal/Lifetime Dimension (Existing — Coeffect System)
 
 Resource lifetimes and ownership semantics are already partially modeled through
-FNCS's coeffect system and the Deterministic Memory Management (DMM) architecture.
+CCS's coeffect system and the Deterministic Memory Management (DMM) architecture.
 These interact with memory space and access pattern dimensions: a value's lifetime
 constrains which memory spaces it can inhabit, and ownership determines which access
 patterns are valid.
@@ -223,13 +223,13 @@ resolution varies.
 
 Each section of the graph is compiled separately against its platform context:
 
-1. **FNCS** elaborates the full program graph with dimensional types preserved
+1. **CCS** elaborates the full program graph with dimensional types preserved
 2. **Alex** partitions the graph into target sections (CPU, GPU, FPGA, etc.)
 3. Each section is compiled with its own PlatformContext providing dimension resolutions
 4. BAREWire contracts between sections are verified for structural compatibility
 5. Each section emits target-specific code (LLVM IR, SPIR-V, HLS, etc.)
 
-The NTU's dimensional machinery gives FNCS the vocabulary to verify both sides of
+The NTU's dimensional machinery gives CCS the vocabulary to verify both sides of
 every BAREWire contract against their respective platform contexts.
 
 ### 3.3 BAREWire as Reconciliation Layer
@@ -304,10 +304,10 @@ fidproj TOML → Fidelity.Platform → PlatformContext → Alex (per section)
 
 ## 5. Relationship to Ecosystem Components
 
-### 5.1 FNCS (F# Native Compiler Services)
+### 5.1 CCS (Clef Compiler Service)
 
-FNCS owns the NTU type definitions and the type checker. Dimensional types are
-first-class in the type system — they don't erase after type checking. FNCS validates
+CCS owns the NTU type definitions and the type checker. Dimensional types are
+first-class in the type system — they don't erase after type checking. CCS validates
 dimensional consistency (e.g., you cannot add a `Pointer`-width integer to a
 `Fixed 32` integer without explicit conversion) without knowing the target platform.
 
@@ -430,7 +430,7 @@ These questions become concrete as each dimensional axis is implemented.
 
 ### 7.3 BAREWire Contract Verification
 
-How does FNCS verify that both sides of a BAREWire contract are dimensionally
+How does CCS verify that both sides of a BAREWire contract are dimensionally
 consistent? The layout description must be interpretable from both platform contexts.
 This likely requires BAREWire layouts to be expressed in terms of Fixed dimensions
 (concrete widths/alignments) rather than Resolved dimensions, since the two sides

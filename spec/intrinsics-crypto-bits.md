@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-This chapter specifies two new intrinsic modules for FNCS:
+This chapter specifies two new intrinsic modules for CCS:
 
 1. **Crypto** - Cryptographic operations (SHA-1, Base64 encoding/decoding)
 2. **Bits** - Bit manipulation and byte order operations
@@ -259,7 +259,7 @@ All operations are `Pure` category - no side effects, deterministic output.
 
 ### 7.1 Byte Order Detection
 
-FNCS does not need to know the platform byte order. Alex resolves this via platform quotations:
+CCS does not need to know the platform byte order. Alex resolves this via platform quotations:
 
 ```fsharp
 // Platform.fs quotation
@@ -297,12 +297,12 @@ The witness queries this setting via platform context during MLIR generation.
 
 ## 8. Nanopass and Witness Flow
 
-The pipeline for Crypto and Bits intrinsics follows the standard FNCS→Alex flow:
+The pipeline for Crypto and Bits intrinsics follows the standard CCS→Alex flow:
 
 ```
 F# Source: Crypto.sha1 data
     ↓
-FNCS Type Checking (Expressions/Intrinsics.fs, Expressions/Coordinator.fs)
+CCS Type Checking (Expressions/Intrinsics.fs, Expressions/Coordinator.fs)
     - Coordinator dispatches to Intrinsics module for intrinsic resolution
     - Recognizes "Crypto.sha1" pattern
     - Creates IntrinsicInfo { Module=Crypto, Operation="sha1", Category=Pure }
@@ -330,7 +330,7 @@ LLVM → Native Binary
 ```
 
 **Key Architectural Points:**
-1. FNCS handles type checking and IntrinsicInfo creation
+1. CCS handles type checking and IntrinsicInfo creation
 2. The PSG carries the intrinsic metadata through nanopasses
 3. Alex witnesses consume the enriched PSG - no string matching on names
 4. Platform decisions (byte order, crypto impl) flow via quotations
@@ -348,7 +348,7 @@ These new modules complement existing intrinsics:
 
 ## 10. Error Handling
 
-All intrinsics in these modules follow the FNCS error handling model:
+All intrinsics in these modules follow the CCS error handling model:
 
 - **No exceptions**: Operations return deterministic results
 - **Invalid input**: Defined behavior (empty output, specific values)
@@ -356,8 +356,8 @@ All intrinsics in these modules follow the FNCS error handling model:
 
 ## 11. Normative Requirements
 
-1. **FNCS SHALL** add `Crypto` and `Bits` to `IntrinsicModule` enumeration
-2. **FNCS SHALL** type-check these intrinsics according to signatures in Section 6
+1. **CCS SHALL** add `Crypto` and `Bits` to `IntrinsicModule` enumeration
+2. **CCS SHALL** type-check these intrinsics according to signatures in Section 6
 3. **Alex SHALL** generate correct MLIR for all intrinsics
 4. **Alex SHALL** respect platform byte order for `Bits.hton*`/`Bits.ntoh*`
 5. **Crypto intrinsics SHALL** produce RFC-compliant output (SHA-1: FIPS 180-4, Base64: RFC 4648)

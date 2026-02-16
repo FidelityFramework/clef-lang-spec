@@ -1,12 +1,12 @@
 # Special Attributes and Types
 
-This chapter describes attributes and types that have special significance to the F# Native compiler.
+This chapter describes attributes and types that have special significance to the Clef compiler.
 
-> **F# Native Note**: F# Native does not use CLI assemblies or the .NET runtime. Attributes related to assembly metadata, P/Invoke interop, serialization, and runtime reflection are not applicable. This chapter covers only those attributes meaningful for native compilation.
+> **Clef Note**: Clef does not use CLI assemblies or the .NET runtime. Attributes related to assembly metadata, P/Invoke interop, serialization, and runtime reflection are not applicable. This chapter covers only those attributes meaningful for native compilation.
 
-## Custom Attributes Recognized by F# Native
+## Custom Attributes Recognized by Clef
 
-The following custom attributes have special meanings recognized by the F# Native compiler.
+The following custom attributes have special meanings recognized by the Clef compiler.
 
 ### F# Language Attributes
 
@@ -25,7 +25,7 @@ These attributes control F# language semantics and are fully supported:
 | `[<GeneralizableValue>]` | When applied to an F# value, indicates that uses of the attribute can result in generic code through the process of type inference. The value must typically be a type function whose implementation has no observable side effects. |
 | `[<Literal>]` | When applied to a value, compiles the value as a compile-time literal constant. |
 | `[<CompilerMessage(...)>]` | When applied to an F# construct, indicates that the F# compiler should report a message when the construct is used. |
-| `[<Struct>]` | Indicates that a type is a struct type with value semantics. In F# Native, struct types have deterministic stack or arena allocation. |
+| `[<Struct>]` | Indicates that a type is a struct type with value semantics. In Clef, struct types have deterministic stack or arena allocation. |
 | `[<Class>]` | Indicates that a type is a class type. |
 | `[<Interface>]` | Indicates that a type is an interface type. |
 | `[<Measure>]` | Indicates that a type or generic parameter is a unit of measure definition or annotation. Units of measure are erased at compile time. |
@@ -46,9 +46,9 @@ These attributes control memory layout for native compilation:
 | `[<StructLayout(...)>]` | Specifies the memory layout of a struct type. Supports `LayoutKind.Sequential` (default) and `LayoutKind.Explicit` for precise field placement. |
 | `[<FieldOffset(...)>]` | When applied to a field within a struct with explicit layout, specifies the byte offset of the field from the start of the struct. |
 | `[<VolatileField>]` | When applied to a mutable field, indicates that accesses to the field should use volatile memory semantics. Essential for memory-mapped I/O and peripheral access. |
-| `[<DefaultValue(...)>]` | When added to a field declaration, specifies that the field should be zero-initialized. In F# Native, this initializes to the zero bit pattern for the field's type. |
+| `[<DefaultValue(...)>]` | When added to a field declaration, specifies that the field should be zero-initialized. In Clef, this initializes to the zero bit pattern for the field's type. |
 
-> **F# Native Note**: The `StructLayout` and `FieldOffset` attributes are critical for defining types that must match specific memory layouts, such as hardware register descriptors or wire protocol structures. See [Memory Regions](memory-regions.md) for memory placement semantics.
+> **Clef Note**: The `StructLayout` and `FieldOffset` attributes are critical for defining types that must match specific memory layouts, such as hardware register descriptors or wire protocol structures. See [Memory Regions](memory-regions.md) for memory placement semantics.
 
 ### Inline and Optimization Attributes
 
@@ -56,11 +56,11 @@ These attributes control memory layout for native compilation:
 | --- | --- |
 | `inline` | The `inline` keyword on function definitions enables body expansion at call sites. See below for escape analysis semantics. |
 | `[<InlineIfLambda>]` | Indicates that a lambda argument should be inlined at call sites for performance. |
-| `[<NoDynamicInvocation>]` | When applied to an inline function or member definition, indicates that the function cannot be invoked dynamically. In F# Native, this is the default behavior since there is no dynamic invocation. |
+| `[<NoDynamicInvocation>]` | When applied to an inline function or member definition, indicates that the function cannot be invoked dynamically. In Clef, this is the default behavior since there is no dynamic invocation. |
 
 #### Inline Functions and Escape Analysis
 
-In F# Native, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, FNCS captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
+In Clef, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, CCS captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
 
 **The Escape Problem**: When a function allocates memory via `NativePtr.stackalloc` and returns a pointer to that memory, the pointer becomes invalid when the function returns (the stack frame is deallocated).
 
@@ -77,7 +77,7 @@ let hello() =
     greet name           // Undefined behavior
 ```
 
-**The Solution**: Marking the function `inline` causes FNCS to expand the function body at the call site, lifting the allocation to the caller's frame:
+**The Solution**: Marking the function `inline` causes CCS to expand the function body at the call site, lifting the allocation to the caller's frame:
 
 ```fsharp
 // WITH inline - allocation lifted to caller's frame
@@ -113,11 +113,11 @@ This pattern is common in platform libraries (e.g., `Console.readln`) where the 
 
 ### Platform Binding Notes
 
-> **F# Native Note**: F# Native does not use `DllImport` or P/Invoke. Platform operations use **FNCS intrinsics** (`Sys.write`, `NativePtr.set`, etc.) which are recognized by module pattern and compiled to platform-specific code. External library bindings use **quotation semantic carriers**. See [Platform Bindings](platform-bindings.md).
+> **Clef Note**: Clef does not use `DllImport` or P/Invoke. Platform operations use **CCS intrinsics** (`Sys.write`, `NativePtr.set`, etc.) which are recognized by module pattern and compiled to platform-specific code. External library bindings use **quotation semantic carriers**. See [Platform Bindings](platform-bindings.md).
 
 ### Memory Region Attributes
 
-These attributes control memory placement in F# Native:
+These attributes control memory placement in Clef:
 
 | Attribute | Description |
 | --- | --- |
@@ -140,31 +140,31 @@ type GPIO_TypeDef = {
 }
 ```
 
-## Custom Attributes Emitted by F# Native
+## Custom Attributes Emitted by Clef
 
-The F# Native compiler emits the following information as part of compilation:
+The Clef compiler emits the following information as part of compilation:
 
 | Information | Description |
 | --- | --- |
 | Debug symbols | Source location information for debugging, emitted in platform-native debug format (DWARF on Linux/macOS, PDB on Windows). |
 | Compilation mapping | Metadata indicating how compiled constructs correspond to F# source constructs. |
 
-> **F# Native Note**: Debug information is provided through native debug formats (DWARF on Linux/macOS, PDB on Windows).
+> **Clef Note**: Debug information is provided through native debug formats (DWARF on Linux/macOS, PDB on Windows).
 
-## Attributes Not Applicable to F# Native
+## Attributes Not Applicable to Clef
 
-The following attribute categories from managed F# are **not applicable** to F# Native compilation:
+The following attribute categories from managed F# are **not applicable** to Clef compilation:
 
 ### Assembly Attributes
 
-Assembly metadata attributes (`AssemblyVersion`, `AssemblyTitle`, `AssemblyCompany`, etc.) are not applicable as F# Native produces native binaries, not CLI assemblies.
+Assembly metadata attributes (`AssemblyVersion`, `AssemblyTitle`, `AssemblyCompany`, etc.) are not applicable as Clef produces native binaries, not CLI assemblies.
 
 ### P/Invoke and Interop Attributes
 
 | Not Applicable | Reason |
 | --- | --- |
-| `[<DllImport(...)>]` | P/Invoke is a CLI mechanism. Use FNCS intrinsics (`Sys.*`) or quotation-based binding libraries instead. See [Platform Bindings](platform-bindings.md). |
-| `[<MarshalAs(...)>]` | CLI marshalling is not applicable. F# Native types have deterministic native representations. |
+| `[<DllImport(...)>]` | P/Invoke is a CLI mechanism. Use CCS intrinsics (`Sys.*`) or quotation-based binding libraries instead. See [Platform Bindings](platform-bindings.md). |
+| `[<MarshalAs(...)>]` | CLI marshalling is not applicable. Clef types have deterministic native representations. |
 | `[<In>]`, `[<Out>]` | CLI parameter direction attributes. Not needed for native calling conventions. |
 | `[<UnmanagedFunctionPointer>]` | CLI interop mechanism. Native function pointers are used directly. |
 
@@ -180,7 +180,7 @@ Assembly metadata attributes (`AssemblyVersion`, `AssemblyTitle`, `AssemblyCompa
 
 | Not Applicable | Reason |
 | --- | --- |
-| `[<ReflectedDefinition>]` | Runtime quotation access. F# Native has no runtime reflection. |
+| `[<ReflectedDefinition>]` | Runtime quotation access. Clef has no runtime reflection. |
 | `[<TypeProviderXmlDocAttribute>]` | Type providers require CLI runtime. |
 | `[<TypeProviderDefinitionLocationAttribute>]` | Type providers require CLI runtime. |
 | `[<TypeForwardedTo(...)>]` | CLI type forwarding mechanism. |
@@ -192,44 +192,44 @@ Assembly metadata attributes (`AssemblyVersion`, `AssemblyTitle`, `AssemblyCompa
 | `[<ThreadStatic>]` | CLI thread-local storage. Use platform-specific TLS mechanisms. |
 | `[<ContextStatic>]` | CLI context-local storage. |
 
-## Error Conditions in F# Native
+## Error Conditions in Clef
 
-> **F# Native Note**: F# Native uses the `Result<'T, 'E>` type for explicit error handling rather than exceptions. Operations that can fail return `Result` values. The following describes how traditional exception scenarios are handled.
+> **Clef Note**: Clef uses the `Result<'T, 'E>` type for explicit error handling rather than exceptions. Operations that can fail return `Result` values. The following describes how traditional exception scenarios are handled.
 
 ### Arithmetic Errors
 
-| Condition | F# Native Handling |
+| Condition | Clef Handling |
 | --- | --- |
 | Division by zero (integer) | Returns `Error DivisionByZero` or causes hardware trap depending on platform configuration. |
 | Arithmetic overflow (checked context) | Returns `Error Overflow` in checked arithmetic operations. Unchecked operations wrap. |
 
 ### Array and Memory Errors
 
-| Condition | F# Native Handling |
+| Condition | Clef Handling |
 | --- | --- |
 | Index out of bounds | Returns `Error IndexOutOfBounds` or causes program termination depending on bounds-checking configuration. |
-| Null reference | **Cannot occur** - F# Native is null-free by construction. All references are valid. |
+| Null reference | **Cannot occur** - Clef is null-free by construction. All references are valid. |
 | Out of memory | Platform-dependent behavior. Stack allocation may cause stack overflow. Arena allocation failures are explicit. |
 
 ### Type Errors
 
-| Condition | F# Native Handling |
+| Condition | Clef Handling |
 | --- | --- |
 | Invalid cast | **Cannot occur** - All type conversions are verified at compile time. |
 | Type mismatch | **Cannot occur** - Type system prevents type mismatches statically. |
 
 ### Stack Overflow
 
-Stack overflow can occur with deeply recursive functions. F# Native provides:
+Stack overflow can occur with deeply recursive functions. Clef provides:
 - Tail call optimization to prevent stack growth for tail-recursive functions
 - Compile-time analysis to warn about potentially unbounded recursion
 - Platform-specific stack size configuration
 
-> **F# Native Note**: The absence of `NullReferenceException`, `InvalidCastException`, and similar runtime type errors is a fundamental property of F# Native's null-free, statically verified type system.
+> **Clef Note**: The absence of `NullReferenceException`, `InvalidCastException`, and similar runtime type errors is a fundamental property of Clef's null-free, statically verified type system.
 
 ## Platform-Specific Types
 
-F# Native provides the following types for platform interaction:
+Clef provides the following types for platform interaction:
 
 | Type | Description |
 | --- | --- |
@@ -240,7 +240,7 @@ F# Native provides the following types for platform interaction:
 
 ### Pointer Types with Access Kinds
 
-F# Native extends pointer types with access kind annotations:
+Clef extends pointer types with access kind annotations:
 
 ```fsharp
 type Ptr<'T, 'Region, 'Access> = ...

@@ -1,10 +1,10 @@
-# Sequence Expression Representation in F# Native
+# Sequence Expression Representation in Clef
 
-> **Normative specification for seq expression memory layout and state machine semantics in fsnative compilation.**
+> **Normative specification for seq expression memory layout and state machine semantics in Clef compilation.**
 
 ## 1. Overview
 
-F# Native implements `seq { }` expressions as state machine closures that extend the flat closure architecture. Sequence expressions are resumable computations that yield values lazily. This chapter specifies the memory representation, state machine generation, and the critical **Sequential flattening** pattern required for correct pre/post-yield expression extraction.
+Clef implements `seq { }` expressions as state machine closures that extend the flat closure architecture. Sequence expressions are resumable computations that yield values lazily. This chapter specifies the memory representation, state machine generation, and the critical **Sequential flattening** pattern required for correct pre/post-yield expression extraction.
 
 ## 2. Relationship to Closures and Lazy
 
@@ -73,7 +73,7 @@ However, `Seq.empty` is a primitive that avoids state machine generation entirel
 
 ### 4.1 Seq Structure
 
-A seq value in F# Native is a struct containing:
+A seq value in Clef is a struct containing:
 
 ```
 Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S₁, ..., sₖ: Sₖ]

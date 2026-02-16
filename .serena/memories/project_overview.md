@@ -1,17 +1,17 @@
-# fsnative-spec Project Overview
+# clef-lang-spec Project Overview
 
 ## Purpose
 
-Normative specification for F# Native compilation. Defines type semantics, memory layout, and platform bindings for native F# without .NET runtime.
+Normative specification for Clef compilation. Defines type semantics, memory layout, and platform bindings for native F# without .NET runtime.
 
 ## Repository Structure
 
 ```
-fsnative-spec/
+clef-lang-spec/
 ├── spec/                    # THE SPECIFICATION (authoritative)
 │   ├── Catalog.json         # Chapter ordering
 │   └── *.md                 # Spec chapters
-├── docs/                    # Empty (docs/fidelity moved to fsnative)
+├── docs/                    # Empty (docs/fidelity moved to Clef)
 ├── releases/                # Versioned spec snapshots
 └── README.md                # Project overview
 ```
@@ -32,7 +32,7 @@ fsnative-spec/
 - `program-structure-and-execution.md` - Native entry points
 - `special-attributes-and-types.md` - Remove BCL attributes
 
-### New fsnative-Specific Chapters
+### New Clef-Specific Chapters
 - `native-type-mappings.md` - F# syntax → native representation
 - `memory-regions.md` - Stack/Arena/Peripheral/Sram/Flash
 - `access-kinds.md` - ReadOnly/WriteOnly/ReadWrite
@@ -48,8 +48,8 @@ fsnative-spec/
 ## docs/fidelity/ (REMOVED)
 
 The docs/fidelity folder has been removed. Content was migrated:
-- `native-type-universe.md` → Moved to `fsnative/docs/fidelity/`
-- `fncs-specification.md` → Moved to `fsnative/docs/fidelity/`
+- `native-type-universe.md` → Moved to `Clef/docs/fidelity/`
+- `ccs-specification.md` → Moved to `Clef/docs/fidelity/`
 - `beyond-fslang-spec.md` → Extracted to Serena memory `design_philosophy`
 - `fsharp-features-in-fidelity.md` → Extracted to Firefly memory `fsharp_metaprogramming_patterns`
 - `README.md` → Deleted (navigation no longer needed)
@@ -67,7 +67,7 @@ All structural changes verified:
 
 ## Key Principles
 
-1. **Same syntax, native semantics** - Users write `string`, `option`, `array`; FNCS resolves to native types
+1. **Same syntax, native semantics** - Users write `string`, `option`, `array`; CCS resolves to native types
 2. **No BCL dependencies** - No System.*, no reflection, no GC
 3. **Compiler-controlled memory** - Fidelity makes ALL layout decisions
 4. **Platform bindings via module convention** - Not P/Invoke

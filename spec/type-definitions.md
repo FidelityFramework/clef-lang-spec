@@ -523,7 +523,7 @@ override GetHashCode : unit -> int
 override Equals : 'T -> bool  // where 'T is the record type
 ```
 
-> **F# Native Note**: In F# Native, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
+> **Clef Note**: In Clef, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
 
 The implicit implementations of these interfaces and overrides are described in [§](type-definitions.md#equality-hashing-and-comparison).
 
@@ -618,7 +618,7 @@ override GetHashCode : unit -> int
 override Equals : 'T -> bool  // where 'T is the union type
 ```
 
-> **F# Native Note**: In F# Native, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
+> **Clef Note**: In Clef, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
 
 The implicit implementations of these interfaces and overrides are described in [§](type-definitions.md#equality-hashing-and-comparison).
 
@@ -779,7 +779,7 @@ type MyDerived(...) =
 
 If a class definition does not contain an `inherit` declaration, the class has no base type.
 
-> **F# Native Note**: In F# Native, there is no universal base type `obj`. Classes without an explicit `inherit` declaration are standalone types. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: In Clef, there is no universal base type `obj`. Classes without an explicit `inherit` declaration are standalone types. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 The `inherit` declaration for a type must have arguments if and only if the type has a primary
 constructor.
@@ -1239,7 +1239,7 @@ let zero = Complex()
 
 > Note: The existence of the implicit default constructor for structs means that all struct types can be zero-initialized. F# does not permit direct use of default constructors for F# struct types unless all field types admit default initialization.
 <br>
-> **F# Native Note**: In F# Native, struct types are always default-constructible with zero-bit initialization. Public struct types should be designed with the existence of the default zero-initializing constructor in mind.
+> **Clef Note**: In Clef, struct types are always default-constructible with zero-bit initialization. Public struct types should be designed with the existence of the default zero-initializing constructor in mind.
 
 [Record Type Defintions](#record-type-definitions) may also use the `[<Struct>]` attribute to change their representation from a reference type to a value type:
 
@@ -1321,7 +1321,7 @@ type definition is declared by using the `delegate` keyword with a member signat
 type Handler<'T, 'Sender> = delegate of 'Sender * 'T -> unit
 ```
 
-> **F# Native Note**: In F# Native, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform operations use FNCS intrinsics rather than P/Invoke attributes. See [Platform Bindings](platform-bindings.md).
+> **Clef Note**: In Clef, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform operations use CCS intrinsics rather than P/Invoke attributes. See [Platform Bindings](platform-bindings.md).
 
 ## Exception Definitions
 
@@ -2149,7 +2149,7 @@ have type of the form ``-> _`` (i.e. a function type)
 
 The third type-directed conversion enables an F# expression to be implicitly converted to a quotation at a method call. This conversion enables meta-programming scenarios.
 
-> **F# Native Note**: F# Native supports code quotations for compile-time meta-programming. Runtime quotation evaluation is not available without a managed runtime.
+> **Clef Note**: Clef supports code quotations for compile-time meta-programming. Runtime quotation evaluation is not available without a managed runtime.
 
 ### Overloading of Methods
 
@@ -2313,7 +2313,7 @@ type SubClass(x: int) =
 
 In this example, `BaseClass` defines an abstract `Format` method with a default implementation. The `SubClass` inherits from `BaseClass` and overrides the `Format` method.
 
-> **F# Native Note**: In F# Native, there is no universal `obj` base type with `ToString`, `Equals`, or `GetHashCode` methods. Types that need string representation, equality, or hashing implement the appropriate interfaces or members explicitly.
+> **Clef Note**: In Clef, there is no universal `obj` base type with `ToString`, `Equals`, or `GetHashCode` methods. Types that need string representation, equality, or hashing implement the appropriate interfaces or members explicitly.
 
 Implementations may include abstract property members:
 
@@ -2535,7 +2535,7 @@ interface IStructuralComparable with
     member x.CompareTo(y: 'T, comparer: IComparer) = ...
 ```
 
-> **F# Native Note**: In F# Native, equality and comparison methods use the specific type rather than `obj`. The compiler generates type-safe implementations resolved at compile time through SRTP constraints.
+> **Clef Note**: In Clef, equality and comparison methods use the specific type rather than `obj`. The compiler generates type-safe implementations resolved at compile time through SRTP constraints.
 
 For exception types, implicit declarations for structural equality and hashings are generated, but
 declarations for structural comparison are not generated. Implicit declarations are never generated
@@ -2672,7 +2672,7 @@ implementation is as follows.
        two values, then on each corresponding field pair for the data carried by the exception. This
        method stops at the first `false` result and returns `false`.
 
-> **F# Native Note**: In F# Native, `Equals` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion or null reference check since the type system enforces correctness at compile time.
+> **Clef Note**: In Clef, `Equals` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion or null reference check since the type system enforces correctness at compile time.
 
 ### Behavior of the Generated CompareTo Implementations
 
@@ -2692,7 +2692,7 @@ interface IComparable with
     member x.CompareTo(y: T) = ...
 ```
 
-> **F# Native Note**: In F# Native, `CompareTo` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion since the type system enforces type safety at compile time.
+> **Clef Note**: In Clef, `CompareTo` takes a typed parameter `y: T` rather than `y: obj`. There is no runtime type conversion since the type system enforces type safety at compile time.
 
 ### Behavior of the Generated GetHashCode Implementations
 

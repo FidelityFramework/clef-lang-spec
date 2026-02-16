@@ -56,9 +56,9 @@ module Lazy =
 1. **Audit Alloy** for existing implementations of these types
 2. **Prioritize** based on language construct requirements (Lazy is high priority)
 3. **Add to Alloy project Serena memory** when activating that project
-4. **Update fsnative-spec** to document what Alloy MUST provide
+4. **Update clef-lang-spec** to document what Alloy MUST provide
 
 ## Cross-References
 
-- fsnative-spec: `spec/the-native-library-alloy.md` should enumerate required types
+- clef-lang-spec: `spec/the-native-library-alloy.md` should enumerate required types
 - Firefly: Compiler expects certain types to exist for language constructs

@@ -32,7 +32,7 @@
         "platform-bindings",
         "backend-lowering-architecture",
         "inference-procedures",
-        "fsharp-native-expr",
+        "clef-expr",
         "lexical-filtering",
         "special-attributes-and-types",
         "error-handling",

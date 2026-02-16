@@ -13,14 +13,14 @@
 
 ## 1. Overview
 
-This chapter specifies how F# Native lowers high-level constructs to backend-specific representations using MLIR's multi-dialect architecture.
+This chapter specifies how Clef lowers high-level constructs to backend-specific representations using MLIR's multi-dialect architecture.
 
 ## 2. The Two-Layer Model
 
-F# Native uses a two-layer intermediate representation:
+Clef uses a two-layer intermediate representation:
 
 ```
-F# Source → FNCS → PSG → Alex → MLIR (mixed dialects) → Backend → Native Binary
+F# Source → CCS → PSG → Alex → MLIR (mixed dialects) → Backend → Native Binary
                                       ↑
                                Portable + Backend-Specific
 ```
@@ -66,7 +66,7 @@ Operations that commit to a specific representation require backend-specific dia
 
 ## 4. Flat Closure Pattern and Backend Dialects
 
-F# Native implements closures, lazy values, and sequences using flat closures that store function pointers in structs. This pattern requires backend-specific code.
+Clef implements closures, lazy values, and sequences using flat closures that store function pointers in structs. This pattern requires backend-specific code.
 
 ### 4.1 Why Backend-Specific
 
@@ -147,7 +147,7 @@ endianness = "little"
 
 This configuration flows through:
 1. `Fidelity.Platform` selects the appropriate `PlatformDescriptor`
-2. FNCS uses platform info for type layouts and intrinsic typing
+2. CCS uses platform info for type layouts and intrinsic typing
 3. Alex selects appropriate backend dialect usage
 4. Backend receives correctly-lowered IR
 

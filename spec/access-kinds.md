@@ -4,7 +4,7 @@ Access kinds define the permitted operations on pointers and memory regions. The
 
 ## Overview
 
-Every pointer in F# Native carries an access kind that specifies what operations are legal:
+Every pointer in Clef carries an access kind that specifies what operations are legal:
 
 ```fsharp
 type Ptr<'T, 'Region, 'Access>

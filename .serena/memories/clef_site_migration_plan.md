@@ -1,11 +1,11 @@
-# fsnative.com Site Migration Plan
+# clef-lang.com Site Migration Plan
 
-> **Purpose**: Plan the migration of relevant SpeakEZ blog content to fsnative.com alongside the formal language specification.
+> **Purpose**: Plan the migration of relevant SpeakEZ blog content to clef-lang.com alongside the formal language specification.
 > **Created**: January 2026
 
 ## 1. Site Architecture Vision
 
-fsnative.com should serve as the authoritative home for F# Native, containing:
+clef-lang.com should serve as the authoritative home for Clef, containing:
 
 1. **Formal Specification** (`/spec/`) - Normative language specification
 2. **Commentary** (`/commentary/`) - Accessible explanations of spec concepts
@@ -21,7 +21,7 @@ This follows the **Standard ML model**: The Definition (formal spec) + Commentar
 
 ### 2.1 TIER 1: Core Language/Compiler Commentary (MIGRATE FIRST)
 
-These directly explain spec concepts and should become the "Commentary on F# Native":
+These directly explain spec concepts and should become the "Commentary on Clef":
 
 | Blog Entry | Spec Chapter Companion | Migration Priority |
 |------------|----------------------|-------------------|
@@ -76,7 +76,7 @@ These cover the broader Fidelity ecosystem:
 
 ### 2.4 TIER 4: Ecosystem & Related Projects (CONSIDER)
 
-These cover related projects (Farscape, BAREWire) - may belong on fsnative.com or stay on SpeakEZ:
+These cover related projects (Farscape, BAREWire) - may belong on clef-lang.com or stay on SpeakEZ:
 
 | Blog Entry | Topic Area | Decision |
 |------------|-----------|----------|
@@ -88,7 +88,7 @@ These cover related projects (Farscape, BAREWire) - may belong on fsnative.com o
 
 ### 2.5 TIER 5: Optimization & Hardware (CONSIDER)
 
-Deep technical content that may fit fsnative.com:
+Deep technical content that may fit clef-lang.com:
 
 | Blog Entry | Topic Area | Decision |
 |------------|-----------|----------|
@@ -104,7 +104,7 @@ Deep technical content that may fit fsnative.com:
 | **Proof-Aware Compilation.md** | Verification | CONSIDER |
 | **MLIR Testing with Teeth.md** | Testing infrastructure | CONSIDER |
 
-### 2.6 KEEP ON SPEAKEZ (Not F# Native specific)
+### 2.6 KEEP ON SPEAKEZ (Not Clef specific)
 
 These are broader SpeakEZ/company content:
 
@@ -138,7 +138,7 @@ The goal is for each major spec chapter to have a companion commentary article:
 
 ## 4. Content Transformation Notes
 
-When migrating blog entries to fsnative.com commentary:
+When migrating blog entries to clef-lang.com commentary:
 
 ### 4.1 Keep As-Is
 - Narrative explanatory style
@@ -149,7 +149,7 @@ When migrating blog entries to fsnative.com commentary:
 
 ### 4.2 Remove/Adapt
 - SpeakEZ-specific branding
-- Hugo frontmatter (replace with fsnative.com format)
+- Hugo frontmatter (replace with clef-lang.com format)
 - Date-specific references ("In March 2025...")
 - References to external SpeakEZ services
 
@@ -163,7 +163,7 @@ When migrating blog entries to fsnative.com commentary:
 ## 5. Site Structure Proposal
 
 ```
-fsnative.com/
+clef-lang.com/
 ├── spec/                           # Formal specification
 │   ├── index.md                    # Spec table of contents
 │   ├── types-and-type-constraints.md
@@ -171,7 +171,7 @@ fsnative.com/
 │   ├── lazy-representation.md
 │   └── ...
 │
-├── commentary/                     # "Commentary on F# Native"
+├── commentary/                     # "Commentary on Clef"
 │   ├── index.md                    # Commentary overview
 │   ├── gaining-closure.md          # Companion to closure-representation
 │   ├── why-lazy-is-hard.md         # Companion to lazy-representation
@@ -198,19 +198,19 @@ fsnative.com/
 ## 6. Action Items
 
 1. [ ] Finalize blog entry migration decisions (Tiers 1-3 confirmed, Tiers 4-5 reviewed)
-2. [ ] Set up fsnative.com site infrastructure
+2. [ ] Set up clef-lang.com site infrastructure
 3. [ ] Migrate Tier 1 commentary articles
 4. [ ] Restructure spec chapters (normative-only)
 5. [ ] Create rationale/ directory from extracted spec content
 6. [ ] Cross-reference spec ↔ commentary
-7. [ ] Update Firefly CLAUDE.md to reference fsnative.com
+7. [ ] Update Firefly CLAUDE.md to reference clef-lang.com
 
 ---
 
 ## 7. Key Insight
 
-The SpeakEZ blog already contains an excellent "Commentary on F# Native" - it just needs to be:
-1. **Consolidated** on fsnative.com
+The SpeakEZ blog already contains an excellent "Commentary on Clef" - it just needs to be:
+1. **Consolidated** on clef-lang.com
 2. **Cross-referenced** with the formal spec
 3. **Separated** from the normative spec text
 

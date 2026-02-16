@@ -1,10 +1,10 @@
-# FNCS: Bidirectional Type Inference for DU Case Resolution
+# CCS: Bidirectional Type Inference for DU Case Resolution
 
 ## Status: TO BE IMPLEMENTED
 
 ## Problem Statement
 
-FNCS doesn't currently use bidirectional type inference to disambiguate DU cases based on expected type context. Standard F# does this - when the field type is `SlotState`, it constrains `Free` to be `SlotState.Free`.
+CCS doesn't currently use bidirectional type inference to disambiguate DU cases based on expected type context. Standard F# does this - when the field type is `SlotState`, it constrains `Free` to be `SlotState.Free`.
 
 ## Example
 
@@ -15,13 +15,13 @@ type EffectState = | Free | Idle | Running | Queued
 type SignalSlot = { State: SlotState; ... }
 
 // Standard F#: Works - infers SlotState.Free from field type
-// FNCS: Fails - resolves Free → EffectState.Free (last registered wins)
+// CCS: Fails - resolves Free → EffectState.Free (last registered wins)
 let slot = { State = Free; ... }
 ```
 
 ## Current Behavior
 
-FNCS uses `NameResolution.compose` with left-biased choice:
+CCS uses `NameResolution.compose` with left-biased choice:
 ```fsharp
 let compose (r1: Resolver) (r2: Resolver) : Resolver =
     fun name ->
@@ -122,7 +122,7 @@ let isTypeCompatible (expected: NativeType) (actual: NativeType) : bool =
 
 - F# Language Spec: Type Inference and Subtype Resolution
 - FCS source: `CheckExpressions.fs` bidirectional inference patterns
-- See Serena memory: `fncs_du_resolution_limitation` in Firefly project
+- See Serena memory: `ccs_du_resolution_limitation` in Firefly project
 
 ## Priority
 

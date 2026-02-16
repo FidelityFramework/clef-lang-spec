@@ -8,13 +8,13 @@ The `spec/special-attributes-and-types.md` chapter was extensively revised to re
 
 ### Removed Entirely
 
-1. **Assembly Metadata Attributes**: All `System.Reflection.Assembly*` attributes removed (AssemblyVersion, AssemblyTitle, AssemblyCompany, etc.) - F# Native produces native binaries, not CLI assemblies
+1. **Assembly Metadata Attributes**: All `System.Reflection.Assembly*` attributes removed (AssemblyVersion, AssemblyTitle, AssemblyCompany, etc.) - Clef produces native binaries, not CLI assemblies
 
 2. **P/Invoke Attributes**: `DllImport`, `MarshalAs`, `In`, `Out`, `UnmanagedFunctionPointer` - replaced by Platform.Bindings module convention
 
 3. **Serialization Attributes**: `Serializable`, `NonSerialized`, `AutoSerializable` - CLI serialization not applicable; BAREWire for binary serialization
 
-4. **Reflection Attributes**: `ReflectedDefinition`, TypeProvider attributes - no runtime reflection in F# Native
+4. **Reflection Attributes**: `ReflectedDefinition`, TypeProvider attributes - no runtime reflection in Clef
 
 5. **Threading Attributes**: `ThreadStatic`, `ContextStatic` - CLI thread-local storage; use platform-specific TLS mechanisms
 
@@ -36,7 +36,7 @@ The `spec/special-attributes-and-types.md` chapter was extensively revised to re
    - `VolatileField` - for memory-mapped I/O semantics
    - `DefaultValue` - for zero-initialization
 
-### Added for F# Native
+### Added for Clef
 
 1. **Platform Binding Attribute**: `[<PlatformBinding>]` - marks functions in Platform.Bindings for compiler-provided implementation
 
@@ -50,9 +50,9 @@ The `spec/special-attributes-and-types.md` chapter was extensively revised to re
 
 ## Exception to Error Handling Transformation
 
-Replaced the entire "Exceptions Thrown by F# Language Primitives" section with "Error Conditions in F# Native":
+Replaced the entire "Exceptions Thrown by F# Language Primitives" section with "Error Conditions in Clef":
 
-| Original Exception | F# Native Handling |
+| Original Exception | Clef Handling |
 |--------------------|-------------------|
 | `DivideByZeroException` | `Error DivisionByZero` or hardware trap |
 | `OverflowException` | `Error Overflow` in checked context; wrap in unchecked |

@@ -344,9 +344,9 @@ let pair = struct (1,2)
 
 A _struct tuple expression_ is checked in the same way as a _tuple expression_, but the pseudo-type `S` is resolved to struct tuple.
 
-Tuple types `ty1 * ... * tyn` are compiled to native product types with sequential field layout. There is no limit on tuple arity in F# Native.
+Tuple types `ty1 * ... * tyn` are compiled to native product types with sequential field layout. There is no limit on tuple arity in Clef.
 
-> **F# Native Note**: In F# Native, tuples are compiled directly to unboxed product types with deterministic memory layout. Fields are laid out sequentially with natural alignment. There is no distinction between "reference tuples" and "struct tuples" - both compile to value types with the same representation. The `struct` keyword on tuples is accepted for source compatibility with managed F#.
+> **Clef Note**: In Clef, tuples are compiled directly to unboxed product types with deterministic memory layout. Fields are laid out sequentially with natural alignment. There is no distinction between "reference tuples" and "struct tuples" - both compile to value types with the same representation. The `struct` keyword on tuples is accepted for source compatibility with managed F#.
 
 ### List Expressions
 
@@ -375,7 +375,7 @@ Array expressions are a primitive elaborated form.
 `byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, and `uint64` are compiled to an efficient
 binary representation.
 
-> **F# Native Note**: In F# Native, constant arrays are placed in read-only data sections of the binary and initialized directly from the executable image.
+> **Clef Note**: In Clef, constant arrays are placed in read-only data sections of the binary and initialized directly from the executable image.
 
 ### Record Expressions
 
@@ -585,7 +585,7 @@ slots of the type being implemented. For example, `obj3` in the preceding exampl
 `IComparer<int>` but the object additionally implements the interface `IDisposable`. The additional interfaces
 are not part of the static type of the overall expression, but can be revealed through type tests.
 
-> **F# Native Note**: Object expressions in F# Native MUST implement at least one interface type. The base type `obj` does not exist in native compilation, so object expressions of the form `{ new obj() with ... }` are not permitted. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: Object expressions in Clef MUST implement at least one interface type. The base type `obj` does not exist in native compilation, so object expressions of the form `{ new obj() with ... }` are not permitted. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 Object expressions are statically checked as follows.
 
@@ -645,7 +645,7 @@ Lazy.create (fun () -> expr)
 The behavior of the `Lazy` type ensures that expression `expr` is evaluated on demand in
 response to a `Lazy.force` operation on the lazy value.
 
-> **F# Native Note**: In F# Native, `Lazy<'T>` is implemented as an extension of the flat closure architecture. The lazy struct contains a computed flag, value slot, thunk code pointer, and inlined captures. Forcing uses the thunk calling convention where the thunk receives a pointer to its containing struct. See [Lazy Value Representation](lazy-representation.md) for complete specification.
+> **Clef Note**: In Clef, `Lazy<'T>` is implemented as an extension of the flat closure architecture. The lazy struct contains a computed flag, value slot, thunk code pointer, and inlined captures. Forcing uses the thunk calling convention where the thunk receives a pointer to its containing struct. See [Lazy Value Representation](lazy-representation.md) for complete specification.
 >
 > Key properties:
 > - No garbage collector involvement
@@ -1541,7 +1541,7 @@ where:
 | `%O` | Any type with SRTP-resolved `ToString` member |
 | `%A` | Any type with SRTP-resolved formatting |
 
-> **F# Native Note**: The `%O` and `%A` format specifiers use statically resolved type parameters rather than runtime type inspection. The type must have appropriate formatting members resolvable at compile time. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: The `%O` and `%A` format specifiers use statically resolved type parameters rather than runtime type inspection. The type must have appropriate formatting members resolvable at compile time. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 | `%a` | Formatter of type `'State -> 'T -> 'Residue` for a fresh variable type `'T` |
 | `%t` | Formatter of type `'State -> 'Residue` |
 
@@ -1801,7 +1801,7 @@ position. The F# compiler does not check for this.
 
 Direct uses of `byref` types, `nativeptr` types, or values in the `FSharp.NativeInterop` module require careful attention to memory safety. In particular, `byref` and `nativeptr` types may NOT be used within named types such as tuples or function types.
 
-> **F# Native Note**: In F# Native, `nativeptr<ty>` maps directly to a native pointer type. When interfacing with native code that uses a pointer type `ty*`, use a value of type `nativeptr<ty>`.
+> **Clef Note**: In Clef, `nativeptr<ty>` maps directly to a native pointer type. When interfacing with native code that uses a pointer type `ty*`, use a value of type `nativeptr<ty>`.
 
 > Note: The rules in this section apply to the following prefix operators, which are defined
 in the F# core library for use with one argument.
@@ -2391,7 +2391,7 @@ assert expr
 
 The expression `assert expr` evaluates `expr` and triggers a runtime assertion failure if the result is `false`.
 
-> **F# Native Note**: In F# Native, assertions are controlled by the `DEBUG` conditional compilation symbol. When disabled, assertion expressions are elided entirely. When enabled, a failed assertion causes program termination with diagnostic output.
+> **Clef Note**: In Clef, assertions are controlled by the `DEBUG` conditional compilation symbol. When disabled, assertion expressions are elided entirely. When enabled, a failed assertion causes program termination with diagnostic output.
 
 ## Definition Expressions
 
@@ -2576,7 +2576,7 @@ are defined, the recursive expressions are analyzed for safety ([§](inference-c
 
 #### Nested Recursive Functions and Captures
 
-> **F# Native Note**: When a recursive function is defined inside another function, it may capture variables from the enclosing scope. These captures must be tracked and propagated to code generation.
+> **Clef Note**: When a recursive function is defined inside another function, it may capture variables from the enclosing scope. These captures must be tracked and propagated to code generation.
 
 ```fsharp
 let sumTo (n: int) : int =
@@ -2586,7 +2586,7 @@ let sumTo (n: int) : int =
     loop 0 1
 ```
 
-In this example, the nested `loop` function captures `n` from `sumTo`. The capture analysis (see [Closure Representation §4.2](closure-representation.md#42-capture-analysis-in-fncs)) SHALL identify `n` as a captured variable for `loop`, even though `loop` is a named recursive binding rather than an anonymous lambda.
+In this example, the nested `loop` function captures `n` from `sumTo`. The capture analysis (see [Closure Representation §4.2](closure-representation.md#42-capture-analysis-in-ccs)) SHALL identify `n` as a captured variable for `loop`, even though `loop` is a named recursive binding rather than an anonymous lambda.
 
 Contrast with:
 ```fsharp
@@ -2647,13 +2647,13 @@ try expr2
 finally (ident :> IDisposable).Dispose()
 ```
 
-> **F# Native Note**: In F# Native, `use` bindings provide deterministic resource cleanup. F# Native is null-free by construction, so disposal code requires no null checks.
+> **Clef Note**: In Clef, `use` bindings provide deterministic resource cleanup. Clef is null-free by construction, so disposal code requires no null checks.
 
 ### Pinned Pointer Expressions
 
 A _pinned pointer expression_ allows a pointer to be extracted from an expression and bound to a name, ensuring the value remains at a fixed memory address for the scope of the binding. This feature is intended for low-level programming scenarios.
 
-> **F# Native Note**: In F# Native, `fixed` expressions are primarily used for interoperability with native APIs that require stable pointers. Since F# Native uses deterministic memory management without a moving collector, the pinning semantic ensures the pointer remains valid for the binding scope.
+> **Clef Note**: In Clef, `fixed` expressions are primarily used for interoperability with native APIs that require stable pointers. Since Clef uses deterministic memory management without a moving collector, the pinning semantic ensures the pointer remains valid for the binding scope.
 
 A pinned pointer expression has the following form:
 
@@ -2733,14 +2733,14 @@ type of the overall expression. For example:
 (upcast [1;2;3] : seq<int>)
 ```
 
-> **F# Native Note**: Static coercion is valid for upcasting to implemented interfaces or base class types. The expression `(x :> obj)` is not valid because `obj` does not exist in F# Native. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: Static coercion is valid for upcasting to implemented interfaces or base class types. The expression `(x :> obj)` is not valid because `obj` does not exist in Clef. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 The initial type of the overall expression is `ty`. Expression `expr` is checked using a fresh initial type
 `tye`, with constraint `tye :> ty`. Static coercions are a primitive elaborated form.
 
 ### Dynamic Type-Test Expressions
 
-> **F# Native Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
+> **Clef Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
 
 A dynamic type-test expression has the following form:
 
@@ -2770,7 +2770,7 @@ The initial type of the overall expression is `bool`. Expression `expr` is check
 
 ### Dynamic Coercion Expressions
 
-> **F# Native Note**: Dynamic coercion (`:?>`) requires runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
+> **Clef Note**: Dynamic coercion (`:?>`) requires runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
 
 A dynamic coercion expression has the following form:
 
@@ -2781,7 +2781,7 @@ expr :?> ty
 The expression downcast `e1` is equivalent to `expr :?> _`, so the target type is the same as the initial
 type of the overall expression.
 
-In F# Native, use pattern matching for type-safe extraction:
+In Clef, use pattern matching for type-safe extraction:
 
 ```fsharp
 type Value = IntVal of int | StrVal of string
@@ -3018,7 +3018,7 @@ Some types have a _zero value_. The zero value is the "default" value for the ty
 
 - For struct types, the value with all fields set to the zero value for the type of the field. The zero value is also computed by the F# library function `Unchecked.defaultof<ty>`.
 
-> **F# Native Note**: In F# Native, reference types do not have a null zero value since F# Native is null-free by construction. The `Unchecked.defaultof<ty>` function returns a zero bit pattern for struct types only; it is a compile-time error to use it with reference types.
+> **Clef Note**: In Clef, reference types do not have a null zero value since Clef is null-free by construction. The `Unchecked.defaultof<ty>` function returns a zero bit pattern for struct types only; it is a compile-time error to use it with reference types.
 
 ### Taking the Address of an Elaborated Expression
 
@@ -3112,7 +3112,7 @@ At runtime, an elaborated lookup of an F# field is evaluated as follows:
 - The value of the field is read from either the global field table or the local field table associated
     with the object.
 
-> **F# Native Note**: In F# Native, there is no null reference check since all references are valid by construction.
+> **Clef Note**: In Clef, there is no null reference check since all references are valid by construction.
 
 ### Evaluating Array Expressions
 
@@ -3225,7 +3225,7 @@ At runtime, elaborated dynamic coercion expressions `expr :?> ty` are evaluated 
 Expressions of the form `expr :?> ty` evaluate in the same way as the F# library function
 `unbox<ty>(expr)`.
 
-> **F# Native Note**: In F# Native, the `option<_>` type uses `voption` semantics internally and is null-free. Boxing operations behave consistently since there is no null representation.
+> **Clef Note**: In Clef, the `option<_>` type uses `voption` semantics internally and is null-free. Boxing operations behave consistently since there is no null representation.
 
 ### Evaluating Sequential Execution Expressions
 
@@ -3271,11 +3271,11 @@ one of the following forms:
 The expression evaluates to the address of the referenced local mutable value, mutable field, or
 mutable static field.
 
-> **F# Native Note**: In F# Native, arrays are invariant and covariant array assignment is not supported. The type system statically prevents array type mismatches that would require runtime checks.
+> **Clef Note**: In Clef, arrays are invariant and covariant array assignment is not supported. The type system statically prevents array type mismatches that would require runtime checks.
 
 ### Values with Underspecified Object Identity
 
-> **F# Native Note**: This section describes reference equality semantics. In F# Native, there is no `obj` base type and no runtime type introspection. Equality and hashing are implemented through statically resolved type constraints. The operations `ReferenceEquals`, `GetType()`, and `GetHashCode()` from `System.Object` are not available.
+> **Clef Note**: This section describes reference equality semantics. In Clef, there is no `obj` base type and no runtime type introspection. Equality and hashing are implemented through statically resolved type constraints. The operations `ReferenceEquals`, `GetType()`, and `GetHashCode()` from `System.Object` are not available.
 
 F# supports operations that detect object identity—that is, whether two references refer to the same "physical" location in memory.
 
@@ -3288,4 +3288,4 @@ The results of identity-based operations are underspecified when used with value
 
 For two values of such types, the compiler may produce semantically equivalent but physically distinct values. An implementation of F# is not required to preserve or guarantee physical identity for values of these types.
 
-In F# Native, use structural equality (via `=` operator or `IEquatable<'T>` constraint) for value comparison rather than reference identity.
+In Clef, use structural equality (via `=` operator or `IEquatable<'T>` constraint) for value comparison rather than reference identity.

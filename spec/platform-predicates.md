@@ -29,7 +29,7 @@ Fidelity adopts this pattern using F# quotations as the carrier mechanism.
 
 | Phase | Predicate Treatment |
 |-------|---------------------|
-| FNCS Type Checking | Abstract - values unknown |
+| CCS Type Checking | Abstract - values unknown |
 | SemanticGraph | Carried as quotations |
 | Alex Code Generation | Resolved from platform library |
 | MLIR Output | Concrete - dead code eliminated |
@@ -204,7 +204,7 @@ has_atomics_64 ==> has_atomics_32
 
 ### 7.2 Implication Usage
 
-FNCS may use implications to simplify predicate checking:
+CCS may use implications to simplify predicate checking:
 
 ```fsharp
 // If fits_u64 is known true, fits_u32 need not be checked
@@ -212,14 +212,14 @@ if checkPredicate "fits_u64" ctx then
     // fits_u32 is implicitly true
 ```
 
-## 8. FNCS Handling of Predicates
+## 8. CCS Handling of Predicates
 
 ### 8.1 Abstract Predicate Values
 
 During type checking, predicates are abstract:
 
 ```fsharp
-// FNCS does NOT know the value of Platform.fits_u64
+// CCS does NOT know the value of Platform.fits_u64
 // It carries the predicate through unchanged
 type PredicateContext = {
     Predicates: Map<string, Expr<bool>>
@@ -236,7 +236,7 @@ Some type validity depends on predicates:
 let x: int64 = 100L  // Valid only if fits_u64
 ```
 
-FNCS may emit warnings/errors for predicate-dependent types on constrained platforms.
+CCS may emit warnings/errors for predicate-dependent types on constrained platforms.
 
 ## 9. Alex Resolution of Predicates
 
@@ -282,7 +282,7 @@ call @avx2_impl()
 3. **MUST** honor implication rules from Section 7
 4. **SHOULD** document CPU-dependent predicates
 
-### 10.2 FNCS Requirements
+### 10.2 CCS Requirements
 
 1. **MUST** carry predicates through SemanticGraph unchanged
 2. **MUST NOT** assume predicate values during type checking
@@ -302,7 +302,7 @@ call @avx2_impl()
 If a predicate is referenced but not defined:
 
 ```
-Error FNCS4001: Unknown platform predicate 'has_avx1024'
+Error CCS4001: Unknown platform predicate 'has_avx1024'
 ```
 
 ### 11.2 Predicate Conflict
@@ -310,7 +310,7 @@ Error FNCS4001: Unknown platform predicate 'has_avx1024'
 If predicate values violate implications:
 
 ```
-Error FNCS4002: Platform defines has_avx512=true but has_avx2=false
+Error CCS4002: Platform defines has_avx512=true but has_avx2=false
                (has_avx512 implies has_avx2)
 ```
 
@@ -319,7 +319,7 @@ Error FNCS4002: Platform defines has_avx512=true but has_avx2=false
 If platform library lacks required predicates:
 
 ```
-Error FNCS4003: Platform library missing required predicate 'fits_u32'
+Error CCS4003: Platform library missing required predicate 'fits_u32'
 ```
 
 ## 12. Related Specifications

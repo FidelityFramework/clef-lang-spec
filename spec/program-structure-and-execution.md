@@ -1,8 +1,8 @@
 # Program Structure and Execution
 
-> **F# Native Note**: F# Native programs do not use CLI assemblies. Instead, programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
+> **Clef Note**: Clef programs do not use CLI assemblies. Instead, programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
 
-F# Native programs are composed of an ordered sequence of signature (`.fsi`) files and implementation (`.fs`) files, plus any library dependencies specified in the project file (`.fidproj`). Script files (`.fsx`) are supported for development and tooling but are not part of native compilation.
+Clef programs are composed of an ordered sequence of signature (`.fsi`) files and implementation (`.fs`) files, plus any library dependencies specified in the project file (`.fidproj`). Script files (`.fsx`) are supported for development and tooling but are not part of native compilation.
 
 ```fsgrammar
 implementation-file :=
@@ -39,7 +39,7 @@ A sequence of implementation and signature files is checked as follows.
     - Add the top-level types, modules, and namespaces to the environment.
     - For each `AutoOpen` attribute in the library, find the types, modules, and namespaces that the attribute references and add these to the environment.
     
-    > **F# Native Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
+    > **Clef Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
 
     The resulting environment becomes the active environment for the first file to be processed.
 2. For each file:
@@ -162,7 +162,7 @@ The result of checking a signature file is a set of elaborated namespace declara
 
 ## Script Files
 
-> **F# Native Note**: Script files (`.fsx`, `.fsscript`) are primarily used for development tooling and F# Interactive. They are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
+> **Clef Note**: Script files (`.fsx`, `.fsscript`) are primarily used for development tooling and F# Interactive. They are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
 
 Script files have the `.fsx` or `.fsscript` filename extension. They are processed for development scenarios with the following characteristics:
 
@@ -190,7 +190,7 @@ The following directives are valid in all files:
 | --- | --- | --- |
 | `#nowarn` | `#nowarn "54"` | For signature (`.fsi`) files and implementation (`.fs`) files, turns off warnings within this lexical scope. For script (`.fsx` or `.fsscript`) files, turns off warnings globally. |
 
-> **F# Native Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following script directives are supported only in F# Interactive tooling, not in native compilation:
+> **Clef Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following script directives are supported only in F# Interactive tooling, not in native compilation:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
@@ -201,18 +201,18 @@ The following directives are valid in all files:
 
 ## Program Execution
 
-> **F# Native Note**: Execution of F# Native code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler.
+> **Clef Note**: Execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler.
 
-Execution of F# Native code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
+Execution of Clef code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
 
 ### Execution of Static Initializers
 
-Each implementation file involves a _static initializer_. In F# Native, static initialization is deterministic and occurs at program startup:
+Each implementation file involves a _static initializer_. In Clef, static initialization is deterministic and occurs at program startup:
 
 - For executables with an explicit entry point function, the static initializers for all files are executed in compilation order before the entry point function is called.
 - For executables with an implicit entry point, the static initializer for the last file is the body of the implicit entry point function.
 
-> **F# Native Note**: Static initialization is eager and deterministic. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable behavior essential for embedded and real-time systems.
+> **Clef Note**: Static initialization is eager and deterministic. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable behavior essential for embedded and real-time systems.
 
 At startup, the static initializer evaluates, in order, the definitions in each file that have observable initialization. Definitions with observable initialization in nested modules and types are included in the static initializer for the overall file.
 
@@ -270,13 +270,13 @@ The last file that is specified in the compilation order for an executable file 
 - The function is asserted to have type `array<string> -> int` before type checking. If the assertion fails, an error occurs.
 - At startup, the entry point is passed one argument: an array that contains the command-line arguments passed to the program (excluding the program name).
 
-The function becomes the entry point to the program. At startup, F# Native executes all static initializers in compilation order, then evaluates the body of the entry point function.
+The function becomes the entry point to the program. At startup, Clef executes all static initializers in compilation order, then evaluates the body of the entry point function.
 
-> **F# Native Note**: The entry point function's return value becomes the process exit code. A return value of 0 indicates success; non-zero values indicate errors. For freestanding (no-OS) targets, the return value may be ignored or handled by the runtime stub.
+> **Clef Note**: The entry point function's return value becomes the process exit code. A return value of 0 indicates success; non-zero values indicate errors. For freestanding (no-OS) targets, the return value may be ignored or handled by the runtime stub.
 
 #### Entry Point Modes
 
-F# Native supports multiple entry point modes, specified via `output_kind` in the project file:
+Clef supports multiple entry point modes, specified via `output_kind` in the project file:
 
 | Mode | Entry Symbol | libc Required | Description |
 |------|-------------|---------------|-------------|

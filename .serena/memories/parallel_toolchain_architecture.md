@@ -2,13 +2,13 @@
 
 ## Core Principle
 
-F# Native uses a **parallel toolchain** rather than plugins/extensions to managed F# tooling. This is not a preference but a necessity driven by fundamental architectural differences.
+Clef uses a **parallel toolchain** rather than plugins/extensions to managed F# tooling. This is not a preference but a necessity driven by fundamental architectural differences.
 
 ## The Parallel Stack
 
-| Layer | Managed F# | F# Native | Notes |
+| Layer | Managed F# | Clef | Notes |
 |-------|------------|-----------|-------|
-| **Compiler Services** | FCS | FNCS | Different type resolution |
+| **Compiler Services** | FCS | CCS | Different type resolution |
 | **Language Server** | FSAC | FSNAC | Different value handling |
 | **Package Manager** | NuGet | Fargo (fpm) | Binary vs source packages |
 | **Registry** | nuget.org | frgo.dev | Different package format |
@@ -23,7 +23,7 @@ F# Native uses a **parallel toolchain** rather than plugins/extensions to manage
 
 ```
 FCS: "string" → System.String (BCL type, assembly metadata)
-FNCS: "string" → NativeStr (intrinsic, UTF-8 fat pointer)
+CCS: "string" → NativeStr (intrinsic, UTF-8 fat pointer)
 ```
 
 These cannot be reconciled. FCS has BCL types hard-coded internally.
@@ -36,13 +36,13 @@ Managed tooling uses `obj` pervasively:
 - `%A` formatting uses reflection on `obj`
 - Hover info boxes values for display
 
-F# Native has no `obj`. Every value must be typed statically.
+Clef has no `obj`. Every value must be typed statically.
 
 ### 3. SRTP Resolution Differs
 
 ```
 FCS: SRTP resolves against BCL method tables (assembly metadata)
-FNCS: SRTP resolves against Alloy intrinsic witnesses
+CCS: SRTP resolves against Alloy intrinsic witnesses
 ```
 
 The resolution sources are completely different.
@@ -84,7 +84,7 @@ my-fidelity-app/
 ├── web-ui/                 # Fable → JavaScript
 │   ├── App.fsproj         # FSAC
 │   └── Components.fs
-├── native-backend/         # F# Native → Native
+├── native-backend/         # Clef → Native
 │   ├── Server.fidproj     # FSNAC
 │   └── Api.fs
 └── shared/                 # Constrained pure F#
@@ -94,7 +94,7 @@ my-fidelity-app/
 
 ### Shared Code Constraints
 
-Code shared between Fable and F# Native must be pure computation:
+Code shared between Fable and Clef must be pure computation:
 - ✅ Records, DUs (without custom ToString)
 - ✅ Pure functions
 - ❌ String manipulation (different types)
@@ -104,7 +104,7 @@ Code shared between Fable and F# Native must be pure computation:
 
 ## Ionide Integration Path
 
-1. Fork Ionide projects for F# Native support
+1. Fork Ionide projects for Clef support
 2. Implement project-type detection (`.fidproj`)
 3. Route to FSNAC instead of FSAC
 4. Upstream improvements for plugin/parallel-silo infrastructure

@@ -1,4 +1,4 @@
-# List Operations Representation in F# Native
+# List Operations Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-F# Native implements list operations (`List.map`, `List.filter`, `List.fold`, `List.rev`, etc.) as **Baker-decomposed algorithms** that expand to primitive list operations at compile time. Unlike Seq operations (which create wrapper structures), List operations produce eager results via recursive traversal.
+Clef implements list operations (`List.map`, `List.filter`, `List.fold`, `List.rev`, etc.) as **Baker-decomposed algorithms** that expand to primitive list operations at compile time. Unlike Seq operations (which create wrapper structures), List operations produce eager results via recursive traversal.
 
 **Key Insight**: List HOFs are decomposed by Baker into compositions of primitive operations (`cons`, `head`, `tail`, `isEmpty`, `empty`). The decomposition happens at compile time, producing a PSG that Alex witnesses directly.
 

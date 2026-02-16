@@ -304,7 +304,7 @@ definitions in expressions ([§](inference-constraint-solving.md#checking-and-el
 - Each defined value is subject to arity analysis ([§](inference-supplementary.md#arity-inference)).
 - Values may have attributes.
 
-> **F# Native Note**: The `ThreadStatic` and `ContextStatic` attributes are not available in F# Native. Thread-local storage uses platform-specific mechanisms.
+> **Clef Note**: The `ThreadStatic` and `ContextStatic` attributes are not available in Clef. Thread-local storage uses platform-specific mechanisms.
 
 ### Literal Definitions in Modules
 
@@ -374,7 +374,7 @@ module Map =
     val empty<'Key,'Value> : Map<'Key,'Value>
 ```
 
-> **F# Native Note**: The `typeof<'T>` type function is not available in F# Native because there is no runtime type system. Type information is resolved entirely at compile time. Use `sizeof<'T>` for size queries.
+> **Clef Note**: The `typeof<'T>` type function is not available in Clef because there is no runtime type system. Type information is resolved entirely at compile time. Use `sizeof<'T>` for size queries.
 
 Type functions are rarely used in F# programming, although they are convenient in certain
 situations. Type functions are typically used for:
@@ -546,7 +546,7 @@ Note that:
 
 Non-public entities are not accessible from outside their defining scope.
 
-> **F# Native Note**: Accessibility is enforced at compile time. Non-public symbols are not exported in the native binary's symbol table.
+> **Clef Note**: Accessibility is enforced at compile time. Non-public symbols are not exported in the native binary's symbol table.
 
 > Note: The `family` and `protected` specifications are not supported in this version of the F#
 language.

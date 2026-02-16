@@ -1,18 +1,18 @@
 # FFI Boundary Semantics
 
-This chapter defines the Foreign Function Interface (FFI) boundary between F# Native code and external C libraries. It establishes the null-safety contract, pointer type semantics, and the normative requirements for binding generation tools like Farscape.
+This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries. It establishes the null-safety contract, pointer type semantics, and the normative requirements for binding generation tools like Farscape.
 
 ## 1. Null Safety Principle
 
 ### 1.1 Core Invariant
 
-> **Null exists ONLY at the FFI boundary. Within F# Native code, `nativeptr<'T>` and `FnPtr<'F>` are NEVER null.**
+> **Null exists ONLY at the FFI boundary. Within Clef code, `nativeptr<'T>` and `FnPtr<'F>` are NEVER null.**
 
-This invariant is fundamental to F# Native's memory safety guarantees. Unlike C where any pointer may be null, F# Native enforces non-nullability at the type level.
+This invariant is fundamental to Clef's memory safety guarantees. Unlike C where any pointer may be null, Clef enforces non-nullability at the type level.
 
 ### 1.2 Rationale
 
-Null pointer dereferences are a leading cause of crashes and security vulnerabilities in native code. By eliminating null from the type system's interior, F# Native provides:
+Null pointer dereferences are a leading cause of crashes and security vulnerabilities in native code. By eliminating null from the type system's interior, Clef provides:
 
 1. **Compile-time safety**: The type checker ensures non-null pointers are always valid
 2. **Explicit optionality**: `Option<nativeptr<'T>>` makes nullability visible in the type signature
@@ -21,7 +21,7 @@ Null pointer dereferences are a leading cause of crashes and security vulnerabil
 
 ### 1.3 The FFI Boundary
 
-The FFI boundary is the interface between F# Native code and external C functions. At this boundary:
+The FFI boundary is the interface between Clef code and external C functions. At this boundary:
 
 - **Outgoing** (F# → C): `Option<nativeptr<'T>>` converts to nullable C pointer
   - `None` → `NULL`
@@ -33,7 +33,7 @@ The FFI boundary is the interface between F# Native code and external C function
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  F# Native World                                        │
+│  Clef World                                        │
 │                                                         │
 │  nativeptr<'T>         - NEVER null                    │
 │  FnPtr<'F>             - NEVER null                    │
@@ -53,7 +53,7 @@ The FFI boundary is the interface between F# Native code and external C function
 
 ### 2.1 Non-Nullable Pointers
 
-| F# Native Type | C Equivalent | Semantics |
+| Clef Type | C Equivalent | Semantics |
 |---------------|--------------|-----------|
 | `nativeptr<'T>` | `T*` (non-null) | Typed pointer, guaranteed valid |
 | `FnPtr<'F>` | Function pointer (non-null) | Function pointer, guaranteed valid |
@@ -64,7 +64,7 @@ These types have no null representation. Attempting to construct a null value is
 
 ### 2.2 Nullable Pointers (FFI Only)
 
-| F# Native Type | C Equivalent | Semantics |
+| Clef Type | C Equivalent | Semantics |
 |---------------|--------------|-----------|
 | `Option<nativeptr<'T>>` | `T*` (nullable) | May be null, explicit handling required |
 | `Option<FnPtr<'F>>` | Function pointer (nullable) | May be null callback |
@@ -178,7 +178,7 @@ let ptr = FnPtr.ofFunction (fun x -> x * multiplier)  // Compile error
 
 ### 3.5 Removed Intrinsics
 
-The following intrinsics are NOT available in F# Native:
+The following intrinsics are NOT available in Clef:
 
 - ~~`FnPtr.null`~~ — Use `Option<FnPtr<'F>>` with `None` instead
 - ~~`FnPtr.isNull`~~ — Use pattern matching on `Option<FnPtr<'F>>` instead
@@ -245,7 +245,7 @@ This section defines normative requirements for Farscape and other binding gener
 
 Farscape MUST interpret C nullability annotations as follows:
 
-| C Annotation | Platform | F# Native Output |
+| C Annotation | Platform | Clef Output |
 |-------------|----------|------------------|
 | `_Nonnull` | Clang/Apple | `nativeptr<'T>` |
 | `_Nullable` | Clang/Apple | `Option<nativeptr<'T>>` |
@@ -398,7 +398,7 @@ let sourceId =
 
 ## 7. Normative Summary
 
-1. `nativeptr<'T>` and `FnPtr<'F>` are NEVER null within F# Native code
+1. `nativeptr<'T>` and `FnPtr<'F>` are NEVER null within Clef code
 2. `Option<nativeptr<'T>>` and `Option<FnPtr<'F>>` represent nullable pointers at FFI boundary
 3. `FnPtr.fromSymbol` declares linker-resolved external symbols
 4. `FnPtr.invoke` calls through function pointers with automatic Option↔NULL marshalling

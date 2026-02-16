@@ -1,10 +1,10 @@
 # Incremental Computation
 
-> **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in fsnative compilation.**
+> **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in Clef compilation.**
 
 ## 1. Overview
 
-F# Native implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Firefly to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
+Clef implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Firefly to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
 
 `Incremental<'T>` occupies a specific position in a spectrum of evaluation strategies that the compiler understands natively:
 
@@ -558,9 +558,9 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 | Manual graph construction | PSG is the graph; compiler builds it from code structure |
 | Manual height computation | Compiler assigns heights statically for applicative subgraphs |
 
-## 14. Implementation in FNCS/Firefly Pipeline
+## 14. Implementation in CCS/Firefly Pipeline
 
-### 14.1 FNCS Phase
+### 14.1 CCS Phase
 
 1. **checkIncremental** in Coordinator.fs:
    - Checks the incremental body expression

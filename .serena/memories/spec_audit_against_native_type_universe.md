@@ -3,7 +3,7 @@
 ## Audit Date: 2024-12-30
 
 ## Reference Document
-`fsnative/docs/fidelity/native-type-universe.md` - The comprehensive native type specification (moved from fsnative-spec)
+`Clef/docs/fidelity/native-type-universe.md` - The comprehensive native type specification (moved from clef-lang-spec)
 
 ## Summary
 
@@ -20,14 +20,14 @@ All four "Needs revision" chapters have been revised to align with native type u
 
 ### "New" Chapters (Native-Specific) ✓
 
-All four new chapters exist and align well with native-type-universe.md (now at fsnative/docs/fidelity/):
+All four new chapters exist and align well with native-type-universe.md (now at Clef/docs/fidelity/):
 
 | Chapter | File | Alignment Notes |
 |---------|------|-----------------|
 | Native Type Mappings | `native-type-mappings.md` | ✓ Aligns with Parts 2-5 |
 | Memory Regions | `memory-regions.md` | ✓ Aligns with Part 8 |
 | Access Kinds | `access-kinds.md` | ✓ Aligns with Part 8.2 |
-| Platform Bindings | `platform-bindings.md` | ✓ Aligns with FNCS spec |
+| Platform Bindings | `platform-bindings.md` | ✓ Aligns with CCS spec |
 
 ### "Review" Status Chapters - SIGNIFICANT BCL/CLI ISSUES
 
@@ -104,7 +104,7 @@ These chapters have extensive BCL/CLI dependencies that conflict with native typ
 
 ## Clean Break Principle
 
-> **fsnative is multi-platform and multi-hardware by default.**
+> **Clef is multi-platform and multi-hardware by default.**
 
 The spec should NOT illustrate from:
 - Desktop-only perspectives
@@ -132,7 +132,7 @@ Examples should be:
 | Console I/O | `Console.WriteLine`, `Console.ReadLine` | Via Platform.Bindings |
 | Pure computation | Arithmetic, collections, pattern matching | Core language |
 | Type definitions | Records, DUs, classes, interfaces | Core language |
-| Memory regions | Stack, Arena, Peripheral | fsnative-specific |
-| Access kinds | ReadOnly, WriteOnly, ReadWrite | fsnative-specific |
+| Memory regions | Stack, Arena, Peripheral | clef-lang-specific |
+| Access kinds | ReadOnly, WriteOnly, ReadWrite | clef-lang-specific |
 
 ## Priority Remediation

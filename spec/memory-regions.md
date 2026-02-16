@@ -1,10 +1,10 @@
 # Memory Regions
 
-Memory region types define where memory lives and how it behaves. They are intrinsic to F# Native and guide code generation throughout the compilation pipeline.
+Memory region types define where memory lives and how it behaves. They are intrinsic to Clef and guide code generation throughout the compilation pipeline.
 
 ## Overview
 
-F# Native extends the type system with memory region information. Every pointer type carries region semantics that determine:
+Clef extends the type system with memory region information. Every pointer type carries region semantics that determine:
 
 - Allocation strategy
 - Access patterns (volatile, cached)
@@ -43,11 +43,11 @@ let example () =
 
 Arena-allocated values are bulk-allocated and freed together.
 
-> **Status (January 2026)**: Arena is implemented as an FNCS intrinsic type with compiler-provided operations.
+> **Status (January 2026)**: Arena is implemented as an CCS intrinsic type with compiler-provided operations.
 
 **Type Definition**:
 ```fsharp
-// Arena<[<Measure>] 'lifetime> - FNCS intrinsic type
+// Arena<[<Measure>] 'lifetime> - CCS intrinsic type
 // Layout: NTUCompound(3) = { Base: nativeint, Capacity: int, Position: int }
 ```
 
@@ -66,7 +66,7 @@ let remaining = Arena.remaining arena
 Arena.reset &arena  // Position back to 0
 ```
 
-**Arena Operations** (FNCS Intrinsics):
+**Arena Operations** (CCS Intrinsics):
 
 | Operation | Type | Description |
 |-----------|------|-------------|

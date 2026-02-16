@@ -34,7 +34,7 @@ Processing the source code portions of these inputs consists of the following st
    namespace declaration groups ([§](program-structure-and-execution.md#implementation-files)) and types. The namespace
    declaration groups are then combined to form an initial name resolution environment ([§](inference-name-resolution.md#name-resolution)).
 
-   > **F# Native Note**: F# Native does not use CLI assemblies. Dependencies are specified in the `.fidproj` project file and resolved from source packages or native libraries. Type providers are not available in native compilation.
+   > **Clef Note**: Clef does not use CLI assemblies. Dependencies are specified in the `.fidproj` project file and resolved from source packages or native libraries. Type providers are not available in native compilation.
 6. **Checking**. The results of parsing are checked one by one. Checking involves such procedures as
    Name Resolution (§14.1), Constraint Solving (§14.5), and Generalization ([§](inference-constraint-solving.md#generalization)), as well as the
    application of other rules described in this specification.
@@ -48,7 +48,7 @@ Processing the source code portions of these inputs consists of the following st
    data expressions, the elaborated form is simple. Elaborated forms are used for evaluation and
    for the F# expression trees that are returned by quoted expressions ([§](expressions.md#quoted-expressions)).
 
-   > **F# Native Note**: F# Native does not support runtime reflection. Elaborated forms are used for native code generation, not CLI metadata emission.
+   > **Clef Note**: Clef does not support runtime reflection. Elaborated forms are used for native code generation, not CLI metadata emission.
 8. **Execution**. Elaborated program fragments that are successfully checked are added to a
    collection of available program fragments. Each fragment has a static initializer. Static initializers
    are executed as described in ([§](program-structure-and-execution.md#program-execution)).

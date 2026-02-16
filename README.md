@@ -1,4 +1,4 @@
-# F# Native Language Specification
+# Clef Language Specification
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -7,14 +7,14 @@
 <em>This project is in early development and not intended for production use.</em>
 </p>
 
-**Toward a normative specification for native F# type semantics and memory management.**
+**Toward a normative specification for Clef type semantics and memory management.**
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [The Fidelity Framework](#the-fidelity-framework)
 - [Specification Flow](#specification-flow)
-- [Why fsnative-spec Contains More Than the F# Specification](#why-fsnative-spec-contains-more-than-the-f-specification)
+- [Why clef-lang-spec Contains More Than the F# Specification](#why-clef-lang-spec-contains-more-than-the-f-specification)
 - [The Core Principle: Same Types, Native Semantics](#the-core-principle-same-types-native-semantics)
 - [Key Semantic Additions](#key-semantic-additions)
 - [The Absorption Model](#the-absorption-model)
@@ -25,22 +25,22 @@
 
 ## Overview
 
-fsnative-spec aims to define the complete language semantics for [fsnative](https://github.com/speakeztech/fsnative) (F# Native Compiler Services). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, fsnative-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
+clef-lang-spec aims to define the complete language semantics for [Clef](https://github.com/speakeztech/clef) (Clef Compiler Service). Where the [standard F# specification](https://fsharp.org/specs/language-spec/) describes behavior in terms of the .NET runtime and BCL types, clef-lang-spec provides explicit definitions for everything the CLR normally handles implicitly: type layouts, memory ownership, lifetime verification, and deterministic resource management.
 
-**The F# you write stays the same.** You write `string`, `option`, `int`, `array` - the familiar F# types. fsnative-spec defines what those types *mean* when targeting native compilation. The specification is about semantics, not new syntax.
+**The F# you write stays the same.** You write `string`, `option`, `int`, `array` - the familiar F# types. clef-lang-spec defines what those types *mean* when targeting native compilation. The specification is about semantics, not new syntax.
 
 ## The Fidelity Framework
 
-fsnative-spec is part of the **Fidelity** native F# compilation ecosystem:
+clef-lang-spec is part of the **Fidelity** native compilation ecosystem:
 
 | Project | Role |
 |---------|------|
-| **[fsnative](https://github.com/speakeztech/fsnative)** | F# Native Compiler Services (FNCS): parsing, type checking, PSG construction |
+| **[Clef](https://github.com/speakeztech/clef)** | Clef Compiler Service (CCS): parsing, type checking, PSG construction |
 | **[Firefly](https://github.com/speakeztech/firefly)** | AOT compiler: consumes PSG → MLIR → Native binary |
 | **[BAREWire](https://github.com/speakeztech/barewire)** | Binary encoding, memory mapping, zero-copy IPC |
 | **[Farscape](https://github.com/speakeztech/farscape)** | C/C++ header parsing for native library bindings |
 | **[XParsec](https://github.com/speakeztech/xparsec)** | Parser combinators powering PSG traversal and header parsing |
-| **fsnative-spec** | F# Native language specification (this repository) |
+| **clef-lang-spec** | Clef language specification (this repository) |
 
 The name "Fidelity" reflects the framework's core mission: **preserving type and memory safety** from source code through compilation to native execution.
 
@@ -50,10 +50,10 @@ The name "Fidelity" reflects the framework's core mission: **preserving type and
 ┌────────────────────────────────────────────────────────────────┐
 │                      Specification Flow                         │
 │                                                                 │
-│   fsnative-spec              fsnative              Firefly      │
+│   clef-lang-spec              Clef                Firefly      │
 │   ┌───────────┐            ┌───────────┐        ┌───────────┐  │
 │   │           │  specifies │           │  uses  │           │  │
-│   │ NORMATIVE │───────────▶│   FNCS    │───────▶│   Alex    │  │
+│   │ NORMATIVE │───────────▶│   CCS     │───────▶│   Alex    │  │
 │   │   RULES   │            │           │        │           │  │
 │   └───────────┘            └───────────┘        └───────────┘  │
 │        │                         │                    │         │
@@ -64,11 +64,11 @@ The name "Fidelity" reflects the framework's core mission: **preserving type and
 └────────────────────────────────────────────────────────────────┘
 ```
 
-- **fsnative-spec** (this repository): Defines WHAT F# Native means
-- **fsnative**: Implements HOW F# Native works (FNCS compiler services)
+- **clef-lang-spec** (this repository): Defines WHAT Clef means
+- **Clef**: Implements HOW Clef works (CCS compiler service)
 - **Firefly**: Consumes typed trees to produce native binaries
 
-## Why fsnative-spec Contains More Than the F# Specification
+## Why clef-lang-spec Contains More Than the F# Specification
 
 The standard F# specification makes extensive use of the .NET runtime as an implicit substrate. Consider what the F# spec does *not* need to define:
 
@@ -78,7 +78,7 @@ The standard F# specification makes extensive use of the .NET runtime as an impl
 - **Resource Cleanup**: The F# spec has no drop semantics. Objects are allocated, used, and eventually collected.
 - **Type Identity**: In managed F#, types are identified by their assembly metadata.
 
-fsnative-spec explicitly defines all of these. Native compilation has no runtime to defer to.
+clef-lang-spec explicitly defines all of these. Native compilation has no runtime to defer to.
 
 ## The Core Principle: Same Types, Native Semantics
 
@@ -92,15 +92,15 @@ let numbers = [| 1; 2; 3 |]
 
 You're using `string`, `option`, and `array` - exactly as you would in any F# program. The specification defines what these types mean for native compilation:
 
-| F# Syntax | Standard F# | F# Native | Why |
-|-----------|-------------|-----------|-----|
+| F# Syntax | Standard F# | Clef | Why |
+|-----------|-------------|------|-----|
 | `"Hello"` | `System.String` | `NativeStr` | UTF-8, fat pointer, no GC |
 | `Some 42` | `int option` (reference) | `int voption` | Value type, non-nullable |
 | `[| 1; 2; 3 |]` | `System.Int32[]` | `NativeArray<int>` | Fat pointer, explicit lifetime |
 
 ## Key Semantic Additions
 
-Beyond redefining what existing types mean, fsnative-spec covers concepts that have no equivalent in the F# specification:
+Beyond redefining what existing types mean, clef-lang-spec covers concepts that have no equivalent in the F# specification:
 
 ### Ownership and Borrowing
 
@@ -155,14 +155,14 @@ type GPIO_TypeDef = {
 
 In standard F#, types like `int` and `string` are defined in external assemblies. The compiler discovers their operations by reading assembly metadata.
 
-fsnative defines these types **intrinsically** - built into the compiler itself. When you write `int`, the compiler knows its representation, operations, and semantics because that knowledge is part of fsnative, not discovered from external sources.
+Clef defines these types **intrinsically** - built into the compiler itself. When you write `int`, the compiler knows its representation, operations, and semantics because that knowledge is part of CCS, not discovered from external sources.
 
 This means:
 - Type resolution requires no external assemblies
 - SRTP constraints resolve against built-in definitions
 - The compiler contains the complete type system
 
-The native library provides functions that operate on these intrinsic types. The types themselves are defined by fsnative per this specification.
+The native library provides functions that operate on these intrinsic types. The types themselves are defined by CCS per this specification.
 
 ## Document Organization
 
@@ -204,7 +204,7 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 23 | **Platform Bindings** | `platform-bindings.md` | **New** |
 | 24 | **Backend Lowering Architecture** | `backend-lowering-architecture.md` | **New** |
 | 25 | Inference Procedures | `inference-procedures.md` | Revised |
-| 26 | **F# Native Expressions** | `fsharp-native-expr.md` | **New** |
+| 26 | **Clef Expressions** | `clef-expr.md` | **New** |
 | 27 | Lexical Filtering | `lexical-filtering.md` | Stable |
 | 28 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
 | 29 | **Error Handling** | `error-handling.md` | **New** |
@@ -217,7 +217,7 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 
 ### Removed Chapters
 
-The following chapters from the standard F# specification are **not applicable** to F# Native and have been removed:
+The following chapters from the standard F# specification are **not applicable** to Clef and have been removed:
 
 | Chapter | Reason |
 |---------|--------|
@@ -231,8 +231,8 @@ The following chapters from the standard F# specification are **not applicable**
 | **Stable** | Minimal changes needed from fslang-spec |
 | **Review** | Needs review for BCL assumptions |
 | **Needs revision** | Known BCL dependencies to remove |
-| **New** | fsnative-specific chapter (not in fslang-spec) |
-| **Rewritten** | Completely rewritten for fsnative |
+| **New** | Clef-specific chapter (not in fslang-spec) |
+| **Rewritten** | Completely rewritten for Clef |
 
 ## Normative Language
 
@@ -248,24 +248,24 @@ Example:
 
 ## Relationship to the F# Language Specification
 
-The [F# Language Specification](https://fsharp.org/specs/language-spec/) is an extensive document covering syntax, type system, name resolution, evaluation semantics, and more. fsnative-spec takes this specification as its starting point:
+The [F# Language Specification](https://fsharp.org/specs/language-spec/) is an extensive document covering syntax, type system, name resolution, evaluation semantics, and more. clef-lang-spec takes this specification as its starting point:
 
 - **Revisions**: Sections that assume .NET runtime behavior are revised to define explicit native semantics
 - **Removals**: Content on .NET interop, reflection, and runtime type discovery is omitted
 - **Additions**: New chapters cover ownership, borrowing, memory regions, access kinds, and lifetime constraints
-- **Lock-Step Evolution**: fsnative (the compiler) and fsnative-spec evolve together
+- **Lock-Step Evolution**: Clef (the compiler) and clef-lang-spec evolve together
 
 ## Contributing
 
 Specification changes require:
 1. Discussion of semantic implications
-2. Coordination with FNCS implementation
+2. Coordination with CCS implementation
 3. Validation via Firefly compilation
 
 Changes to normative sections must include:
 - Rationale for the change
 - Impact analysis on existing code
-- Implementation plan for FNCS
+- Implementation plan for CCS
 
 ## License
 
@@ -273,7 +273,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-fsnative-spec is being developed by [SpeakEZ Technologies](https://speakez.tech) as part of the Fidelity native compilation framework.
+clef-lang-spec is being developed by [SpeakEZ Technologies](https://speakez.tech) as part of the Fidelity native compilation framework.
 
 ## Acknowledgments
 
@@ -283,4 +283,4 @@ fsnative-spec is being developed by [SpeakEZ Technologies](https://speakez.tech)
 
 ---
 
-*Toward the rules that will make native F# safe and deterministic.*
+*Toward the rules that will make Clef safe and deterministic.*

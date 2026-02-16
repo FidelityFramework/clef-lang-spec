@@ -1,4 +1,4 @@
-# fsnative-spec Revision Philosophy
+# clef-lang-spec Revision Philosophy
 
 ## Core Principle: Clean Break, Not Parallel Commentary
 
@@ -8,7 +8,7 @@
 
 1. **NO "NOT APPLICABLE" markers** - If something doesn't apply, REMOVE it entirely
 2. **NO parallel commentary** - Don't constantly reference "unlike .NET..." or "in managed F#..."
-3. **NO trip wires** - Don't leave remnants that could confuse fsnative implementation work
+3. **NO trip wires** - Don't leave remnants that could confuse Clef implementation work
 4. **NO exhaustive rewrites** - We don't need to draw a parallel to .NET in every instance
 
 ### What We DO
@@ -23,9 +23,9 @@
 We are threading a needle:
 
 1. **Readers should follow along** without excessive "baggage from the old way"
-2. **The spec is a North Star** for re-engineering fsnative itself
+2. **The spec is a North Star** for re-engineering Clef itself
 3. **We won't solve every problem upfront** - we'll find things along the way
-4. **No trip wires** - the spec shouldn't complicate the fsnative migration
+4. **No trip wires** - the spec shouldn't complicate the Clef migration
 5. **Clean break** - changes stand on their own
 
 ## Runtime Considerations Section
@@ -38,7 +38,7 @@ The "Evaluation of Elaborated Forms" section (expressions.md lines 2997+) is fun
 - GC considerations
 
 **Decision**: This section should be either:
-1. **REMOVED entirely** - fsnative's execution model is much simpler
+1. **REMOVED entirely** - Clef's execution model is much simpler
 2. **REPLACED with brief native execution semantics** in program-structure-and-execution.md
 
 Native execution is:
@@ -56,7 +56,7 @@ Native execution is:
 - Desktop-only patterns
 - Any single-platform perspective
 
-fsnative is **multi-platform and multi-hardware by default**. Examples should be:
+Clef is **multi-platform and multi-hardware by default**. Examples should be:
 - Platform-agnostic (console I/O, pure computation)
 - Or use Platform.Bindings pattern (platform-neutral in syntax)
 

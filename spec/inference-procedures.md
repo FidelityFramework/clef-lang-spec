@@ -1,10 +1,10 @@
 # Inference Procedures
 
-This chapter provides an overview of the inference procedures used during F# Native type checking. The procedures are organized into focused sub-chapters for clarity.
+This chapter provides an overview of the inference procedures used during Clef type checking. The procedures are organized into focused sub-chapters for clarity.
 
 ## Overview
 
-Type inference in F# Native follows standard Hindley-Milner inference extended with:
+Type inference in Clef follows standard Hindley-Milner inference extended with:
 - Overload resolution for methods and functions
 - Statically Resolved Type Parameters (SRTP)
 - Member constraints
@@ -20,7 +20,7 @@ The inference process involves:
 
 ### [Name Resolution](inference-name-resolution.md)
 
-Covers how F# Native resolves names in various contexts:
+Covers how Clef resolves names in various contexts:
 - Name environments and tables
 - Module and namespace path resolution
 - Expression, pattern, and type name resolution

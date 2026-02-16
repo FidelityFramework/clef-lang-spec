@@ -1,12 +1,12 @@
 # Interactive Development
 
-This chapter specifies the interactive development experience for F# Native, including the F# Native Interactive environment (fsni), script execution, and integration with development tooling.
+This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (fsni), script execution, and integration with development tooling.
 
 ## Overview
 
-F# Native provides an interactive development experience comparable to F# Interactive (FSI) in managed F#. The goal is to give F# Native developers the same exploratory, REPL-driven workflow that .NET developers expect, while respecting the constraints of native compilation.
+Clef provides an interactive development experience comparable to F# Interactive (FSI) in managed F#. The goal is to give Clef developers the same exploratory, REPL-driven workflow that .NET developers expect, while respecting the constraints of native compilation.
 
-| Aspect | F# Interactive (FSI) | F# Native Interactive (fsni) |
+| Aspect | F# Interactive (FSI) | Clef Interactive (fsni) |
 |--------|---------------------|------------------------------|
 | Execution | CLR JIT | Native interpretation or AOT |
 | Memory | GC-managed | Deterministic (arena-based) |
@@ -22,11 +22,11 @@ F# Native provides an interactive development experience comparable to F# Intera
 4. **Exploratory Development**: Support rapid prototyping and experimentation
 5. **Seamless Transition**: Code developed interactively should compile without modification
 
-## F# Native Interactive (fsni)
+## Clef Interactive (fsni)
 
 ### Invocation
 
-The F# Native Interactive environment is invoked via the `fsni` command:
+The Clef Interactive environment is invoked via the `fsni` command:
 
 ```bash
 # Start interactive session
@@ -52,7 +52,7 @@ An fsni session maintains:
 - Loaded modules and dependencies
 
 ```
-F# Native Interactive (fsni) v1.0
+Clef Interactive (fsni) v1.0
 Target: linux-x64
 Arena: 64MB (expandable)
 
@@ -127,12 +127,12 @@ val factorial : int -> int
 
 ### File Extension
 
-F# Native script files use the `.fsnx` extension:
+Clef script files use the `.fsnx` extension:
 
 ```
-script.fsnx      -- F# Native script
-module.fs        -- F# Native implementation file
-signature.fsi    -- F# Native signature file
+script.fsnx      -- Clef script
+module.fs        -- Clef implementation file
+signature.fsi    -- Clef signature file
 ```
 
 > **Rationale**: Using a distinct extension (`.fsnx` rather than `.fsx`) clearly identifies scripts intended for native execution and avoids confusion with managed F# scripts.
@@ -176,7 +176,7 @@ Script files may include a shebang for direct execution:
 // script.fsnx
 
 open Console
-writeln "Hello from F# Native!"
+writeln "Hello from Clef!"
 ```
 
 ```bash
@@ -282,14 +282,14 @@ let displayValue (value: obj) : string =
     sprintf "%A" value  // Uses reflection to inspect value
 ```
 
-This approach is not available in F# Native because:
+This approach is not available in Clef because:
 - There is no universal base type `obj`
 - There is no runtime type information or reflection
 - Values cannot be "boxed" to a common representation
 
 ### SRTP-Based Value Formatting
 
-F# Native uses statically resolved type parameters (SRTP) to generate formatters at compile time:
+Clef uses statically resolved type parameters (SRTP) to generate formatters at compile time:
 
 ```fsharp
 // fsni generates specific formatters via SRTP
@@ -344,7 +344,7 @@ val it : Point = (1.0, 2.0)
 
 ### Format Specifiers
 
-The `%A` format specifier in F# Native uses SRTP rather than reflection:
+The `%A` format specifier in Clef uses SRTP rather than reflection:
 
 ```fsharp
 > printfn "%A" [1; 2; 3];;
@@ -352,18 +352,18 @@ The `%A` format specifier in F# Native uses SRTP rather than reflection:
 -- SRTP resolves formatting at compile time
 ```
 
-> **F# Native Note**: Format specifiers `%A` and `%O` are resolved at compile time via SRTP. Types must have appropriate formatting members resolvable statically. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: Format specifiers `%A` and `%O` are resolved at compile time via SRTP. Types must have appropriate formatting members resolvable statically. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 ## Tooling Architecture
 
 ### Parallel Toolchain Model
 
-F# Native uses a parallel toolchain rather than extending managed F# tooling:
+Clef uses a parallel toolchain rather than extending managed F# tooling:
 
-| Component | Managed F# | F# Native |
+| Component | Managed F# | Clef |
 |-----------|------------|-----------|
-| Compiler Services | FCS (F# Compiler Services) | FNCS (F# Native Compiler Services) |
-| Language Server | FSAC (F# AutoComplete) | FSNAC (F# Native AutoComplete) |
+| Compiler Services | FCS (F# Compiler Services) | CCS (Clef Compiler Service) |
+| Language Server | FSAC (F# AutoComplete) | FSNAC (Clef AutoComplete) |
 | Package Manager | NuGet | Fargo (fpm) |
 | Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
 | Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
@@ -374,24 +374,24 @@ F# Native uses a parallel toolchain rather than extending managed F# tooling:
 
 The toolchains are parallel rather than plugins because:
 
-1. **Type resolution fundamentally differs**: FNCS resolves `string` to native UTF-8 fat pointer semantics; FCS resolves to `System.String`. These cannot be reconciled at runtime.
+1. **Type resolution fundamentally differs**: CCS resolves `string` to native UTF-8 fat pointer semantics; FCS resolves to `System.String`. These cannot be reconciled at runtime.
 
-2. **SRTP resolution differs**: FNCS resolves SRTP against native type witnesses; FCS resolves against BCL method tables.
+2. **SRTP resolution differs**: CCS resolves SRTP against native type witnesses; FCS resolves against BCL method tables.
 
-3. **No `obj` escape hatch**: Managed tooling uses `obj` as a universal container for values during type checking and display. F# Native has no such type.
+3. **No `obj` escape hatch**: Managed tooling uses `obj` as a universal container for values during type checking and display. Clef has no such type.
 
 4. **Source-based packages**: Fargo distributes source code for whole-program optimization. NuGet distributes compiled binaries.
 
 ### Coexistence with Fable and Managed F#
 
-F# Native tooling is designed to coexist with other F# targets in a single workspace:
+Clef tooling is designed to coexist with other F# targets in a single workspace:
 
 ```
 my-project/
 ├── web-ui/                 # Fable → JavaScript
 │   ├── App.fsproj         # ← FSAC handles this
 │   └── Components.fs
-├── native-backend/         # F# Native → Native binary
+├── native-backend/         # Clef → Native binary
 │   ├── Server.fidproj     # ← FSNAC handles this
 │   └── Api.fs
 └── shared/                 # Pure F# domain types
@@ -402,13 +402,13 @@ my-project/
 IDE integration (Ionide) routes to the appropriate language server based on project type:
 
 - `.fsproj` → FSAC (managed F# or Fable)
-- `.fidproj` → FSNAC (F# Native)
+- `.fidproj` → FSNAC (Clef)
 
 ### Shared Code Constraints
 
-Code shared between Fable and F# Native must avoid:
+Code shared between Fable and Clef must avoid:
 
-| Feature | Fable | F# Native | Sharable? |
+| Feature | Fable | Clef | Sharable? |
 |---------|-------|-----------|-----------|
 | Pure functions | ✅ | ✅ | ✅ |
 | Records, DUs | ✅ | ✅ | ✅ |
@@ -470,7 +470,7 @@ Reloaded: MyLocalPackage
 
 ### LSP Integration
 
-fsni connects to the F# Native Language Server (FSNAC) for:
+fsni connects to the Clef Language Server (FSNAC) for:
 
 - Autocompletion in the REPL
 - Type information on hover
@@ -486,7 +486,7 @@ fsni connects to the F# Native Language Server (FSNAC) for:
 
 ### Editor Integration
 
-Editors supporting F# Native (via Ionide or similar) provide:
+Editors supporting Clef (via Ionide or similar) provide:
 
 - Syntax highlighting for `.fsnx` files
 - Inline evaluation (evaluate selection in fsni)
@@ -501,8 +501,8 @@ fsni supports notebook interfaces (Jupyter, Polyglot Notebooks):
 ```json
 {
   "kernelspec": {
-    "name": "fsnative",
-    "display_name": "F# Native",
+    "name": "clef",
+    "display_name": "Clef",
     "language": "fsharp"
   }
 }
@@ -512,7 +512,7 @@ fsni supports notebook interfaces (Jupyter, Polyglot Notebooks):
 
 ### Online Interactive Environment
 
-A web-based playground provides interactive F# Native execution:
+A web-based playground provides interactive Clef execution:
 
 ```
 try.fidelity.dev
@@ -543,7 +543,7 @@ The web playground operates with restrictions:
 
 ### Loading Compiled Modules
 
-fsni can load pre-compiled F# Native modules:
+fsni can load pre-compiled Clef modules:
 
 ```
 > #load-native "mylib.fno";;

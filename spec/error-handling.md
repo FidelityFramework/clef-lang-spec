@@ -1,12 +1,12 @@
 # Error Handling
 
-This chapter specifies error handling semantics in F# Native, including the relationship between compile-time error propagation through tooling and runtime error handling in compiled applications.
+This chapter specifies error handling semantics in Clef, including the relationship between compile-time error propagation through tooling and runtime error handling in compiled applications.
 
 ## Overview
 
-F# Native takes a fundamentally different approach to error handling than managed F#:
+Clef takes a fundamentally different approach to error handling than managed F#:
 
-| Aspect | Managed F# | F# Native |
+| Aspect | Managed F# | Clef |
 |--------|------------|-----------|
 | Optional values | `option<'T>` with null representation for `None` | `voption<'T>` (ValueOption) with no null |
 | Failure handling | Exceptions (`raise`, `try/with`) | `Result<'T, 'E>` with explicit propagation |
@@ -17,10 +17,10 @@ F# Native takes a fundamentally different approach to error handling than manage
 
 ## The Dual Nature of Error Handling
 
-F# Native error handling operates at two distinct levels:
+Clef error handling operates at two distinct levels:
 
 1. **Application Runtime**: How compiled Fidelity framework applications handle errors during execution
-2. **Tooling Integration**: How F# Native Compiler Services (FNCS) propagates errors through the Language Server Protocol to editors like Ionide
+2. **Tooling Integration**: How Clef Compiler Service (CCS) propagates errors through the Language Server Protocol to editors like Ionide
 
 These two domains have different requirements and constraints, but must remain coherent.
 
@@ -39,12 +39,12 @@ type Result<'T, 'E> =
 Operations that can fail return `Result` values rather than raising exceptions:
 
 ```fsharp
-// Managed F# style (NOT used in F# Native applications)
+// Managed F# style (NOT used in Clef applications)
 let divide x y =
     if y = 0 then raise (DivideByZeroException())
     else x / y
 
-// F# Native style
+// Clef style
 let divide x y : Result<int, DivisionError> =
     if y = 0 then Error DivisionByZero
     else Ok (x / y)
@@ -52,7 +52,7 @@ let divide x y : Result<int, DivisionError> =
 
 ### Standard Error Types
 
-F# Native defines standard error types for common failure modes:
+Clef defines standard error types for common failure modes:
 
 ```fsharp
 type ArithmeticError =
@@ -97,7 +97,7 @@ let tryFind key (map: Map<'K, 'V>) : voption<'V> =
 
 ### Result Propagation
 
-F# Native provides computation expression syntax for Result propagation:
+Clef provides computation expression syntax for Result propagation:
 
 ```fsharp
 let result {
@@ -120,7 +120,7 @@ match tryParseInt "42" with
 
 ### Try/With Syntax Compatibility
 
-F# Native preserves `try`/`with`/`finally` syntax for compatibility with standard F# tooling:
+Clef preserves `try`/`with`/`finally` syntax for compatibility with standard F# tooling:
 
 ```fsharp
 try
@@ -131,15 +131,15 @@ with
 
 However, the semantics differ:
 
-- In F# Native, `try`/`with` may be used for effect handling (delimited continuations) rather than exception catching
+- In Clef, `try`/`with` may be used for effect handling (delimited continuations) rather than exception catching
 - The exact semantics depend on the effect system specification (see [Effects](effects.md))
 - Code using `try`/`with` for exception handling must be migrated to Result-based patterns for native compilation
 
-> **Tooling Note**: Ionide and other editors will parse `try`/`with` expressions normally. FNCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
+> **Tooling Note**: Ionide and other editors will parse `try`/`with` expressions normally. CCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
 
 ### Null-Freedom
 
-F# Native is null-free by construction. The following are compile-time errors:
+Clef is null-free by construction. The following are compile-time errors:
 
 ```fsharp
 let x : string = null           // ERROR: null literal not available
@@ -148,7 +148,7 @@ let y = Unchecked.defaultof<_>  // ERROR for reference types in most contexts
 
 This eliminates entire classes of runtime errors:
 
-| Managed F# Runtime Error | F# Native |
+| Managed F# Runtime Error | Clef |
 |--------------------------|-----------|
 | `NullReferenceException` | Cannot occur |
 | `InvalidCastException` | Cannot occur (static typing) |
@@ -156,13 +156,13 @@ This eliminates entire classes of runtime errors:
 
 ## Tooling Integration
 
-### FNCS Error Propagation
+### CCS Error Propagation
 
-F# Native Compiler Services (FNCS) must propagate errors through the tooling stack in a format compatible with existing F# tooling infrastructure.
+Clef Compiler Service (CCS) must propagate errors through the tooling stack in a format compatible with existing F# tooling infrastructure.
 
 #### Diagnostic Format
 
-FNCS diagnostics follow the F# compiler diagnostic format:
+CCS diagnostics follow the F# compiler diagnostic format:
 
 ```
 filepath(line,col)-(line,col): severity code: message
@@ -171,12 +171,12 @@ filepath(line,col)-(line,col): severity code: message
 For example:
 
 ```
-src/Main.fs(12,5)-(12,15): error FS8100: Cannot use 'null' in F# Native; use 'ValueNone' for optional values
+src/Main.fs(12,5)-(12,15): error FS8100: Cannot use 'null' in Clef; use 'ValueNone' for optional values
 ```
 
 #### Error Codes
 
-FNCS uses error codes in the FS8xxx range to distinguish native-specific diagnostics:
+CCS uses error codes in the FS8xxx range to distinguish native-specific diagnostics:
 
 | Range | Category |
 |-------|----------|
@@ -188,7 +188,7 @@ FNCS uses error codes in the FS8xxx range to distinguish native-specific diagnos
 
 #### LSP Compatibility
 
-FNCS implements the Language Server Protocol for editor integration. Key considerations:
+CCS implements the Language Server Protocol for editor integration. Key considerations:
 
 1. **Diagnostic Publishing**: Errors are published via `textDocument/publishDiagnostics` in standard LSP format
 2. **Code Actions**: Quick fixes (e.g., "Replace null with ValueNone") are provided via `textDocument/codeAction`
@@ -204,18 +204,18 @@ Ionide currently supports multiple F# compilation targets:
 | Fable | Fable.Compiler (JavaScript output) |
 | WebSharper | WebSharper.Compiler |
 
-F# Native follows this model:
+Clef follows this model:
 
 ```
-Ionide ←→ LSP ←→ FNCS ←→ Firefly Compiler ←→ MLIR/LLVM
+Ionide ←→ LSP ←→ CCS ←→ Firefly Compiler ←→ MLIR/LLVM
 ```
 
 #### Extension Points
 
-FNCS provides extension points for Ionide integration:
+CCS provides extension points for Ionide integration:
 
-1. **Project Recognition**: `.fidproj` files identify F# Native projects
-2. **Target Selection**: Ionide can route to FNCS when native compilation is detected
+1. **Project Recognition**: `.fidproj` files identify Clef projects
+2. **Target Selection**: Ionide can route to CCS when native compilation is detected
 3. **Shared Parsing**: Syntax parsing uses standard F# lexer/parser for compatibility
 4. **Semantic Divergence**: Type checking and code generation use native semantics
 
@@ -223,14 +223,14 @@ FNCS provides extension points for Ionide integration:
 
 To maintain compatibility with the broader F# ecosystem:
 
-1. **Syntax Compatibility**: F# Native code parses as valid F# syntax
+1. **Syntax Compatibility**: Clef code parses as valid F# syntax
 2. **Type Notation**: Types are expressed using standard F# type notation
 3. **Error Format**: Diagnostics follow F# compiler conventions
 4. **Incremental Adoption**: Projects can mix managed and native targets during migration
 
 ### Editor Experience
 
-The design-time experience for F# Native should be consistent with managed F#:
+The design-time experience for Clef should be consistent with managed F#:
 
 | Feature | Behavior |
 |---------|----------|
@@ -245,7 +245,7 @@ The design-time experience for F# Native should be consistent with managed F#:
 
 ### Railway-Oriented Programming
 
-F# Native encourages railway-oriented programming with Result:
+Clef encourages railway-oriented programming with Result:
 
 ```fsharp
 let processOrder orderId =
@@ -305,10 +305,10 @@ result-return := return expr
 
 | Code | Severity | Message |
 |------|----------|---------|
-| FS8100 | Error | Cannot use 'null' in F# Native; use 'ValueNone' for optional values |
-| FS8101 | Error | Cannot use 'null' in F# Native; all values must be initialized |
+| FS8100 | Error | Cannot use 'null' in Clef; use 'ValueNone' for optional values |
+| FS8101 | Error | Cannot use 'null' in Clef; all values must be initialized |
 | FS8102 | Warning | Exception-style error handling detected; consider Result-based pattern |
-| FS8103 | Error | Type does not support 'null' in F# Native |
+| FS8103 | Error | Type does not support 'null' in Clef |
 | FS8104 | Warning | Unchecked.defaultof<'T> produces undefined behavior for reference types |
 
 ## Areas Requiring Further Specification
@@ -320,7 +320,7 @@ The following areas require additional design work:
 3. **Interop Boundaries**: Error translation at FFI boundaries with C libraries
 4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
 5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
-6. **Tooling PR Strategy**: Concrete changes needed for Ionide/FSAC to support FNCS
+6. **Tooling PR Strategy**: Concrete changes needed for Ionide/FSAC to support CCS
 
 ## See Also
 

@@ -5,7 +5,7 @@
 
 ## 1. Overview
 
-This chapter specifies the internal representation of types in FNCS. The design follows the ML tradition established by OCaml, F#/FCS, and F*: **types are references to definitions, not embedded data**.
+This chapter specifies the internal representation of types in CCS. The design follows the ML tradition established by OCaml, F#/FCS, and F*: **types are references to definitions, not embedded data**.
 
 ## 2. Core Principle: Reference + Deferred Lookup
 
@@ -18,7 +18,7 @@ This principle is universal in ML-family languages:
 | FCS | `TType_app(tyconRef, typeInst, nullness)` | `tyconRef.Deref` |
 | F* | `Tm_fvar(fv)` + `Tm_app` | `lookup_lid` |
 | OCaml | `Tconstr(path, args, abbrev)` | `Env.find_type` |
-| **FNCS** | `TApp(tyconRef, args)` | `tryGetRecordFields` |
+| **CCS** | `TApp(tyconRef, args)` | `tryGetRecordFields` |
 
 ### 2.1 Why This Pattern?
 

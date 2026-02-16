@@ -1,13 +1,13 @@
-# F# Native Design Rationale
+# Clef Design Rationale
 
 > **Status**: Informative
 > **Last Updated**: 2026-01-19
 
-This directory contains design rationale and commentary for the F# Native language specification. The content here is **informative**, not normative—it explains *why* design decisions were made but does not define language semantics.
+This directory contains design rationale and commentary for the Clef language specification. The content here is **informative**, not normative—it explains *why* design decisions were made but does not define language semantics.
 
 ## Commentary Resources
 
-For accessible explanations of F# Native design decisions, the following articles are available on the [SpeakEZ blog](https://speakez.com/blog/):
+For accessible explanations of Clef design decisions, the following articles are available on the [SpeakEZ blog](https://speakez.com/blog/):
 
 ### Core Language Features
 
@@ -51,7 +51,7 @@ For accessible explanations of F# Native design decisions, the following article
 
 ## Academic References
 
-The F# Native design draws from established compiler research:
+The Clef design draws from established compiler research:
 
 ### Closure Representation
 - Shao, Z., & Appel, A. W. (1994). *Space-Efficient Closure Representations*. LFP '94.
@@ -82,4 +82,4 @@ This follows the [Standard ML precedent](https://mitpress.mit.edu/9780262631372/
 
 ## Future Migration
 
-This commentary content may migrate to [fsnative.com](https://fsnative.com) as a dedicated commentary section. Until then, the SpeakEZ blog serves as the authoritative source for design rationale.
+This commentary content may migrate to [clef-lang.com](https://clef-lang.com) as a dedicated commentary section. Until then, the SpeakEZ blog serves as the authoritative source for design rationale.

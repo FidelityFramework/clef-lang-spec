@@ -1,4 +1,4 @@
-# Closure Representation in F# Native
+# Closure Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
@@ -15,13 +15,13 @@
 
 ## 1. Overview
 
-F# Native uses **flat closures** for function values that capture variables from their enclosing scope. This chapter specifies the memory representation, capture semantics, and calling conventions.
+Clef uses **flat closures** for function values that capture variables from their enclosing scope. This chapter specifies the memory representation, capture semantics, and calling conventions.
 
 ## 2. Memory Layout Specification
 
 ### 2.1 Closure Structure
 
-A closure in F# Native is a struct containing a code pointer followed by captured values:
+A closure in Clef is a struct containing a code pointer followed by captured values:
 
 ```
 Closure with captures [c₁: T₁, ..., cₘ: Tₘ]
@@ -97,13 +97,13 @@ Type ::= ...
        | TClosure(argTypes: Type list, retType: Type, captures: CaptureInfo list)
 ```
 
-At the native level, FNCS distinguishes:
+At the native level, CCS distinguishes:
 - `TFun` - Direct function, no captures
 - `TClosure` - Closure with captured environment
 
 ### 4.2 Capture Analysis
 
-During type checking, FNCS computes capture information:
+During type checking, CCS computes capture information:
 
 ```fsharp
 type CaptureInfo = {
@@ -156,7 +156,7 @@ Where `ptr` is the code pointer and `T1, T2, ...` are capture types.
 
 ## 6. Nested Named Functions vs Escaping Closures
 
-F# Native distinguishes two categories of functions that capture variables.
+Clef distinguishes two categories of functions that capture variables.
 
 ### 6.1 Escaping Closures (Closure Struct Model)
 
@@ -167,7 +167,7 @@ let makeAdder n =
     fun x -> x + n  // Anonymous lambda, may escape
 ```
 
-The lambda is a first-class value that can be returned, stored, or passed to higher-order functions. FNCS creates a closure struct: `{ code_ptr, n }`.
+The lambda is a first-class value that can be returned, stored, or passed to higher-order functions. CCS creates a closure struct: `{ code_ptr, n }`.
 
 ### 6.2 Nested Named Functions (Parameter-Passing Model)
 
@@ -208,11 +208,11 @@ A Lambda SHALL be classified as a nested named function if and only if:
 1. Its `enclosingFunction` is `Some _` (nested)
 2. Its parent PSG node is a `Binding` (named definition)
 
-## 7. Implementation in FNCS/Firefly Pipeline
+## 7. Implementation in CCS/Firefly Pipeline
 
-### 7.1 FNCS Phase
+### 7.1 CCS Phase
 
-FNCS constructs the PSG with complete lambda information:
+CCS constructs the PSG with complete lambda information:
 - `SemanticKind.Lambda(parameters, body, captures)`
 - Captures computed during scope analysis
 - Mutability tracked in `CaptureInfo.IsMutable`

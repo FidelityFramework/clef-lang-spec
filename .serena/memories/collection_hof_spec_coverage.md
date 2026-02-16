@@ -1,11 +1,11 @@
 # Collection HOF Specification Coverage
 
 **Date**: 2026-01-20
-**Context**: Full audit and update of fsnative-spec for collection HOFs implemented in Baker
+**Context**: Full audit and update of clef-lang-spec for collection HOFs implemented in Baker
 
 ## Summary
 
-Conducted a full audit of fsnative-spec regarding higher-order functions for collections (List, Map, Set, Option, Seq). Created missing specification documents to match the Baker implementations in FNCS.
+Conducted a full audit of clef-lang-spec regarding higher-order functions for collections (List, Map, Set, Option, Seq). Created missing specification documents to match the Baker implementations in CCS.
 
 ## What Existed Before
 

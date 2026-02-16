@@ -1,12 +1,12 @@
-# F# Native Type Universe Specification
+# Clef Type Universe Specification
 
 > **Status**: Draft
-> **Phase**: A (Type Universe) - Part of fsnative principled type system redesign
+> **Phase**: A (Type Universe) - Part of Clef principled type system redesign
 > **Last Updated**: 2024-12-30
 
 ## Overview
 
-This document specifies the native type universe for fsnative, the F# native compiler. The design follows ML/OCaml foundations while preserving familiar F# developer experience.
+This document specifies the native type universe for Clef, the F# native compiler. The design follows ML/OCaml foundations while preserving familiar F# developer experience.
 
 ### Core Principles
 
@@ -18,7 +18,7 @@ This document specifies the native type universe for fsnative, the F# native com
 
 ### Relationship to Other Documents
 
-- **[fncs-specification.md](fncs-specification.md)**: Defines F# Native Compiler Services, including:
+- **[ccs-specification.md](ccs-specification.md)**: Defines Clef Compiler Service, including:
   - SRTP resolution against native witness hierarchy (Part 3)
   - Platform bindings convention (Part 6)
   - Memory region enforcement rules (Parts 9-10)
@@ -58,7 +58,7 @@ Everything else is derived from these primitives.
 
 ## Part 2: Primitive Types
 
-> **FNCS Resolution**: See [`fncs-specification.md` Part 1.1](fncs-specification.md#11-primitive-type-mapping) for how FNCS resolves these types at compile-time.
+> **CCS Resolution**: See [`ccs-specification.md` Part 1.1](ccs-specification.md#11-primitive-type-mapping) for how CCS resolves these types at compile-time.
 >
 > **OCaml Provenance**: Primitives follow OCaml's value-oriented representation (unboxed by default) while eliminating GC-oriented overhead. See [Appendix E](#appendix-e-ocaml-provenance-and-fidelity-extensions) for detailed provenance analysis.
 
@@ -74,7 +74,7 @@ type unit = ()
 | **Alignment** | 1 byte | Trivially aligned |
 | **MLIR** | (elided) | Not materialized in generated code |
 
-**OCaml Provenance**: Identical to OCaml's `unit` - the canonical "no information" type. In OCaml, `()` shares representation with `[]` (empty list) as the integer 0. In fsnative, `unit` is truly zero-sized - not even allocated.
+**OCaml Provenance**: Identical to OCaml's `unit` - the canonical "no information" type. In OCaml, `()` shares representation with `[]` (empty list) as the integer 0. In Clef, `unit` is truly zero-sized - not even allocated.
 
 **Usage**:
 ```fsharp
@@ -95,7 +95,7 @@ type bool = true | false
 | **Alignment** | 1 byte | Natural alignment |
 | **MLIR** | `i1` or `i8` | Context-dependent |
 
-**OCaml Provenance**: OCaml represents booleans as unboxed integers (`false` = 0, `true` = 1). fsnative preserves this representation but uses a full byte for alignment efficiency in arrays and structs.
+**OCaml Provenance**: OCaml represents booleans as unboxed integers (`false` = 0, `true` = 1). Clef preserves this representation but uses a full byte for alignment efficiency in arrays and structs.
 
 **Design Decision**: Booleans occupy 1 byte rather than 1 bit because:
 1. Sub-byte addressing is inefficient on modern hardware
@@ -104,7 +104,7 @@ type bool = true | false
 
 **No Boolean Coercion**:
 ```fsharp
-// ILLEGAL in fsnative - no implicit int-to-bool
+// ILLEGAL in Clef - no implicit int-to-bool
 let x = if 1 then "yes" else "no"  // Error: expected bool, got int
 
 // LEGAL - explicit comparison
@@ -127,13 +127,13 @@ let x = if 1 <> 0 then "yes" else "no"
 
 1. **`int` = platform word**: Follows native compilation conventions (Rust, C), not F#'s 32-bit default. Array indexing and pointer arithmetic use platform word naturally. This aligns with Rust's `isize`/`usize` philosophy.
 
-2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), fsnative integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
+2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), Clef integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
 
    | System | `int` precision | Tag overhead |
    |--------|-----------------|--------------|
    | OCaml (64-bit) | 63 bits | 1 bit for GC |
    | F# (.NET) | 32 bits | None (boxed separately) |
-   | **fsnative** | **64 bits (full word)** | **None** |
+   | **Clef** | **64 bits (full word)** | **None** |
 
 3. **`int` and `nativeint` are synonyms**: Both map to MLIR `index` type. This differs from F# where `int` is always 32-bit.
 
@@ -174,7 +174,7 @@ let checked = Checked.add System.Int32.MaxValue 1  // voption.None
 | Single | `float32`, `single` | 4 bytes | `f32` | binary32 |
 | Double | `float`, `double` | 8 bytes | `f64` | binary64 |
 
-**OCaml Provenance**: OCaml's `float` is always 64-bit (boxed in most contexts). fsnative follows this default but provides `float32` for memory-constrained scenarios.
+**OCaml Provenance**: OCaml's `float` is always 64-bit (boxed in most contexts). Clef follows this default but provides `float32` for memory-constrained scenarios.
 
 **Design Decisions**:
 
@@ -221,12 +221,12 @@ type char = (* Unicode scalar value *)
 **Design Decision (RESOLVED)**: Characters are UTF-32 codepoints (4 bytes), not UTF-16 code units.
 
 **Rationale**:
-1. **String encoding is UTF-8**: fsnative strings are UTF-8 fat pointers (see Part 4.1)
+1. **String encoding is UTF-8**: Clef strings are UTF-8 fat pointers (see Part 4.1)
 2. **Iteration yields codepoints**: When iterating over a UTF-8 string, each `char` is a decoded Unicode scalar value
 3. **No surrogate pairs**: Unlike UTF-16, a single `char` always represents a complete character
 4. **Consistency with Rust**: Rust's `char` is also a 32-bit Unicode scalar value
 
-**OCaml Divergence**: OCaml's `char` is a single byte (Latin-1 only, 0-255). fsnative explicitly supports full Unicode.
+**OCaml Divergence**: OCaml's `char` is a single byte (Latin-1 only, 0-255). Clef explicitly supports full Unicode.
 
 **String-Character Interaction**:
 
@@ -281,7 +281,7 @@ Tuple: int * string (64-bit platform)
 
 **OCaml Comparison**:
 
-| Aspect | OCaml | fsnative |
+| Aspect | OCaml | Clef |
 |--------|-------|----------|
 | **Header** | 8-byte block header (GC info) | **None** |
 | **Fields** | Word-sized slots | Naturally aligned |
@@ -338,7 +338,7 @@ Record: Person (64-bit platform)
 
 **OCaml Comparison**:
 
-| Aspect | OCaml | fsnative |
+| Aspect | OCaml | Clef |
 |--------|-------|----------|
 | **Header** | 8-byte block header | **None** |
 | **Field access** | Offset from header | Direct offset |
@@ -420,7 +420,7 @@ Union: Shape (64-bit platform)
 
 **OCaml Comparison**:
 
-| Aspect | OCaml | fsnative |
+| Aspect | OCaml | Clef |
 |--------|-------|----------|
 | **No-arg constructors** | Unboxed integer (0, 1, 2...) | Tag byte only |
 | **With-arg constructors** | Block with tag byte in header | Tag + payload |
@@ -524,7 +524,7 @@ switch (shape.tag) {
 
 > **Principle**: Reference types use fat pointers (pointer + length). No null pointers - empty is represented by length 0.
 >
-> **FNCS Resolution**: See [`fncs-specification.md` Parts 1.2-1.4](fncs-specification.md#12-string-literals) for compiler-level type resolution.
+> **CCS Resolution**: See [`ccs-specification.md` Parts 1.2-1.4](ccs-specification.md#12-string-literals) for compiler-level type resolution.
 
 ### 4.1 String
 
@@ -568,7 +568,7 @@ for c in String.chars s do
 
 **API Changes (Null-Freedom Cascades)**:
 
-| BCL Pattern | fsnative Pattern | Rationale |
+| BCL Pattern | Clef Pattern | Rationale |
 |-------------|------------------|-----------|
 | `s.IndexOf(c)` → `-1` | `String.indexOf c s` → `voption<int>` | No sentinel values |
 | `s.Substring(i, len)` throws | `String.slice i len s` → `voption<string>` | No exceptions |
@@ -600,7 +600,7 @@ array<'T>
 | **Empty array** | `{ ptr: valid, len: 0 }` - NOT null |
 | **MLIR** | `!fidelity.array<T>` or `tuple<ptr<T>, index>` |
 
-**Monomorphized Layout**: Unlike uniform representations that box generic elements, fsnative arrays are monomorphized - `array<int>` stores unboxed integers contiguously. Sequential access is cache-optimal (8 `int64` or 16 `int32` values per 64-byte cache line).
+**Monomorphized Layout**: Unlike uniform representations that box generic elements, Clef arrays are monomorphized - `array<int>` stores unboxed integers contiguously. Sequential access is cache-optimal (8 `int64` or 16 `int32` values per 64-byte cache line).
 
 **Fixed Size After Creation**:
 ```fsharp
@@ -610,15 +610,15 @@ let arr = Array.create 10 0  // 10 elements, all 0
 
 **API Changes (Null-Freedom Cascades)**:
 
-| BCL Pattern | fsnative Pattern |
+| BCL Pattern | Clef Pattern |
 |-------------|------------------|
 | `arr.[i]` throws | `Array.tryItem i arr` → `voption<'T>` |
 | `Array.find pred arr` throws | `Array.tryFind pred arr` → `voption<'T>` |
 | `Array.head arr` throws | `Array.tryHead arr` → `voption<'T>` |
 
-**Array Module Intrinsics (FNCS Layer 1)**:
+**Array Module Intrinsics (CCS Layer 1)**:
 
-These operations are fundamental to the array type and are emitted directly by FNCS. They cannot be expressed in pure F# because they require memory allocation and element size knowledge.
+These operations are fundamental to the array type and are emitted directly by CCS. They cannot be expressed in pure F# because they require memory allocation and element size knowledge.
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
@@ -664,9 +664,9 @@ Span<'T>
 
 ## Part 5: Parameterized Types
 
-> **Principle**: Parameterized types follow familiar F# syntax. FNCS resolves native semantics at compile-time.
+> **Principle**: Parameterized types follow familiar F# syntax. CCS resolves native semantics at compile-time.
 >
-> **FNCS Resolution**: See [`fncs-specification.md` Part 1.3](fncs-specification.md#13-option-types) for option type resolution and null-free guarantees.
+> **CCS Resolution**: See [`ccs-specification.md` Part 1.3](ccs-specification.md#13-option-types) for option type resolution and null-free guarantees.
 
 ### 5.1 Option
 
@@ -691,17 +691,17 @@ option<'T>  (voption semantics)
 | **Null-freedom** | `None` is tag 0, NOT null pointer |
 | **MLIR** | `!fidelity.option<T>` |
 
-**Stack-Only Guarantee**: Unlike heap-allocated options (cf. OCaml blocks, .NET reference types), fsnative options are always stack-allocated with no GC involvement. This enables predictable memory layout for embedded targets and eliminates heap fragmentation from frequent option use.
+**Stack-Only Guarantee**: Unlike heap-allocated options (cf. OCaml blocks, .NET reference types), Clef options are always stack-allocated with no GC involvement. This enables predictable memory layout for embedded targets and eliminates heap fragmentation from frequent option use.
 
 > **See**: Appendix E for detailed OCaml/Rust comparison.
 
-**FNCS Resolution**:
+**CCS Resolution**:
 ```fsharp
 // User writes familiar F# syntax:
 let x : int option = Some 42
 let y : int option = None
 
-// FNCS compiles with voption<int> semantics:
+// CCS compiles with voption<int> semantics:
 // - Stack allocated
 // - Tag-based discrimination
 // - No null anywhere
@@ -709,13 +709,13 @@ let y : int option = None
 
 **API (Null-Freedom Cascades)**:
 
-| BCL Pattern | fsnative Pattern |
+| BCL Pattern | Clef Pattern |
 |-------------|------------------|
 | `opt.Value` throws | `Option.get opt` (or pattern match) |
 | `opt.IsSome` | `Option.isSome opt` |
 | `Option.defaultValue v opt` | Same (works identically) |
 
-> **Note**: FNCS provides native `option` semantics directly - `option<'T>` maps to stack-allocated `voption` at compile time.
+> **Note**: CCS provides native `option` semantics directly - `option<'T>` maps to stack-allocated `voption` at compile time.
 
 ### 5.2 Result
 
@@ -740,9 +740,9 @@ Result<'T, 'E>
 
 **Stack Allocation**: Like `option`, Result is always stack-allocated with zero heap overhead.
 
-**Why Result Over Exceptions**: Result makes error handling explicit in type signatures, enables compile-time exhaustiveness checking, has zero runtime overhead, and can cross FFI boundaries via BAREWire. Exceptions are not supported for control flow in fsnative.
+**Why Result Over Exceptions**: Result makes error handling explicit in type signatures, enables compile-time exhaustiveness checking, has zero runtime overhead, and can cross FFI boundaries via BAREWire. Exceptions are not supported for control flow in Clef.
 
-**Preferred Error Handling**: Result is the idiomatic error handling pattern in fsnative. Exceptions are not supported for control flow.
+**Preferred Error Handling**: Result is the idiomatic error handling pattern in Clef. Exceptions are not supported for control flow.
 
 ```fsharp
 // Idiomatic error handling
@@ -948,7 +948,7 @@ add5 = { fn_ptr: add_impl, env: { x = 5 } }
 
 **Currying Optimization** (fsil): Fully-applied curried calls compile to direct multi-argument calls (no intermediate closures). Partial application creates flat closures capturing applied arguments. Higher-order uses like `List.map f` are typically inlined at call sites.
 
-> **See**: [FSharpNativeExpr § 5.2 Curried Call Flattening](fsharp-native-expr.md#52-curried-call-flattening) for the normative specification of how the SemanticGraph represents curried applications.
+> **See**: [ClefExpr § 5.2 Curried Call Flattening](clef-expr.md#52-curried-call-flattening) for the normative specification of how the SemanticGraph represents curried applications.
 
 ---
 
@@ -1016,11 +1016,11 @@ c.Value <- c.Value + 1
 
 ## Part 8: Memory Region Types (UMX Integration)
 
-> **Core Fidelity Principle**: Memory region types are **intrinsic to fsnative** - as fundamental as `voption`. They carry semantic meaning through the entire compilation pipeline, guiding every memory layout decision. **Fidelity makes ALL memory layout decisions - MLIR/LLVM never determine layout.**
+> **Core Fidelity Principle**: Memory region types are **intrinsic to Clef** - as fundamental as `voption`. They carry semantic meaning through the entire compilation pipeline, guiding every memory layout decision. **Fidelity makes ALL memory layout decisions - MLIR/LLVM never determine layout.**
 >
 > **Erasure at Last Lowering**: These types ARE erased - but at the **last possible lowering stage**, after Fidelity has made all memory layout decisions. By the time code reaches LLVM, "the type information that guided every transformation has done its job and compiled away to nothing." This is the entire point of "Fidelity" - preserving type fidelity through compilation so the F# compiler controls memory layout.
 >
-> **FNCS Enforcement**: See [`fncs-specification.md` Parts 9-10](fncs-specification.md#part-9-memory-region-types-and-semantics) for region constraint enforcement and diagnostic codes.
+> **CCS Enforcement**: See [`ccs-specification.md` Parts 9-10](ccs-specification.md#part-9-memory-region-types-and-semantics) for region constraint enforcement and diagnostic codes.
 
 ### 8.1 Memory Regions
 
@@ -1098,9 +1098,9 @@ let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
 
 **Cache Behavior**: `Stack`, `Arena`, `Sram`, and `Flash` regions are cacheable with normal load/store semantics. `Peripheral` access bypasses cache and uses memory barriers - essential for hardware registers where timing and order matter.
 
-### 8.4 Arena as FNCS Intrinsic Type
+### 8.4 Arena as CCS Intrinsic Type
 
-> **Status (January 2026)**: Arena is implemented as an FNCS intrinsic type.
+> **Status (January 2026)**: Arena is implemented as an CCS intrinsic type.
 
 **Type Definition**:
 ```fsharp
@@ -1118,12 +1118,12 @@ Arena<'lifetime>
 
 | Property | Value |
 |----------|-------|
-| **FNCS Type** | Intrinsic with NTUCompound(3) |
+| **CCS Type** | Intrinsic with NTUCompound(3) |
 | **Lifetime param** | Measure type for tracking |
 | **Allocation** | Stack-backed (typical) or heap-backed |
 | **MLIR** | Three-word struct with InsertValue/ExtractValue |
 
-**FNCS Intrinsic Operations**:
+**CCS Intrinsic Operations**:
 
 | Operation | Type Signature |
 |-----------|----------------|
@@ -1196,7 +1196,7 @@ The type universe must account for interactive development scenarios where types
 
 ### 10.1 Interactive Session Types
 
-In fsni (F# Native Interactive), types are resolved in an evolving environment:
+In fsni (Clef Interactive), types are resolved in an evolving environment:
 
 ```fsharp
 > type Point = { x: int; y: int };;
@@ -1209,7 +1209,7 @@ val origin : Point
 **Type Resolution in Interactive Mode**:
 - Types defined in the session are immediately available
 - Types from `#require` directives are loaded into the type environment
-- FNCS resolves types against both session-local and loaded definitions
+- CCS resolves types against both session-local and loaded definitions
 
 ### 10.2 Arena Semantics in Interactive Mode
 
@@ -1234,9 +1234,9 @@ val data : int list  // Allocated in session arena
 
 | Mode | Type Checking | Execution |
 |------|---------------|-----------|
-| Interpret | Full FNCS | Interpreted |
-| Compile | Full FNCS | Native code |
-| Hybrid | Full FNCS | Mode-dependent |
+| Interpret | Full CCS | Interpreted |
+| Compile | Full CCS | Native code |
+| Hybrid | Full CCS | Mode-dependent |
 
 All modes use identical type semantics. The difference is only in execution:
 
@@ -1331,9 +1331,9 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 | Variant (no param) | Unboxed integer | N/A |
 | Variant (with param) | Block with tag + fields | 0-245 |
 
-### B.4 Key OCaml Design Decisions fsnative Diverges From
+### B.4 Key OCaml Design Decisions Clef Diverges From
 
-| OCaml Choice | fsnative Choice | Rationale |
+| OCaml Choice | Clef Choice | Rationale |
 |--------------|-----------------|-----------|
 | 63-bit tagged int | Full word `nativeint` | No GC tag needed (compile-time safety) |
 | Latin-1 char | UTF-32 codepoint | Modern Unicode support |
@@ -1345,7 +1345,7 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 
 ## Appendix C: Comparison with OCaml/F#/Rust
 
-| Aspect | OCaml | F# (.NET) | fsnative | Rust |
+| Aspect | OCaml | F# (.NET) | Clef | Rust |
 |--------|-------|-----------|----------|------|
 | String encoding | Byte sequence | UTF-16 | **UTF-8** | UTF-8 |
 | Option | `'a option` (heap) | `'a option` (heap) | **`voption` (stack)** | `Option<T>` (stack) |
@@ -1358,7 +1358,7 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 
 ## Appendix D: Migration from Shadow Types
 
-> **Note**: FNCS provides native type resolution directly. No shadow types or library workarounds are needed.
+> **Note**: CCS provides native type resolution directly. No shadow types or library workarounds are needed.
 
 ### FSharp.Core Types Leveraged
 
@@ -1369,9 +1369,9 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 | `nativeptr<'T>` | FSharp.NativePtr | Native pointer operations |
 | `Span<'T>` | FSharp.Core | Contiguous memory view |
 
-### FNCS Type Resolution
+### CCS Type Resolution
 
-FNCS (F# Native Compiler Services) resolves types to native representations at the source:
+CCS (Clef Compiler Service) resolves types to native representations at the source:
 - `string` → UTF-8 fat pointer
 - `option<'T>` → `voption` (stack-allocated)
 - `array<'T>` → fat pointer with native element layout
@@ -1381,13 +1381,13 @@ FNCS (F# Native Compiler Services) resolves types to native representations at t
 
 ## Appendix E: OCaml Provenance and Fidelity Extensions
 
-> **Design Philosophy**: fsnative draws provenance from OCaml's direct memory layout idioms - concepts that F#/.NET lacks entirely because the CLR abstracts memory away. However, OCaml is desktop-centric and non-cache-aware. Fidelity extends OCaml's foundation with modern hardware realities while incorporating Rust's RAII principles.
+> **Design Philosophy**: Clef draws provenance from OCaml's direct memory layout idioms - concepts that F#/.NET lacks entirely because the CLR abstracts memory away. However, OCaml is desktop-centric and non-cache-aware. Fidelity extends OCaml's foundation with modern hardware realities while incorporating Rust's RAII principles.
 
 ### E.1 What OCaml Provides (KEEP)
 
 OCaml contemplates direct memory layout in ways F#/.NET never does:
 
-| OCaml Concept | Value for fsnative | Notes |
+| OCaml Concept | Value for Clef | Notes |
 |---------------|-------------------|-------|
 | **Products/Sums/Functions as primitives** | Foundation | Type universe axioms (Part 1) |
 | **Value-oriented structural assembly** | Core principle | Records/tuples laid out contiguously |
@@ -1396,11 +1396,11 @@ OCaml contemplates direct memory layout in ways F#/.NET never does:
 | **No null philosophy** | Core principle | Everything representable without sentinel values |
 | **Unboxed by default** | Core principle | No implicit heap allocation |
 
-These concepts form the bedrock of fsnative's type universe. The structural assembly semantics, deterministic tag assignment, and fat pointer model are adopted with minimal modification.
+These concepts form the bedrock of Clef's type universe. The structural assembly semantics, deterministic tag assignment, and fat pointer model are adopted with minimal modification.
 
 ### E.2 What OCaml Lacks (SET ASIDE)
 
-OCaml's desktop-centric, non-cache-aware limitations that fsnative explicitly diverges from:
+OCaml's desktop-centric, non-cache-aware limitations that Clef explicitly diverges from:
 
 | OCaml Limitation | Fidelity Requirement | Gap |
 |------------------|---------------------|-----|
@@ -1413,7 +1413,7 @@ OCaml's desktop-centric, non-cache-aware limitations that fsnative explicitly di
 | **Runtime type discrimination** | Compile-time only | No runtime overhead |
 | **No prefetch/cache bypass semantics** | Processor-specific strategies | Intel vs AMD vs ARM optimization |
 
-OCaml assumes a desktop environment with ample RAM and a garbage collector managing memory. fsnative targets the full spectrum from microcontrollers to GPU clusters.
+OCaml assumes a desktop environment with ample RAM and a garbage collector managing memory. Clef targets the full spectrum from microcontrollers to GPU clusters.
 
 ### E.3 Rust RAII Guideposts (ADAPT)
 
@@ -1465,9 +1465,9 @@ let configureArena (profile: ActorProfile) =
 
 #### Hardware Memory Regions
 
-fsnative introduces memory regions unknown to both OCaml and Rust:
+Clef introduces memory regions unknown to both OCaml and Rust:
 
-| Region | Use Case | OCaml | Rust | fsnative |
+| Region | Use Case | OCaml | Rust | Clef |
 |--------|----------|-------|------|----------|
 | `Stack` | Thread-local automatic | Implicit | Implicit | Explicit type |
 | `Arena` | Bulk allocation, batch free | No | Manual | First-class |
@@ -1477,7 +1477,7 @@ fsnative introduces memory regions unknown to both OCaml and Rust:
 
 ### E.5 The Synthesis
 
-fsnative's type universe represents a synthesis:
+Clef's type universe represents a synthesis:
 
 1. **From OCaml**: Products, sums, functions as primitives; value-oriented assembly; fat pointers; no null
 2. **Set Aside from OCaml**: GC tagging overhead; desktop assumptions; runtime discrimination

@@ -200,7 +200,7 @@ IntrinsicCategory.Conversion
 
 ## 5. Type Signatures Summary
 
-| Function | Type Signature | FNCS Operation |
+| Function | Type Signature | CCS Operation |
 |----------|----------------|----------------|
 | `int`, `int32` | `'T -> int` | `toInt` |
 | `int64` | `'T -> int64` | `toInt64` |
@@ -228,7 +228,7 @@ Truncating conversions (e.g., `int64 -> int32`, `float -> int`) may lose informa
 - **Float to int**: Value is truncated toward zero; overflow produces undefined results
 - **Float precision loss**: `float64 -> float32` may lose precision
 
-FNCS does not provide checked conversions. For bounds checking, use explicit comparison before conversion.
+CCS does not provide checked conversions. For bounds checking, use explicit comparison before conversion.
 
 ## 8. Relationship to Other Intrinsics
 
@@ -241,8 +241,8 @@ FNCS does not provide checked conversions. For bounds checking, use explicit com
 
 ## 9. Normative Requirements
 
-1. **FNCS SHALL** classify all standard F# conversion functions as `Convert` intrinsics
-2. **FNCS SHALL** type conversion functions as `'T -> TargetType` (polymorphic input)
+1. **CCS SHALL** classify all standard F# conversion functions as `Convert` intrinsics
+2. **CCS SHALL** type conversion functions as `'T -> TargetType` (polymorphic input)
 3. **Alex SHALL** generate appropriate MLIR conversion operations based on source type
 4. **Alex SHALL** handle identity conversions by passing through the input value
 5. **Alex SHALL** use signed operations (`extsi`, `fptosi`, `sitofp`) for signed types

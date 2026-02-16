@@ -1,20 +1,15 @@
 # Front Matter
 
-This documentation is work-in-progress, aiming at a F# 10 specification.
+This is the normative language specification for **Clef**, a natively compiled language in the ML family derived from F#.
 
-Historically, a F# spec was maintained as a Word document until about 2018, when some of the then new F# 4.1 features were added. Since then, changes to the language were documented in RFC documents in the [language design repo](https://github.com/fsharp/fslang-design/).
+Clef preserves F# syntax and type-checking behavior while defining explicit native semantics for type layouts, memory ownership, lifetime verification, and deterministic resource management. This specification defines those native semantics.
 
-This site is the output of an ongoing effort to make the spec complete and to make it more accessible and community-maintainable. The starting point was the [F# 4.1 spec](https://fsharp.org/specs/language-spec/4.1/FSharpSpec-4.1-latest.pdf) that was converted to markdown and cleaned. The RFCs are now one by one added. Their status is listed [here](rfc-status.md). Check the [source repo](https://github.com/fsharp/fslang-spec/) for ways to contribute.
-
+The starting point for this specification was the [F# 4.1 Language Specification](https://fsharp.org/specs/language-spec/4.1/FSharpSpec-4.1-latest.pdf). Sections that assumed .NET runtime behavior have been revised to define explicit native semantics. Content on .NET interop, reflection, and runtime type discovery has been removed. New chapters cover ownership, borrowing, memory regions, access kinds, and lifetime constraints.
 
 ## Notices
 
-_Authors of the original F# spec:  <br> Don Syme, with assistance from Anar Alimov, Keith Battocchi, Jomo Fisher, Michael Hale, Jack Hu, Luke Hoban, Tao Liu, Dmitry Lomov,  James Margetson, Brian McNamara, Joe Pamer, Penny
-Orwick, Daniel Quirk, Kevin Ransom, Chris Smith, Matteo Taveggia, Donna Malayeri, Wonseok Chae,
-Uladzimir Matsveyeu, Lincoln Atkinson, and others.<br>For contributors to the later versions, see the github history / insights._
+_The original F# spec was authored by Don Syme, with assistance from Anar Alimov, Keith Battocchi, Jomo Fisher, Michael Hale, Jack Hu, Luke Hoban, Tao Liu, Dmitry Lomov, James Margetson, Brian McNamara, Joe Pamer, Penny Orwick, Daniel Quirk, Kevin Ransom, Chris Smith, Matteo Taveggia, Donna Malayeri, Wonseok Chae, Uladzimir Matsveyeu, Lincoln Atkinson, and others._
 
-_© 2005 - 2025 various contributors. Made available under the [Creative Commons CC-by 4.0](https://creativecommons.org/licenses/by/4.0/) licence._
+_The Clef language specification is developed by [SpeakEZ Technologies](https://speakez.tech)._
 
-_Product and company names mentioned herein may be the trademarks of their respective owners._
-
-_The sources for this content can be found on [github](https://github.com/fsharp/fslang-spec)._
+_© 2024-2026 SpeakEZ Technologies. Made available under the [MIT License](../LICENSE)._

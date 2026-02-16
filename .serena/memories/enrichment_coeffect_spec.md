@@ -43,5 +43,5 @@ Enables the control-flow ↔ dataflow pivot for lowering decisions.
 
 ## Related
 
-- Implementation: `fsnative/src/Compiler/PSGSaturation/SemanticGraph/Elaboration.fs`
+- Implementation: `Clef/src/Compiler/PSGSaturation/SemanticGraph/Elaboration.fs`
 - Firefly docs: `docs/PSG_Enrichment_Architecture.md`, `docs/Coeffect_Analysis_Architecture.md`

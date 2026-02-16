@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-This chapter specifies native reactive signals for FNCS, inspired by SolidJS's fine-grained reactivity and TanStack Store's framework-agnostic approach.
+This chapter specifies native reactive signals for CCS, inspired by SolidJS's fine-grained reactivity and TanStack Store's framework-agnostic approach.
 
 **Design Goals:**
 - Mirror SolidJS/TanStack signal semantics for frontend/backend consistency
@@ -18,7 +18,7 @@ This chapter specifies native reactive signals for FNCS, inspired by SolidJS's f
 
 ### 2.1 Type Definition
 
-FNCS introduces a function pointer type for callbacks:
+CCS introduces a function pointer type for callbacks:
 
 ```fsharp
 type FnPtr<'T, 'R>  // Function pointer from 'T to 'R
@@ -77,7 +77,7 @@ FnPtr.null<int, unit>()  // Create null pointer
 module Signal
 ```
 
-The Signal module provides reactive primitives. Unlike SolidJS which uses closures, FNCS signals use explicit subscription with function pointers.
+The Signal module provides reactive primitives. Unlike SolidJS which uses closures, CCS signals use explicit subscription with function pointers.
 
 ### 3.2 Signal Type
 
@@ -472,7 +472,7 @@ type IntrinsicModule =
 
 ## 13. Comparison with SolidJS
 
-| SolidJS | FNCS Native | Notes |
+| SolidJS | CCS Native | Notes |
 |---------|-------------|-------|
 | `createSignal(v)` | `Signal.create v` | Same semantics |
 | `signal()` (getter) | `Signal.get signal` | Explicit call |
@@ -481,7 +481,7 @@ type IntrinsicModule =
 | `createMemo(fn)` | `Memo.create (FnPtr.ofFunction fn)` | Requires top-level function |
 | `batch(fn)` | `Batch.run (FnPtr.ofFunction fn)` | Same semantics |
 
-**Key Difference:** FNCS requires function pointers from top-level functions instead of closures. This enables native compilation without a closure runtime.
+**Key Difference:** CCS requires function pointers from top-level functions instead of closures. This enables native compilation without a closure runtime.
 
 ## 14. Example: Counter Application
 
@@ -519,9 +519,9 @@ let main _ =
 
 ## 15. Normative Requirements
 
-1. **FNCS SHALL** add `NTUfnptr` to the NTU kind enumeration
-2. **FNCS SHALL** add `FnPtr`, `Signal`, `Effect`, `Memo`, `Batch` to `IntrinsicModule`
-3. **FNCS SHALL** type-check these intrinsics according to signatures in Section 12
+1. **CCS SHALL** add `NTUfnptr` to the NTU kind enumeration
+2. **CCS SHALL** add `FnPtr`, `Signal`, `Effect`, `Memo`, `Batch` to `IntrinsicModule`
+3. **CCS SHALL** type-check these intrinsics according to signatures in Section 12
 4. **Alex SHALL** generate correct MLIR for function pointer operations
 5. **Alex SHALL** generate runtime calls for signal/effect/memo operations
 6. **The runtime SHALL** implement dependency tracking as specified in Section 8

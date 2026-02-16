@@ -263,7 +263,7 @@ from client code—the parentheses simply act as a constraint on the implementat
 
 The reason for this interpretation of types in value and member signatures is that function arity affects compilation. F# functions with known arity compile to direct function calls, while function values require closure allocation. Signatures must contain enough information to reveal the desired arity for efficient native code generation.
 
-> **F# Native Note**: In native compilation, arity information enables direct function calls without closure overhead. Parenthesized signatures indicate that the implementation must be callable with that arity, enabling the compiler to generate efficient native calling conventions.
+> **Clef Note**: In native compilation, arity information enables direct function calls without closure overhead. Parenthesized signatures indicate that the implementation must be callable with that arity, enabling the compiler to generate efficient native calling conventions.
 
 #### Signature Conformance for Type Functions
 

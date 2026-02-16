@@ -1,12 +1,12 @@
-# fsnative-spec Design Philosophy
+# clef-lang-spec Design Philosophy
 
 ## Engineering-First Methodology
 
-fsnative-spec was **not** designed from academic first principles and then implemented. The specification **emerged from implementation**.
+clef-lang-spec was **not** designed from academic first principles and then implemented. The specification **emerged from implementation**.
 
-> "The specification documents what was discovered through implementation, not what was decreed in advance. This engineering-first methodology means that every normative statement in fsnative-spec corresponds to a concrete implementation requirement that arose from making actual code compile and execute correctly."
+> "The specification documents what was discovered through implementation, not what was decreed in advance. This engineering-first methodology means that every normative statement in clef-lang-spec corresponds to a concrete implementation requirement that arose from making actual code compile and execute correctly."
 
-## Why fsnative-spec Exists
+## Why clef-lang-spec Exists
 
 The F# Language Specification delegates extensively to the .NET runtime:
 
@@ -21,7 +21,7 @@ The F# Language Specification delegates extensively to the .NET runtime:
 
 ## OCaml "Accidental Sympathy" Discovery
 
-The relationship between F# Native and OCaml was **discovered, not designed**.
+The relationship between Clef and OCaml was **discovered, not designed**.
 
 Initial work on Alloy involved creating shadow types to intercept BCL type resolution:
 - `NativeStr` was created because `System.String` couldn't exist runtime-free
@@ -29,7 +29,7 @@ Initial work on Alloy involved creating shadow types to intercept BCL type resol
 
 **After implementing several shadow types, a pattern emerged**: they bore striking resemblance to OCaml's native types.
 
-| Aspect | BCL F# | OCaml | F# Native |
+| Aspect | BCL F# | OCaml | Clef |
 |--------|--------|-------|-----------|
 | String encoding | UTF-16 | UTF-8 | UTF-8 |
 | Option type | Reference, nullable | Value | Value (voption) |
@@ -42,7 +42,7 @@ Initial work on Alloy involved creating shadow types to intercept BCL type resol
 
 ### F* HyperStack Memory Model
 
-F*'s HyperStack concepts map to fsnative's region system:
+F*'s HyperStack concepts map to Clef's region system:
 - Region identifiers via phantom type parameters
 - Containment hierarchy with stack frames and heap regions
 - Preorders for value evolution constraints
@@ -50,7 +50,7 @@ F*'s HyperStack concepts map to fsnative's region system:
 
 ### Rust RAII Guideposts
 
-Rust pioneered compile-time ownership tracking. fsnative reserves syntax for similar concepts, adapted to F# idioms:
+Rust pioneered compile-time ownership tracking. Clef reserves syntax for similar concepts, adapted to F# idioms:
 - `Owned<'T>`, `Borrowed<'T>` for ownership
 - `move`, `&`, `&mut` expressions
 - Coeffect-based effect tracking rather than explicit lifetime annotations
@@ -66,7 +66,7 @@ For low-level hardware access:
 
 ## Core Principles
 
-1. **Same Syntax, Native Semantics**: Users write `string`, `option`, `int` - familiar F# syntax. fsnative-spec defines what those types *mean* for native compilation.
+1. **Same Syntax, Native Semantics**: Users write `string`, `option`, `int` - familiar F# syntax. clef-lang-spec defines what those types *mean* for native compilation.
 
 2. **Absolute Null-Freedom**: Everything is non-nullable by construction. Use `voption<'T>` for optional values.
 
@@ -76,12 +76,12 @@ For low-level hardware access:
 
 5. **Access Kind Enforcement**: ReadOnly, WriteOnly, ReadWrite - compile-time verification of hardware access patterns.
 
-## What fsnative-spec Is NOT
+## What clef-lang-spec Is NOT
 
 - **Not a subset**: Same syntax with different semantics and new capabilities
-- **Not a replacement**: fslang-spec targets CLR; fsnative-spec targets native
+- **Not a replacement**: fslang-spec targets CLR; clef-lang-spec targets native
 - **Not a formal semantics**: Prose specification, not operational/denotational semantics
 
 ## Source Document
 
-Extracted from: `fsnative-spec/docs/fidelity/beyond-fslang-spec.md` (now removed)
+Extracted from: `clef-lang-spec/docs/fidelity/beyond-fslang-spec.md` (now removed)

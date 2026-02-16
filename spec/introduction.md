@@ -1,16 +1,16 @@
 # Introduction
 
-F# is a scalable, succinct, type-safe, type-inferred, efficiently executing functional/imperative/object-oriented programming language. F# Native extends the F# language for native compilation, producing standalone executables without runtime dependencies. F# was partly inspired by the [OCaml language](https://ocaml.org/) and shares some common core constructs with it.
+F# is a scalable, succinct, type-safe, type-inferred, efficiently executing functional/imperative/object-oriented programming language. Clef extends the F# language for native compilation, producing standalone executables without runtime dependencies. F# was partly inspired by the [OCaml language](https://ocaml.org/) and shares some common core constructs with it.
 
-F# Native preserves the same syntax and type-checking behavior as standard F#, but with native type semantics: types are resolved to native representations at compile time rather than to .NET Base Class Library (BCL) types. This specification defines those native semantics.
+Clef preserves the same syntax and type-checking behavior as standard F#, but with native type semantics: types are resolved to native representations at compile time rather than to .NET Base Class Library (BCL) types. This specification defines those native semantics.
 
-## F# Native Compiler Services (FNCS)
+## Clef Compiler Service (CCS)
 
-The F# Native Compiler Services (FNCS) is the compiler frontend that implements this specification. FNCS is a purpose-built fork of the F# Compiler Services (FCS), optimized for native compilation.
+The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS is a purpose-built fork of the F# Compiler Services (FCS), optimized for native compilation.
 
-### What FNCS Provides
+### What CCS Provides
 
-FNCS performs parsing, type inference, and constraint resolution for F# Native programs:
+CCS performs parsing, type inference, and constraint resolution for Clef programs:
 
 | Capability | Description |
 |------------|-------------|
@@ -19,13 +19,13 @@ FNCS performs parsing, type inference, and constraint resolution for F# Native p
 | **SRTP Resolution** | Statically resolved type parameters against native witnesses |
 | **Typed Tree** | Fully typed representation for downstream compilation |
 
-FNCS outputs a typed abstract syntax tree with resolved types and constraints. This output flows to compilation backends (such as Firefly) for code generation.
+CCS outputs a typed abstract syntax tree with resolved types and constraints. This output flows to compilation backends (such as Firefly) for code generation.
 
 ### Distinction from FCS
 
-FNCS is not an extension or plugin to FCS. It is a separate compiler frontend with fundamentally different type semantics:
+CCS is not an extension or plugin to FCS. It is a separate compiler frontend with fundamentally different type semantics:
 
-| Aspect | FCS (Standard F#) | FNCS (F# Native) |
+| Aspect | FCS (Standard F#) | CCS (Clef) |
 |--------|-------------------|------------------|
 | **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native representations (same syntax, native semantics) |
 | **String Literals** | `System.String` (UTF-16, GC-managed) | `string` with native semantics (UTF-8, fat pointer) |
@@ -36,9 +36,9 @@ FNCS is not an extension or plugin to FCS. It is a separate compiler frontend wi
 
 ### Architectural Principles
 
-FNCS adheres to these principles:
+CCS adheres to these principles:
 
-**Native Types Are Intrinsic**: Primitive types (`int`, `string`, `bool`, etc.) are defined within FNCS itself, not discovered from external assemblies. When a program uses `string`, FNCS knows its representation, operations, and memory semantics because that knowledge is built into the compiler.
+**Native Types Are Intrinsic**: Primitive types (`int`, `string`, `bool`, etc.) are defined within CCS itself, not discovered from external assemblies. When a program uses `string`, CCS knows its representation, operations, and memory semantics because that knowledge is built into the compiler.
 
 **No BCL Dependencies**: The type checking path SHALL NOT reference BCL types. Types resolve to native representations as defined in [Native Type Mappings](native-type-mappings.md).
 
@@ -46,30 +46,30 @@ FNCS adheres to these principles:
 
 **SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the native witness hierarchy. This enables compile-time polymorphism without runtime overhead.
 
-**Typed Tree Fidelity**: FNCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly. The typed representation is defined by [`FSharpNativeExpr`](fsharp-native-expr.md), FNCS's native expression type that replaces FCS's `FSharpExpr`.
+**Typed Tree Fidelity**: CCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly. The typed representation is defined by [`ClefExpr`](clef-expr.md), CCS's native expression type that replaces FCS's `FSharpExpr`.
 
 ### Layer Separation
 
-FNCS has a focused responsibility within the Fidelity ecosystem:
+CCS has a focused responsibility within the Fidelity ecosystem:
 
 | Component | Responsibility |
 |-----------|---------------|
-| **FNCS** | Type universe, literal typing, type inference, SRTP resolution, PSG construction, editor services |
+| **CCS** | Type universe, literal typing, type inference, SRTP resolution, PSG construction, editor services |
 | **Firefly/Alex** | PSG consumption, platform-aware MLIR generation, native code output |
 
-FNCS produces a Program Semantic Graph (PSG) with native types attached and full symbol information preserved for design-time tooling. Firefly consumes the PSG as "correct by construction" and focuses purely on code generation.
+CCS produces a Program Semantic Graph (PSG) with native types attached and full symbol information preserved for design-time tooling. Firefly consumes the PSG as "correct by construction" and focuses purely on code generation.
 
 ### Normative Requirements
 
-NORMATIVE: FNCS SHALL resolve `string` to native semantics (UTF-8 fat pointer), not `System.String`.
+NORMATIVE: CCS SHALL resolve `string` to native semantics (UTF-8 fat pointer), not `System.String`.
 
-NORMATIVE: FNCS SHALL resolve `option<'T>` to value semantics (stack-allocated, non-nullable), not reference semantics.
+NORMATIVE: CCS SHALL resolve `option<'T>` to value semantics (stack-allocated, non-nullable), not reference semantics.
 
-NORMATIVE: FNCS SHALL reject any code that references `obj`, `System.Object`, or performs boxing/unboxing operations.
+NORMATIVE: CCS SHALL reject any code that references `obj`, `System.Object`, or performs boxing/unboxing operations.
 
-NORMATIVE: FNCS SHALL resolve SRTP constraints against the native witness hierarchy.
+NORMATIVE: CCS SHALL resolve SRTP constraints against the native witness hierarchy.
 
-NORMATIVE: The typed tree output by FNCS SHALL include resolved SRTP witnesses, enabling downstream stages to generate direct calls without runtime dispatch.
+NORMATIVE: The typed tree output by CCS SHALL include resolved SRTP witnesses, enabling downstream stages to generate direct calls without runtime dispatch.
 
 ## A First Program
 
@@ -82,7 +82,7 @@ let squares = List.map square numbers
 Console.WriteLine $"N^2 = {squares}"
 ```
 
-To compile this program with F# Native:
+To compile this program with Clef:
 
 - Use the Firefly compiler to produce a native executable.
 - The resulting binary runs without any runtime dependencies.
@@ -156,7 +156,7 @@ Most statically-typed languages require that you specify type information for a 
 
 From the function signature, F# knows that `square` takes a single parameter named `x` and that the function returns `x * x`. The last thing evaluated in an F# function body is the return value; hence there is no "return" keyword here. Many primitive types support the multiplication (*) operator (such as `int8`, `int64`, and `float`); however, for arithmetic operations, F# infers the type `int` by default.
 
-> **F# Native Note**: In F# Native, `int` is the platform word size (64 bits on 64-bit platforms), not a fixed 32-bit integer. See [Native Type Mappings](native-type-mappings.md) for details.
+> **Clef Note**: In Clef, `int` is the platform word size (64 bits on 64-bit platforms), not a fixed 32-bit integer. See [Native Type Mappings](native-type-mappings.md) for details.
 
 Although F# can typically infer types on your behalf, occasionally you must provide explicit type annotations in F# code. For example, the following code uses a type annotation for one of the parameters to tell the compiler the type of the input.
 
@@ -209,7 +209,7 @@ let checkList alist =
 
 In this example, `alist` is compared with each potentially matching pattern of elements. When `alist` matches a pattern, the result expression is evaluated and is returned as the value of the match expression. Here, the `->` operator separates a pattern from the result that a match returns.
 
-Pattern matching can also be used as a control construct. In F# Native, type-based dispatch uses discriminated unions rather than runtime type tests:
+Pattern matching can also be used as a control construct. In Clef, type-based dispatch uses discriminated unions rather than runtime type tests:
 
 ```fsharp
 type Value =
@@ -226,7 +226,7 @@ let describeValue (x : Value) =
 
 This approach provides exhaustive pattern matching verified at compile time.
 
-> **F# Native Note**: The `:?` type test operator and `obj` type are not available in F# Native. Use discriminated unions for type-safe variant handling. See [Native Type Mappings § The Universal Base Type `obj` Is Not Available](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+> **Clef Note**: The `:?` type test operator and `obj` type are not available in Clef. Use discriminated unions for type-safe variant handling. See [Native Type Mappings § The Universal Base Type `obj` Is Not Available](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
 
 Function values can also be combined with the *pipeline operator*, `|>`. For example, given these functions:
 
@@ -265,10 +265,10 @@ The `Console.WriteLine` function is an example of *imperative programming*, whic
 
 ### Native Compilation and System Intrinsics
 
-F# Native compiles to standalone native executables. Platform-specific operations use **FNCS intrinsics** - operations that are intrinsic to the native type universe:
+Clef compiles to standalone native executables. Platform-specific operations use **CCS intrinsics** - operations that are intrinsic to the native type universe:
 
 ```fsharp
-// Sys intrinsics are recognized by FNCS during type checking
+// Sys intrinsics are recognized by CCS during type checking
 // and compiled to platform-specific code by Alex
 module Sys =
     val write : int -> nativeptr<byte> -> int -> int  // syscall on Unix
@@ -276,7 +276,7 @@ module Sys =
     val exit  : int -> 'T                             // never returns
 ```
 
-FNCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
+CCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
 
 > **See**: [Platform Bindings](platform-bindings.md) for the three-layer binding architecture including Sys intrinsics and quotation-based bindings for external libraries.
 
@@ -316,7 +316,7 @@ let speedOfImpact = sqrt(2.0 * gravityOnEarth * heightOfTowerOfPisa)
 
 The `Measure` attribute tells F# that `kg`, `s`, and `m` are not really types in the usual sense of the word, but are used to build units of measure. Here `speedOfImpact` is inferred to have type `float<m/s>`.
 
-> **F# Native Extension**: Units of measure are also used for memory regions and access kinds. See [Memory Regions](memory-regions.md) and [Access Kinds](access-kinds.md).
+> **Clef Extension**: Units of measure are also used for memory regions and access kinds. See [Memory Regions](memory-regions.md) and [Access Kinds](access-kinds.md).
 
 ### Object-Oriented Programming and Code Organization
 
@@ -403,9 +403,9 @@ Other mechanisms aimed at supporting software engineering include *signatures*, 
 
 ### Native Type Semantics
 
-F# Native uses the same syntax as standard F#, but types have native semantics:
+Clef uses the same syntax as standard F#, but types have native semantics:
 
-| F# Syntax | Standard F# | F# Native |
+| F# Syntax | Standard F# | Clef |
 |-----------|-------------|-----------|
 | `string` | `System.String` (UTF-16) | UTF-8 fat pointer |
 | `option<'T>` | Reference type, nullable | `voption<'T>`, stack-allocated, non-nullable |
@@ -416,10 +416,10 @@ F# Native uses the same syntax as standard F#, but types have native semantics:
 
 ### Null-Free Semantics
 
-F# Native enforces null-free semantics for all types. There are no null values:
+Clef enforces null-free semantics for all types. There are no null values:
 
 ```fsharp
-// COMPILE ERROR in F# Native
+// COMPILE ERROR in Clef
 let s: string = null         // Error: Cannot assign null
 
 // Use option for optional values
@@ -430,7 +430,7 @@ let maybeValue: int option = None   // Stack-allocated, NOT null
 
 ### Memory Regions and Access Kinds
 
-F# Native extends the type system with memory region types and access kinds for embedded and systems programming:
+Clef extends the type system with memory region types and access kinds for embedded and systems programming:
 
 ```fsharp
 // Memory-mapped I/O with type-safe access
@@ -465,7 +465,7 @@ Unicode character classes are referred to by their abbreviation—for example, `
 | \r        | return    | ASCII/UTF-8/UTF-32 code 13        |
 | \t        | tab       | ASCII/UTF-8/UTF-32 code 09        |
 
-> **F# Native Note**: The specification uses UTF-8 and UTF-32, not UTF-16. See [Native Type Mappings](native-type-mappings.md#string) for string encoding details.
+> **Clef Note**: The specification uses UTF-8 and UTF-32, not UTF-16. See [Native Type Mappings](native-type-mappings.md#string) for string encoding details.
 
 Strings of characters that are clearly not a regular expression are written verbatim. Therefore, the following string
 

@@ -1,6 +1,6 @@
 # Name Resolution
 
-This chapter describes how F# Native resolves names in various contexts during type inference. This is a component of the overall [Inference Procedures](inference-procedures.md).
+This chapter describes how Clef resolves names in various contexts during type inference. This is a component of the overall [Inference Procedures](inference-procedures.md).
 
 The following sections describe how F# resolves names in various contexts.
 
@@ -268,7 +268,7 @@ _Name Resolution for Members_ proceeds through the following steps:
 
 1. Search the hierarchy of the type from its root base type to `type`.
 
-   > **F# Native Note**: F# Native classes do not inherit from `System.Object`. The type hierarchy is determined by explicit `inherit` declarations.
+   > **Clef Note**: Clef classes do not inherit from `System.Object`. The type hierarchy is determined by explicit `inherit` declarations.
 
 2. At each type, try to resolve `member-ident` to one of the following, in order:
 
@@ -406,7 +406,7 @@ be type `string`.
 
 _Field Label Resolution_ specifies how to resolve identifiers such as `field1` in `{field1 = expr; ... fieldN = expr}`.
 
-> **F# Native Extension**: Unlike standard F# where memory layout is delegated to the CLR runtime, fsnative computes deterministic memory layouts at compile time. Field Label Resolution therefore encompasses both type resolution AND layout determination. See [§](native-type-universe.md#32-records-named-products) for memory layout principles.
+> **Clef Extension**: Unlike standard F# where memory layout is delegated to the CLR runtime, Clef computes deterministic memory layouts at compile time. Field Label Resolution therefore encompasses both type resolution AND layout determination. See [§](native-type-universe.md#32-records-named-products) for memory layout principles.
 
 _Field Label Resolution_ proceeds through the following steps:
 
@@ -438,7 +438,7 @@ The resolution proceeds based on the cardinality of `R_candidates`:
 
 For the resolved record type `R`, verify that every field defined in `R` has exactly one corresponding `field-label_i` in the expression. Missing fields result in error FS8705.
 
-#### Step 4: Layout Computation (F# Native Extension)
+#### Step 4: Layout Computation (Clef Extension)
 
 > **Core Principle**: "Field order determines memory layout" ([§](native-type-universe.md#32-records-named-products)). The compiler controls layout—not MLIR, not LLVM.
 

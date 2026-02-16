@@ -1,12 +1,12 @@
 # Types and Type Constraints
 
-The notion of _type_ is central to the static checking of F# Native programs. The word is used with three distinct but related meanings:
+The notion of _type_ is central to the static checking of Clef programs. The word is used with three distinct but related meanings:
 
-- **Type definitions**, such as the definitions of `string`, `option<_>`, or `Map<_,_>`. In F# Native, all types have explicit memory representations defined at compile time.
+- **Type definitions**, such as the definitions of `string`, `option<_>`, or `Map<_,_>`. In Clef, all types have explicit memory representations defined at compile time.
 - **Syntactic types**, such as the text `option<_>` that might occur in a program text. Syntactic types are converted to static types during the process of type checking and inference.
 - **Static types**, which result from type checking and inference, either by the translation of syntactic types that appear in the source text, or by the application of constraints that are related to particular language constructs. For example, `option<int>` is the fully processed static type that is inferred for an expression `Some(1+1)`. Static types may contain `type variables` as described later in this section.
 
-> **F# Native Note**: F# Native resolves all type information at compile time through FNCS (F# Native Compiler Services). Types are compile-time constructs that guide memory layout, code generation, and type-safe operations. Pattern matching type tests (`:?`, `:?>`) are resolved statically where possible, or generate compile-time errors when the type relationship cannot be determined.
+> **Clef Note**: Clef resolves all type information at compile time through CCS (Clef Compiler Service). Types are compile-time constructs that guide memory layout, code generation, and type-safe operations. Pattern matching type tests (`:?`, `:?>`) are resolved statically where possible, or generate compile-time errors when the type relationship cannot be determined.
 
 The following describes the syntactic forms of types as they appear in programs:
 
@@ -108,9 +108,9 @@ _simplified_ and _eliminated_ based on these equations through _constraint solvi
 
 ### Unified Type Representation
 
-FNCS uses a unified type representation throughout type checking and inference. Type constructors from the Native Type Universe (NTU) are recognized during construction, producing `NativeType` values directly with type variables preserved.
+CCS uses a unified type representation throughout type checking and inference. Type constructors from the Native Type Universe (NTU) are recognized during construction, producing `NativeType` values directly with type variables preserved.
 
-When FNCS encounters a type expression such as `nativeptr<'T>`:
+When CCS encounters a type expression such as `nativeptr<'T>`:
 
 1. The type constructor `nativeptr` is recognized as part of the NTU
 2. A `NativeType.TNativePtr` value is produced
@@ -134,7 +134,7 @@ _Named types_ have several forms, as listed in the following table.
 | `long-ident <ty1, ..., tyn>` | Named type with one or more suffixed type arguments.                                                                                                                                                                 |
 | `long-ident`               | Named type with no type arguments                                                                                                                                                                                    |
 | `type long-ident`          | Named type with one type argument; processed the same as `long-ident<type>`                                                                                                                                          |
-| `ty1 -> ty2`               | A function type, where: <br> ▪ ty1 is the domain of the function values associated with the type<br> ▪ ty2 is the range.<br>In F# Native, function types compile to native closures (see [Closure Representation](closure-representation.md)). |
+| `ty1 -> ty2`               | A function type, where: <br> ▪ ty1 is the domain of the function values associated with the type<br> ▪ ty2 is the range.<br>In Clef, function types compile to native closures (see [Closure Representation](closure-representation.md)). |
 
 Named types are converted to static types as follows:
 
@@ -187,9 +187,9 @@ A _tuple type_ has the following form:
 ty 1 * ... * tyn
 ```
 
-Tuple types in F# Native represent anonymous product types with a direct, unboxed memory layout. Fields are laid out contiguously with natural alignment (see [§](expressions.md#tuple-expressions)).
+Tuple types in Clef represent anonymous product types with a direct, unboxed memory layout. Fields are laid out contiguously with natural alignment (see [§](expressions.md#tuple-expressions)).
 
-> **F# Native Note**: Tuples are value types with direct, unboxed memory layout. A tuple `int * string` is laid out as:
+> **Clef Note**: Tuples are value types with direct, unboxed memory layout. A tuple `int * string` is laid out as:
 >
 > ```
 > ┌─────────────┬─────────────────────────────┐
@@ -207,9 +207,9 @@ A _struct tuple type_ has the following form:
 struct ( ty 1 * ... * tyn )
 ```
 
-> **F# Native Note**: In F# Native, ALL tuples have value semantics with direct memory layout - there is no distinction between "reference tuples" and "struct tuples" at the representation level. The `struct` keyword is accepted for compatibility with managed F# code, but both forms compile to the same unboxed representation. There is no `System.Tuple` or `System.ValueTuple` - tuples are native anonymous product types.
+> **Clef Note**: In Clef, ALL tuples have value semantics with direct memory layout - there is no distinction between "reference tuples" and "struct tuples" at the representation level. The `struct` keyword is accepted for compatibility with managed F# code, but both forms compile to the same unboxed representation. There is no `System.Tuple` or `System.ValueTuple` - tuples are native anonymous product types.
 
-The "structness" annotation of tuple expressions and tuple patterns is accepted for source compatibility but has no effect on memory representation in F# Native - all tuples are laid out directly without heap allocation.
+The "structness" annotation of tuple expressions and tuple patterns is accepted for source compatibility but has no effect on memory representation in Clef - all tuples are laid out directly without heap allocation.
 
 ### Array Types
 
@@ -222,7 +222,7 @@ ty [ , ... , ]
 
 A type of the form `ty []` is a _single-dimensional array_ type, and a type of the form `ty[ , ... , ]` is a _multidimensional array type_. For example, `int[,,]` is an array of integers of rank 3.
 
-> **F# Native Note**: Arrays in F# Native use a fat pointer representation, NOT `System.Array`:
+> **Clef Note**: Arrays in Clef use a fat pointer representation, NOT `System.Array`:
 >
 > ```
 > array<'T>
@@ -237,7 +237,7 @@ A type of the form `ty []` is a _single-dimensional array_ type, and a type of t
 
 > Note: The type `int[][,]` in F# is the same as the type `int[,][]` in C# although the dimensions are swapped. This ensures consistency with other postfix type names in F# such as `int list list`.
 
-F# Native supports multidimensional array types up to rank 4.
+Clef supports multidimensional array types up to rank 4.
 
 ### Constrained Types
 
@@ -301,15 +301,15 @@ ensure the reporting of useful error messages.
 
 ### Nullness Constraints
 
-> **F# Native Note**: F# Native enforces **absolute null-freedom**. The nullness constraint `typar : null` is NOT SUPPORTED in F# Native. All types are non-nullable by construction - there is no `null` literal and no null values at runtime.
+> **Clef Note**: Clef enforces **absolute null-freedom**. The nullness constraint `typar : null` is NOT SUPPORTED in Clef. All types are non-nullable by construction - there is no `null` literal and no null values at runtime.
 >
 > This is the most significant semantic difference from managed F#. See [§](#nullness) for the complete null-freedom model.
 
 ```fsgrammar
-typar : null    -- NOT SUPPORTED in F# Native
+typar : null    -- NOT SUPPORTED in Clef
 ```
 
-The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (FS8010) indicating that null is not permitted in F# Native code.
+The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (FS8010) indicating that null is not permitted in Clef code.
 
 Code that requires optional values MUST use `option<'T>` (which compiles to stack-allocated `voption<'T>` semantics):
 
@@ -317,7 +317,7 @@ Code that requires optional values MUST use `option<'T>` (which compiles to stac
 // Managed F# pattern (NOT supported):
 let maybeNull : string = null  // ERROR: null literal not permitted
 
-// F# Native pattern (correct):
+// Clef pattern (correct):
 let maybeValue : string option = None  // OK: explicit optionality
 ```
 
@@ -368,7 +368,7 @@ typar : (new : unit -> 'T)
 
 During constraint solving (see [§](inference-constraint-solving.md#constraint-solving)), the constraint `type : (new : unit -> 'T)` is met if `type` has a parameterless constructor.
 
-> **F# Native Note**: This constraint is supported for record and class types that have a default constructor. The compiler verifies that the type can be constructed with no arguments by examining the type definition.
+> **Clef Note**: This constraint is supported for record and class types that have a default constructor. The compiler verifies that the type can be constructed with no arguments by examining the type definition.
 
 ### Value Type Constraints
 
@@ -385,7 +385,7 @@ During constraint solving (see [§](inference-constraint-solving.md#constraint-s
 - Enum types
 - Single-case discriminated unions (which are optimized to their payload representation)
 
-> **F# Native Note**: There is no `System.Nullable<_>` in F# Native. Optional values are represented by `option<'T>`, which in F# Native compiles to stack-allocated `voption<'T>` semantics - a tagged value type, not a nullable reference. The `option` type can wrap any type, including other options, without the restrictions that apply to `System.Nullable` in managed code.
+> **Clef Note**: There is no `System.Nullable<_>` in Clef. Optional values are represented by `option<'T>`, which in Clef compiles to stack-allocated `voption<'T>` semantics - a tagged value type, not a nullable reference. The `option` type can wrap any type, including other options, without the restrictions that apply to `System.Nullable` in managed code.
 
 ### Reference Type Constraints
 
@@ -404,7 +404,7 @@ During constraint solving (see [§](inference-constraint-solving.md#constraint-s
 - Function types
 - List types
 
-> **F# Native Note**: The distinction between "value types" and "reference types" in F# Native refers to representation strategy, not heap allocation. Reference types use pointer indirection but may still be stack or arena allocated - there is no GC heap. The constraint `not struct` ensures the type uses pointer representation, which is relevant for certain generic patterns.
+> **Clef Note**: The distinction between "value types" and "reference types" in Clef refers to representation strategy, not heap allocation. Reference types use pointer indirection but may still be stack or arena allocated - there is no GC heap. The constraint `not struct` ensures the type uses pointer representation, which is relevant for certain generic patterns.
 
 ### Enumeration Constraints
 
@@ -420,19 +420,19 @@ During constraint solving (see [§](inference-constraint-solving.md#constraint-s
 
 ### Delegate Constraints
 
-> **F# Native Note**: The delegate constraint is NOT SUPPORTED in F# Native. CLI delegates are a managed runtime concept that does not exist in native compilation.
+> **Clef Note**: The delegate constraint is NOT SUPPORTED in Clef. CLI delegates are a managed runtime concept that does not exist in native compilation.
 
 ```fsgrammar
 typar : delegate< tupled-arg-type , return-type>    -- NOT SUPPORTED
 ```
 
-F# Native uses function types directly for callbacks and event handling. Where managed F# would use delegates, F# Native uses first-class functions:
+Clef uses function types directly for callbacks and event handling. Where managed F# would use delegates, Clef uses first-class functions:
 
 ```fsharp
 // Managed F# pattern (NOT supported):
 let handler : EventHandler = new EventHandler(fun sender args -> ...)
 
-// F# Native pattern (correct):
+// Clef pattern (correct):
 let handler : obj -> EventArgs -> unit = fun sender args -> ...
 ```
 
@@ -473,7 +473,7 @@ The constraint `type : comparison` is a `comparison constraint`. Such a constrai
 - If the type is a named type, then the type definition does not have, and is not inferred to have, the `NoComparison` attribute, and the type supports ordering operations.
 - If the type has `comparison dependencies` `ty1, ..., tyn`, then each of these must satisfy `tyi : comparison`.
 
-> **F# Native Note**: In F# Native, equality and comparison are resolved through SRTP (Statically Resolved Type Parameters) against the native witness hierarchy. The compiler verifies that appropriate `(=)` and `compare` operations exist for the types at compile time. Comparison capability is a compile-time property verified by FNCS.
+> **Clef Note**: In Clef, equality and comparison are resolved through SRTP (Statically Resolved Type Parameters) against the native witness hierarchy. The compiler verifies that appropriate `(=)` and `compare` operations exist for the types at compile time. Comparison capability is a compile-time property verified by CCS.
 
 An equality constraint is satisfied by:
 - All primitive types (`int`, `float`, `bool`, `string`, etc.)
@@ -522,7 +522,7 @@ let closeResources<'T when 'T :> ICloseable> (x: 'T, y: 'T) =
     y.Close()
 ```
 
-The constraint in this example requires that `'T` be a type that supports the `ICloseable` interface (or trait, resolved via SRTP in F# Native).
+The constraint in this example requires that `'T` be a type that supports the `ICloseable` interface (or trait, resolved via SRTP in Clef).
 
 However, in most circumstances, declarations that imply subtype constraints on arguments can be written more concisely:
 
@@ -537,7 +537,7 @@ let processOrdered<'T when 'T : comparison and 'T :> ICloseable> (x: 'T, y: 'T) 
     if compare x y < 0 then x.Close() else y.Close()
 ```
 
-> **F# Native Note**: Interface constraints like `:> IDisposable` from managed F# are typically resolved through SRTP member constraints in F# Native. The native library provides trait-like patterns for common capabilities.
+> **Clef Note**: Interface constraints like `:> IDisposable` from managed F# are typically resolved through SRTP member constraints in Clef. The native library provides trait-like patterns for common capabilities.
 
 Explicit type parameter definitions can declare custom attributes on type parameter definitions (see [§](special-attributes-and-types.md)).
 
@@ -570,7 +570,7 @@ Type definitions include native types (such as `string`, `int`, `array`) and typ
   - `Measure`
   - `Abstract`
 
-  > **F# Native Note**: The `Delegate` kind from managed F# is not supported - F# Native uses function types directly.
+  > **Clef Note**: The `Delegate` kind from managed F# is not supported - Clef uses function types directly.
 
   The kind is determined at the point of declaration by Type Kind Inference (see [§](type-definitions.md#type-kind-inference)) if it is not specified explicitly as part of the type definition. The _kind_ of a type refers to the kind of its outermost named type definition, after expanding abbreviations. For example, a type is a _class_ type if it is a named type `C<types>` where `C` is of kind _class_.
 
@@ -586,7 +586,7 @@ Class, interface, function, tuple, record, and union types are all _reference_ t
 
 Struct types are _value types_ (meaning they have direct, non-pointer representation).
 
-> **F# Native Note**: The distinction between "reference types" and "value types" in F# Native is about memory representation (pointer vs. direct), not about heap vs. stack allocation. Both can be stack-allocated or arena-allocated depending on escape analysis.
+> **Clef Note**: The distinction between "reference types" and "value types" in Clef is about memory representation (pointer vs. direct), not about heap vs. stack allocation. Both can be stack-allocated or arena-allocated depending on escape analysis.
 
 ### Expanding Abbreviations and Inference Equations
 
@@ -595,16 +595,16 @@ Two static types are considered equivalent and indistinguishable if they are equ
 - The inference equations that are inferred from the current inference constraints (see [§](inference-constraint-solving.md#constraint-solving)).
 - The expansion of type abbreviations (see [§](type-definitions.md#type-abbreviations)).
 
-> **F# Native Note**: In F# Native, type abbreviations like `int`, `string`, and `option` are resolved directly to their native representations by FNCS (F# Native Compiler Services). There is no mapping to BCL types like `System.Int32` or `System.String`.
+> **Clef Note**: In Clef, type abbreviations like `int`, `string`, and `option` are resolved directly to their native representations by CCS (Clef Compiler Service). There is no mapping to BCL types like `System.Int32` or `System.String`.
 
 For example, `int` is a native type abbreviation for the platform word-sized integer:
 
 ```fsharp
-// int in F# Native = platform word (64-bit on 64-bit platforms)
+// int in Clef = platform word (64-bit on 64-bit platforms)
 // NOT an abbreviation for System.Int32
 ```
 
-The types `int` and `int32` are distinct in F# Native:
+The types `int` and `int32` are distinct in Clef:
 - `int` = platform word (64-bit on x86-64)
 - `int32` = fixed 32-bit integer
 
@@ -661,7 +661,7 @@ of the type variable.
 
 ### Base Type of a Type
 
-> **F# Native Note**: The concept of "base type" in F# Native differs from managed F#. There is no universal `System.Object` base type. Instead, types are organized by their _structural category_ which determines memory layout and available operations.
+> **Clef Note**: The concept of "base type" in Clef differs from managed F#. There is no universal `System.Object` base type. Instead, types are organized by their _structural category_ which determines memory layout and available operations.
 
 | **Static Type** | **Structural Category** | **Notes** |
 |-----------------|------------------------|-----------|
@@ -682,7 +682,7 @@ The inheritance hierarchy of class types works as in managed F#, with the declar
 
 The _interface types_ of a named type `C<type-inst>` are defined by the transitive closure of the interface declarations of `C` and the interface types of the base type of `C`, where formal generic parameters are substituted for the actual type instantiation `type-inst`.
 
-> **F# Native Note**: Interface implementation in F# Native is verified at compile time through SRTP resolution against the native witness hierarchy. Arrays support iteration through the `seq<'T>` pattern.
+> **Clef Note**: Interface implementation in Clef is verified at compile time through SRTP resolution against the native witness hierarchy. Arrays support iteration through the `seq<'T>` pattern.
 
 ### Type Equivalence
 
@@ -723,37 +723,37 @@ in `Constraint Solving` (see [§](inference-constraint-solving.md#constraint-sol
 
 ### Nullness
 
-> **F# Native Note**: F# Native enforces **absolute null-freedom**. This is the most significant semantic difference from managed F#. There is no `null` literal, no null values at runtime, and no nullness constraints.
+> **Clef Note**: Clef enforces **absolute null-freedom**. This is the most significant semantic difference from managed F#. There is no `null` literal, no null values at runtime, and no nullness constraints.
 
-**All types in F# Native are non-nullable by construction.** There is exactly one category:
+**All types in Clef are non-nullable by construction.** There is exactly one category:
 
-- **Types without `null`.** ALL types in F# Native fall into this category. There is no `null` literal, no `AllowNullLiteral` attribute, and no way to construct or observe null values.
+- **Types without `null`.** ALL types in Clef fall into this category. There is no `null` literal, no `AllowNullLiteral` attribute, and no way to construct or observe null values.
 
 This null-freedom is enforced at multiple levels:
 
-1. **Syntax**: The `null` keyword is not permitted in F# Native source code (error FS8010).
+1. **Syntax**: The `null` keyword is not permitted in Clef source code (error FS8010).
 2. **Type system**: No type satisfies the nullness constraint; the constraint itself is not supported.
 3. **Runtime**: All values have valid, non-null representations.
 
 **Representing Optional Values**:
 
-Where managed F# might use null to indicate absence, F# Native uses `option<'T>`:
+Where managed F# might use null to indicate absence, Clef uses `option<'T>`:
 
 ```fsharp
-// Managed F# pattern (NOT supported in F# Native):
+// Managed F# pattern (NOT supported in Clef):
 let maybeString : string = null
 
-// F# Native pattern (correct):
+// Clef pattern (correct):
 let maybeString : string option = None
 ```
 
-The `option<'T>` type in F# Native compiles to stack-allocated `voption<'T>` semantics - a tagged value type with `None = 0` as a tag value, not a null pointer.
+The `option<'T>` type in Clef compiles to stack-allocated `voption<'T>` semantics - a tagged value type with `None = 0` as a tag value, not a null pointer.
 
 **API Implications (Null-Freedom Cascades)**:
 
-Standard library APIs that use sentinel values in managed F# return `option` in F# Native:
+Standard library APIs that use sentinel values in managed F# return `option` in Clef:
 
-| Managed F# Pattern | F# Native Pattern |
+| Managed F# Pattern | Clef Pattern |
 |-------------------|-------------------|
 | `string.IndexOf(c)` returns `-1` | `String.indexOf c s` returns `voption<int>` |
 | `dict.TryGetValue(k, &v)` | `Map.tryFind k m` returns `voption<'V>` |
@@ -762,13 +762,13 @@ Standard library APIs that use sentinel values in managed F# return `option` in 
 
 **Nullness Constraint Not Supported**:
 
-The nullness constraint `typar : null` is NOT SUPPORTED. Code using this constraint will produce a compile-time error. The `AllowNullLiteral` attribute has no effect in F# Native.
+The nullness constraint `typar : null` is NOT SUPPORTED. Code using this constraint will produce a compile-time error. The `AllowNullLiteral` attribute has no effect in Clef.
 
 ### Default Initialization
 
-Default initialization of values to _zero values_ is supported in F# Native for types that have a well-defined zero representation.
+Default initialization of values to _zero values_ is supported in Clef for types that have a well-defined zero representation.
 
-> **F# Native Note**: Default initialization is permitted only for types with explicit zero representations.
+> **Clef Note**: Default initialization is permitted only for types with explicit zero representations.
 
 The following types permit _default initialization_:
 
@@ -787,11 +787,11 @@ The `Unchecked.defaultof<'T>` function is available but should be used with care
 
 ### Type Conversions
 
-> **F# Native Note**: F# Native does not have "runtime types" in the managed F# sense. There is no boxing, no `System.Type`, and no runtime type discovery. All type conversions are verified at compile time.
+> **Clef Note**: Clef does not have "runtime types" in the managed F# sense. There is no boxing, no `System.Type`, and no runtime type discovery. All type conversions are verified at compile time.
 
 **Static Type Coercion**:
 
-Type coercion in F# Native follows the static type hierarchy. A type `ty1` coerces to `ty2` (written `ty1 :> ty2`) if:
+Type coercion in Clef follows the static type hierarchy. A type `ty1` coerces to `ty2` (written `ty1 :> ty2`) if:
 
 - `ty1` inherits from or implements `ty2`
 - `ty1` and `ty2` are the same type
@@ -810,7 +810,7 @@ These conversions are zero-cost reinterpret casts at the memory level.
 
 **No Dynamic Type Tests**:
 
-The `:?` and `:?>` operators for dynamic type testing are resolved statically in F# Native:
+The `:?` and `:?>` operators for dynamic type testing are resolved statically in Clef:
 
 ```fsharp
 // Statically resolvable - OK

@@ -13,9 +13,9 @@
 
 ## 1. Overview
 
-This chapter specifies the Native Type Universe (NTU) conversion model—how numeric and string conversions are resolved and emitted in F# Native compilation.
+This chapter specifies the Native Type Universe (NTU) conversion model—how numeric and string conversions are resolved and emitted in Clef compilation.
 
-F# Native preserves standard F# conversion syntax (`float 42`, `string x`, `int "42"`) while using SRTP (Statically Resolved Type Parameters) for compile-time resolution to native operations.
+Clef preserves standard F# conversion syntax (`float 42`, `string x`, `int "42"`) while using SRTP (Statically Resolved Type Parameters) for compile-time resolution to native operations.
 
 ## 2. Conversion Categories
 

@@ -14,9 +14,9 @@ let mkdocsDir = Path.Join(outDir, "mkdocs")
 let mkdocsDocsDir = Path.Join(mkdocsDir, "docs")
 let assetsDir = "assets"
 let mkdocsConfigFilePath = Path.Join(mkdocsDir, "mkdocs.yml")
-let mkdocsIconFilePath = Path.Join(mkdocsDocsDir, "fsharp128.png")
+let mkdocsIconFilePath = Path.Join(mkdocsDocsDir, "clef128.png")
 let mkdocsConfigSourcePath = Path.Join(assetsDir, "mkdocs.yml")
-let mkdocsIconSourcePath = Path.Join(assetsDir, "fsharp128.png")
+let mkdocsIconSourcePath = Path.Join(assetsDir, "clef128.png")
 
 let versionPlaceholder () = [""; $"_This version was created from sources on {System.DateTime.Now}_"; ""]
 let chapterFileName chapterName = $"{chapterName}.md"

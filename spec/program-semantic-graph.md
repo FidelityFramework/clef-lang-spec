@@ -5,13 +5,13 @@
 
 ## 1. Overview
 
-The Program Semantic Graph (PSG) is the unified intermediate representation produced by FNCS. It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
+The Program Semantic Graph (PSG) is the unified intermediate representation produced by CCS. It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
 
 ### 1.1 Architectural Heritage
 
 The PSG draws on the **nanopass** tradition established in Standard ML and Scheme compiler research. Where traditional compilers make large, monolithic transformations between representations, nanopass architecture decomposes compilation into many small, single-purpose passes—each doing one thing well.
 
-This heritage distinguishes F# Native from the F# Compiler Services (FCS) design. FCS was built for .NET integration, where semantic information flows to the CLR runtime. The PSG instead preserves semantic information through to native code generation, carrying proofs about types, memory, and execution that the CLR would normally handle implicitly.
+This heritage distinguishes Clef from the F# Compiler Services (FCS) design. FCS was built for .NET integration, where semantic information flows to the CLR runtime. The PSG instead preserves semantic information through to native code generation, carrying proofs about types, memory, and execution that the CLR would normally handle implicitly.
 
 **Key insight**: Traversal information is itself semantic information. The classification of what executes during module initialization versus what constitutes a definition versus what serves as an entry point—these are semantic facts about the program that flow through the pipeline as first-class data.
 
@@ -59,7 +59,7 @@ The `Types` and `ModuleClassifications` fields use the **codata pattern**—they
 This design serves two purposes:
 
 1. **Efficiency**: Classification is only computed when Alex needs it
-2. **Separation of concerns**: FNCS builds the graph; consumers decide what derived information they need
+2. **Separation of concerns**: CCS builds the graph; consumers decide what derived information they need
 
 The lazy fields represent **coeffects**—observations about the graph that can be computed from its structure but are not part of the primary construction.
 
@@ -170,7 +170,7 @@ The `SemanticKind` discriminated union classifies each node. Key categories incl
 
 | Kind | Description |
 |------|-------------|
-| `Intrinsic` | FNCS intrinsic operation |
+| `Intrinsic` | CCS intrinsic operation |
 | `TraitCall` | SRTP trait invocation |
 | `PlatformBinding` | Platform-specific binding |
 | `LazyExpr` | Lazy computation (PRD-14) |
@@ -193,9 +193,9 @@ type EmissionStrategy =
 | `SeparateFunction` | Emit as separate function (lambdas, seq expressions) |
 | `MainPrologue` | Emit in main function prologue (module initialization) |
 
-**NORMATIVE**: Emission strategy SHALL be determined by FNCS during construction. Alex SHALL observe this strategy without recomputing it.
+**NORMATIVE**: Emission strategy SHALL be determined by CCS during construction. Alex SHALL observe this strategy without recomputing it.
 
-This architectural decision moves traversal logic upstream to FNCS, where semantic context is fully available.
+This architectural decision moves traversal logic upstream to CCS, where semantic context is fully available.
 
 ## 6. Module Classification
 
@@ -308,7 +308,7 @@ module PlatformContext =
     let wordSize (ctx: PlatformContext) = ctx.Dimensions.[WidthDimension.Register] / 8
 ```
 
-This information flows from the project file through FNCS to the PSG, enabling platform-aware type resolution and code generation. Alex uses `resolveWidth` to determine concrete MLIR types for `Resolved` widths.
+This information flows from the project file through CCS to the PSG, enabling platform-aware type resolution and code generation. Alex uses `resolveWidth` to determine concrete MLIR types for `Resolved` widths.
 
 ## 10. Invariants
 
@@ -338,7 +338,7 @@ Alex uses these traversal patterns to generate MLIR in the correct order, respec
 
 ### 12.1 The Saturation Principle
 
-**NORMATIVE**: FNCS SHALL saturate the PSG with all semantic structure required for compilation, including synthetic constructs not directly expressed in source code.
+**NORMATIVE**: CCS SHALL saturate the PSG with all semantic structure required for compilation, including synthetic constructs not directly expressed in source code.
 
 The term **saturation** refers to making the PSG semantically complete—containing all information needed for downstream compilation without requiring structure synthesis during code generation.
 
@@ -364,11 +364,11 @@ The saturation principle enforces clean layer separation:
 
 | Layer | Responsibility | NOT Responsible For |
 |-------|----------------|---------------------|
-| **FNCS/PSGSaturation** | Build all semantic structure | Target-specific details |
+| **CCS/PSGSaturation** | Build all semantic structure | Target-specific details |
 | **PSGElaboration** | Add target-specific coeffects (SSA, platform bindings) | Semantic structure |
-| **Alex/FNCSTransfer** | Witness and emit | Structure building, SSA allocation |
+| **Alex/CCSTransfer** | Witness and emit | Structure building, SSA allocation |
 
-**Key insight**: Structure building is a semantic concern. FNCS knows F# semantics. Code generators should witness structure, not build it.
+**Key insight**: Structure building is a semantic concern. CCS knows F# semantics. Code generators should witness structure, not build it.
 
 ### 12.4 Saturation Pass Architecture
 
@@ -423,18 +423,18 @@ SeqStateMachine of {
 
 This explicit structure enables:
 - SSAAssignment to walk block nodes and assign SSAs normally
-- FNCSTransfer to witness structure without synthesis
+- CCSTransfer to witness structure without synthesis
 - Clear separation between semantic analysis and code generation
 
 ### 12.6 Comparison to F# Compiler
 
-F# Native's saturation phase parallels `LowerSequenceExpressions.fs` in the F# compiler:
+Clef's saturation phase parallels `LowerSequenceExpressions.fs` in the F# compiler:
 
-| F# Compiler | F# Native | Purpose |
+| F# Compiler | Clef | Purpose |
 |-------------|-----------|---------|
 | `CheckSequenceExpressions.fs` | PSG Builder | Initial semantic structure |
 | `LowerSequenceExpressions.fs` | **PSG Saturation** | State machine elaboration |
-| `IlxGen.fs` | FNCSTransfer | Target code emission |
+| `IlxGen.fs` | CCSTransfer | Target code emission |
 
 The key insight from nanopass architecture: saturation happens at the **language level** (PSG), not in code generation.
 

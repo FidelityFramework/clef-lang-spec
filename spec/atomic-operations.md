@@ -1,10 +1,10 @@
 # Atomic Operations and Memory Ordering
 
-F# Native provides atomic operations for concurrent programming. These operations map to hardware atomics with defined memory ordering semantics.
+Clef provides atomic operations for concurrent programming. These operations map to hardware atomics with defined memory ordering semantics.
 
 ## Design Philosophy
 
-F# Native follows a **layered exposure model** for concurrency primitives:
+Clef follows a **layered exposure model** for concurrency primitives:
 
 | Layer | Audience | Semantics | Ordering |
 |-------|----------|-----------|----------|
@@ -172,7 +172,7 @@ module Atomic =
 
 x86-64 has a strong memory model (TSO - Total Store Order):
 
-| F# Native | x86-64 |
+| Clef | x86-64 |
 |-----------|--------|
 | Relaxed load | `mov` |
 | Relaxed store | `mov` |
@@ -187,7 +187,7 @@ x86-64 has a strong memory model (TSO - Total Store Order):
 
 ARM64 has a weaker memory model:
 
-| F# Native | ARM64 |
+| Clef | ARM64 |
 |-----------|-------|
 | Relaxed load | `ldr` |
 | Relaxed store | `str` |
@@ -312,10 +312,10 @@ Most developers never use `Atomic` directly. The actor runtime uses it internall
 
 ## Compiler Intrinsic Status
 
-Atomic operations are FNCS intrinsics:
+Atomic operations are CCS intrinsics:
 
 ```fsharp
-// In FNCS Expressions/Intrinsics.fs
+// In CCS Expressions/Intrinsics.fs
 | "Atomic.SeqCst.load" ->
     NativeType.TFun(NativeType.TNativePtr tvar, tvar)
 

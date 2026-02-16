@@ -1,4 +1,4 @@
-# Set Representation in F# Native
+# Set Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-F# Native implements `Set<'T>` as a persistent immutable AVL tree. Set is structurally similar to `Map<'T, unit>` but with an optimized layout that omits the value field.
+Clef implements `Set<'T>` as a persistent immutable AVL tree. Set is structurally similar to `Map<'T, unit>` but with an optimized layout that omits the value field.
 
 **Key Insight**: Sets share the same AVL balancing algorithms as Maps, but store only values (no key-value pairs), making them more memory-efficient for membership testing scenarios.
 

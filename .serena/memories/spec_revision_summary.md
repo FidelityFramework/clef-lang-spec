@@ -1,8 +1,8 @@
-# F# Native Specification Revision Summary
+# Clef Specification Revision Summary
 
 ## Overview
 
-All chapters marked "Needs revision" in the fsnative-spec README have been updated to remove BCL/CLI/.NET dependencies and establish native-focused semantics.
+All chapters marked "Needs revision" in the clef-lang-spec README have been updated to remove BCL/CLI/.NET dependencies and establish native-focused semantics.
 
 ## Chapters Revised
 
@@ -26,7 +26,7 @@ All chapters marked "Needs revision" in the fsnative-spec README have been updat
 
 ### BCL Type → Native Type
 
-| BCL/CLI | F# Native |
+| BCL/CLI | Clef |
 |---------|-----------|
 | `System.String` | `string` (UTF-8 fat pointer) |
 | `option<'T>` (heap) | `option<'T>` (voption, stack) |
@@ -53,9 +53,9 @@ All chapters marked "Needs revision" in the fsnative-spec README have been updat
 
 ## Documentation Convention
 
-All sections modified to use consistent F# Native Note format:
+All sections modified to use consistent Clef Note format:
 ```markdown
-> **F# Native Note**: [Explanation of native semantics difference]
+> **Clef Note**: [Explanation of native semantics difference]
 ```
 
 ## Cross-Reference Structure
@@ -78,7 +78,7 @@ Chapters now cross-reference:
 - Fixed disposal section (use binding) - unconditional Dispose call
 - Fixed pinned pointer section - no GC reference
 - Simplified "Values with Underspecified Object Identity" section
-- Added explanatory F# Native Notes where null-freedom affects semantics
+- Added explanatory Clef Notes where null-freedom affects semantics
 
 ### type-definitions.md Changes
 - Removed CLIMutable section entirely
@@ -100,7 +100,7 @@ Chapters now cross-reference:
 Full draft specification covering:
 - Application runtime error handling (Result, voption, null-freedom)
 - The "dual brain" nature (runtime semantics vs tooling integration)
-- FNCS error propagation and LSP compatibility
+- CCS error propagation and LSP compatibility
 - Ionide integration model (follows Fable/WebSharper precedent)
 - Error handling patterns (railway-oriented, aggregation)
 - Grammar definitions

@@ -1,24 +1,24 @@
 # The Native Library Alloy
 
-Alloy is the native standard library for F# Native compilation. It provides BCL-sympathetic APIs that compile to native code with deterministic memory management.
+Alloy is the native standard library for Clef compilation. It provides BCL-sympathetic APIs that compile to native code with deterministic memory management.
 
 > **Note**: This chapter specifies the Alloy library interface. For implementation details, see the [Alloy repository](https://github.com/speakez-codespace/Alloy).
 
 ## Overview
 
-Where .NET F# programs reference `FSharp.Core.dll` and `mscorlib.dll`, F# Native programs reference **Alloy**. Alloy provides:
+Where .NET F# programs reference `FSharp.Core.dll` and `mscorlib.dll`, Clef programs reference **Alloy**. Alloy provides:
 
 - Familiar API surface (Console, String, Array, etc.)
 - Native type implementations (fat pointers, stack allocation)
-- BCL-free implementation using FNCS intrinsics
+- BCL-free implementation using CCS intrinsics
 - No garbage collector dependency
 
 ## Architectural Position
 
-Alloy is **Layer 3** in the binding architecture - it is pure F# code that uses FNCS intrinsics:
+Alloy is **Layer 3** in the binding architecture - it is pure F# code that uses CCS intrinsics:
 
 ```
-Layer 1: FNCS Intrinsics (Sys.write, NativePtr.set, etc.)
+Layer 1: CCS Intrinsics (Sys.write, NativePtr.set, etc.)
     ↑
 Layer 2: Binding Libraries (Farscape-generated)
     ↑
@@ -31,7 +31,7 @@ Alloy does NOT declare platform bindings. It uses `Sys.*` intrinsics directly.
 
 ## Automatically Opened Namespaces
 
-The following namespaces are automatically opened for all F# Native code:
+The following namespaces are automatically opened for all Clef code:
 
 ```fsharp
 open Alloy
@@ -70,7 +70,7 @@ open Alloy.Collections
 
 ### Alloy.Console
 
-Console I/O operations using FNCS intrinsics.
+Console I/O operations using CCS intrinsics.
 
 ```fsharp
 module Console =
@@ -122,9 +122,9 @@ module Option =
     val map : ('T -> 'U) -> voption<'T> -> voption<'U>
 ```
 
-## Using FNCS Intrinsics
+## Using CCS Intrinsics
 
-Alloy implements I/O using FNCS intrinsics directly:
+Alloy implements I/O using CCS intrinsics directly:
 
 ```fsharp
 // Alloy/Primitives.fs
@@ -177,7 +177,7 @@ Standard arithmetic operators are defined in `Alloy.Operators`:
 | Option type | Reference, nullable | `voption`, non-nullable |
 | Array header | Object header | Fat pointer |
 | Memory management | GC | Deterministic |
-| Platform operations | P/Invoke | FNCS intrinsics |
+| Platform operations | P/Invoke | CCS intrinsics |
 
 ## SRTP Resolution
 

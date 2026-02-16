@@ -1,4 +1,4 @@
-# Map Representation in F# Native
+# Map Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-F# Native implements `Map<'K, 'V>` as a persistent immutable AVL tree. Map operations are decomposed by Baker into primitive tree operations, with Alex witnessing the primitives directly.
+Clef implements `Map<'K, 'V>` as a persistent immutable AVL tree. Map operations are decomposed by Baker into primitive tree operations, with Alex witnessing the primitives directly.
 
 **Key Insight**: Maps are self-balancing binary search trees. All mutations return new maps with structural sharing—unchanged subtrees are shared between old and new versions.
 

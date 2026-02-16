@@ -1,4 +1,4 @@
-# Option Operations Representation in F# Native
+# Option Operations Representation in Clef
 
 > **Status**: Normative
 > **Last Updated**: 2026-01-22
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-F# Native implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **Baker-decomposed pattern matches**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
+Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **Baker-decomposed pattern matches**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
 
 **Key Insight**: Option operations are structurally trivial—each is a single match expression with two branches (Some/None). Baker decomposes them to `isSome` checks and value extraction.
 

@@ -1,12 +1,12 @@
 # Native Type Mappings
 
-This chapter defines how F# types map to native representations in F# Native compilation.
+This chapter defines how F# types map to native representations in Clef compilation.
 
 ## Overview
 
-F# Native uses familiar F# syntax with native semantics. The compiler (FNCS) resolves types to native representations at compile time, not to BCL types.
+Clef uses familiar F# syntax with native semantics. The compiler (CCS) resolves types to native representations at compile time, not to BCL types.
 
-**Principle**: Users write standard F# type names. FNCS provides native semantics transparently.
+**Principle**: Users write standard F# type names. CCS provides native semantics transparently.
 
 ## The Universal Base Type `obj` Is Not Available
 
@@ -16,11 +16,11 @@ In managed F#, all types inherit from `System.Object` (aliased as `obj`). This e
 - Heterogeneous collections (`obj list`)
 - Generic `%A` formatting via runtime inspection
 
-**F# Native eliminates `obj` entirely.** There is no universal base type. The compiler SHALL reject any code that references `obj` or `System.Object`.
+**Clef eliminates `obj` entirely.** There is no universal base type. The compiler SHALL reject any code that references `obj` or `System.Object`.
 
 ### Rationale
 
-| Managed F# Capability | Why It Requires `obj` | F# Native Alternative |
+| Managed F# Capability | Why It Requires `obj` | Clef Alternative |
 |-----------------------|----------------------|----------------------|
 | Boxing (`box x`) | Wraps value in heap object | Not needed; value types stay value types |
 | Unboxing (`unbox x`) | Extracts value from object | Not available; no boxed values exist |
@@ -33,11 +33,11 @@ In managed F#, all types inherit from `System.Object` (aliased as `obj`). This e
 
 1. **No runtime type information**: Native binaries do not carry type metadata. There is no mechanism to inspect a value's type at runtime.
 
-2. **No garbage collector**: The `obj` type implies heap allocation with GC-managed lifetime. F# Native uses deterministic, scope-based memory management.
+2. **No garbage collector**: The `obj` type implies heap allocation with GC-managed lifetime. Clef uses deterministic, scope-based memory management.
 
 3. **Full static resolution**: All types are resolved at compile time. Generic type parameters are monomorphized (specialized at each call site). Type erasure to `obj` is unnecessary and would lose type safety.
 
-4. **SRTP replaces runtime dispatch**: Where managed F# uses `obj` and runtime dispatch (like `printf "%A"`), F# Native uses statically resolved type parameters with compile-time method resolution.
+4. **SRTP replaces runtime dispatch**: Where managed F# uses `obj` and runtime dispatch (like `printf "%A"`), Clef uses statically resolved type parameters with compile-time method resolution.
 
 ### Migrating Code That Uses `obj`
 
@@ -45,7 +45,7 @@ Code using `obj` must be refactored to use type-safe alternatives:
 
 **Heterogeneous collections:**
 ```fsharp
-// DOES NOT COMPILE in F# Native
+// DOES NOT COMPILE in Clef
 let values : obj list = [box 1; box "hello"; box 3.14]
 
 // Use discriminated union instead
@@ -58,7 +58,7 @@ let values : Value list = [Int 1; Str "hello"; Float 3.14]
 
 **Polymorphic formatting:**
 ```fsharp
-// DOES NOT COMPILE in F# Native  
+// DOES NOT COMPILE in Clef  
 let show (x: obj) = sprintf "%A" x
 
 // Use SRTP with operator overloading
@@ -72,7 +72,7 @@ let inline show x = Showable $ x
 
 **Type-based dispatch:**
 ```fsharp
-// DOES NOT COMPILE in F# Native
+// DOES NOT COMPILE in Clef
 let process (x: obj) =
     match x with
     | :? int as i -> handleInt i
@@ -89,7 +89,7 @@ let process (x: Input) =
 
 ## Compile-Time Metaprogramming
 
-The absence of `obj` and `System.Reflection` does not leave F# Native without metaprogramming capabilities. Three F# features provide **typed, compile-time metaprogramming** that surpasses what reflection-based approaches can offer:
+The absence of `obj` and `System.Reflection` does not leave Clef without metaprogramming capabilities. Three F# features provide **typed, compile-time metaprogramming** that surpasses what reflection-based approaches can offer:
 
 | Feature | Role | Reflection Equivalent |
 |---------|------|----------------------|
@@ -101,7 +101,7 @@ The absence of `obj` and `System.Reflection` does not leave F# Native without me
 
 Other native-compiled ML-family languages lack typed metaprogramming:
 
-| Capability | OCaml | Rust | F# Native |
+| Capability | OCaml | Rust | Clef |
 |------------|-------|------|-----------|
 | Typed quotations | No | No | Yes |
 | Pattern-based recognition | Match only | Match only | Active patterns |
@@ -166,7 +166,7 @@ This desugaring to nested lambdas provides continuation semantics as notation. T
 
 ### Normative Requirements
 
-NORMATIVE: `System.Reflection` and all reflection-based APIs SHALL NOT be available in F# Native. The compiler SHALL reject any code that references reflection types or methods.
+NORMATIVE: `System.Reflection` and all reflection-based APIs SHALL NOT be available in Clef. The compiler SHALL reject any code that references reflection types or methods.
 
 NORMATIVE: Quotations, active patterns, and computation expressions SHALL be fully supported. These features operate at compile time and impose no runtime overhead.
 
@@ -319,7 +319,7 @@ Arena.allocAligned<'T> : Arena -> alignment:int -> count:int -> nativeptr<'T>
 
 ## Intrinsic Operations
 
-Certain operations have direct hardware support that F# loops cannot match. FNCS intrinsics provide guaranteed-efficient implementations.
+Certain operations have direct hardware support that F# loops cannot match. CCS intrinsics provide guaranteed-efficient implementations.
 
 ### Bit Manipulation Intrinsics
 
@@ -493,15 +493,15 @@ let makeAdder n = fun x -> x + n
 | DU | `!fidelity.union<...>` |
 | Function | `!fidelity.fn<A, B>` |
 
-## Why IL Infrastructure Is Removed from FNCS
+## Why IL Infrastructure Is Removed from CCS
 
-F# Native Compiler Services (FNCS) is derived from F# Compiler Services (FCS) but targets native compilation via MLIR, not CLR bytecode. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
+Clef Compiler Service (CCS) is derived from F# Compiler Services (FCS) but targets native compilation via MLIR, not CLR bytecode. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
 
 ### The Architecture Boundary
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  FNCS (F# Native Compiler Services)             │
+│  CCS (Clef Compiler Services)             │
 │  - Type checking, resolution, inference         │
 │  - Produces typed tree with native types        │
 │  - NO code generation, NO IL                    │
@@ -528,7 +528,7 @@ F# Native Compiler Services (FNCS) is derived from F# Compiler Services (FCS) bu
 
 ### Why IL Operations Are Not Stubbed
 
-The original FCS contains IL-based operations for loop optimization, null handling, and arithmetic. These were initially stubbed during the FNCS fork, but **stubs produce semantically wrong results**:
+The original FCS contains IL-based operations for loop optimization, null handling, and arithmetic. These were initially stubbed during the CCS fork, but **stubs produce semantically wrong results**:
 
 | Stubbed Function | Wrong Behavior | Why It's Wrong |
 |------------------|----------------|----------------|
@@ -548,17 +548,17 @@ The original FCS contains IL-based operations for loop optimization, null handli
 | Loop optimization | MLIR SCF dialect transforms | MLIR optimization passes |
 | String length/concat | Native string fat pointer ops | Alex code generation |
 | Integer conversions | MLIR arith.extsi/extui/trunci | Alex type lowering |
-| Null handling | Not needed - F# Native has no null | See below |
+| Null handling | Not needed - Clef has no null | See below |
 
 ### Null Is Not Representable
 
-NORMATIVE: F# Native has **no null values**. The `null` keyword and null checking operations are not available.
+NORMATIVE: Clef has **no null values**. The `null` keyword and null checking operations are not available.
 
 - `mkNull`, `mkNullTest`, `mkNonNullTest`, `mkNonNullCond` - all removed
 - Option types (`voption`) replace nullable references
 - Pattern matching replaces null checks
 
-This is consistent with F# Native's safety guarantees: no null pointer dereferences are possible because null cannot be expressed.
+This is consistent with Clef's safety guarantees: no null pointer dereferences are possible because null cannot be expressed.
 
 ### Removed IL Infrastructure
 
