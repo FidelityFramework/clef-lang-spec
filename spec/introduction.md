@@ -196,7 +196,7 @@ let isEven = List.map (fun x -> x % 2 = 0) [1 .. 5]
 
 The code `(fun x -> x % 2 = 0)` defines an anonymous function, called a *function expression*, that takes a single parameter `x` and returns the result `x % 2 = 0`, which is a Boolean value that indicates whether `x` is even. The `->` symbol separates the argument list (`x`) from the function body (`x % 2 = 0`).
 
-Both of these examples pass a function as a parameter to another function—the first parameter to `List.map` is itself another function. Using functions as *function values* is a hallmark of functional programming.
+Both of these examples pass a function as a parameter to another function: the first parameter to `List.map` is itself another function. Using functions as *function values* is a hallmark of functional programming.
 
 Another tool for data transformation and analysis is *pattern matching*. This powerful switch construct allows you to branch control flow and to bind new values. For example, we can match an F# list against a sequence of list elements.
 
@@ -459,7 +459,7 @@ Regular expressions are given in the usual notation, as shown in the table:
 | [ char - char ]   | Range of ASCII characters                |
 | [ ^ char - char ] | Any characters except those in the range |
 
-Unicode character classes are referred to by their abbreviation—for example, `\Lu` refers to any uppercase letter. The following characters are referred to using the indicated notation:
+Unicode character classes are referred to by their abbreviation; for example, `\Lu` refers to any uppercase letter. The following characters are referred to using the indicated notation:
 
 | Character | Name      | Notation                          |
 | --------- | --------- | --------------------------------- |

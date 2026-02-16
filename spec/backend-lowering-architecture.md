@@ -74,9 +74,9 @@ Clef implements closures, lazy values, and sequences using flat closures that st
 ### 4.1 Why Backend-Specific
 
 The flat closure pattern requires:
-1. Taking a function's address — backend-specific operation
-2. Storing address in struct — backend-specific struct manipulation
-3. Calling through stored pointer — backend-specific indirect call
+1. Taking a function's address: backend-specific operation
+2. Storing address in struct: backend-specific struct manipulation
+3. Calling through stored pointer: backend-specific indirect call
 
 There is no portable MLIR representation for "pointer to function":
 

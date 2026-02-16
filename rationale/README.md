@@ -3,7 +3,7 @@
 > **Status**: Informative
 > **Last Updated**: 2026-01-19
 
-This directory contains design rationale and commentary for the Clef language specification. The content here is **informative**, not normative—it explains *why* design decisions were made but does not define language semantics.
+This directory contains design rationale and commentary for the Clef language specification. The content here is **informative**, not normative. It explains *why* design decisions were made but does not define language semantics.
 
 ## Commentary Resources
 

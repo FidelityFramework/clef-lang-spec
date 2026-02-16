@@ -11,7 +11,7 @@ weight: 220
 
 Clef implements sequence operations (`Seq.map`, `Seq.filter`, `Seq.take`, `Seq.fold`, `Seq.collect`) as **wrapper sequences** that compose the flat closure architecture. This chapter specifies the memory representation, copy semantics, and composition model for sequence transformations.
 
-**Key Insight**: Seq operations create wrapper sequences that contain both an inner sequence AND a transformation closure—both inlined (copied by value), following the flat closure model.
+**Key Insight**: Seq operations create wrapper sequences that contain both an inner sequence AND a transformation closure, both inlined (copied by value), following the flat closure model.
 
 ## 2. Relationship to Prior Chapters
 

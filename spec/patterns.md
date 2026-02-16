@@ -631,7 +631,7 @@ match person with
 
 Each field binding (`n`, `a`) becomes a `PatternBinding` node whose child is a `FieldGet` that
 extracts the corresponding field from the scrutinee. The `PatternBinding` node aliases the
-SSA value produced by its `FieldGet` child—no additional allocation occurs.
+SSA value produced by its `FieldGet` child; no additional allocation occurs.
 
 ### Guard Hoisting Rule
 

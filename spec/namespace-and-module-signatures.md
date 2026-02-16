@@ -183,7 +183,7 @@ the signature and implementation must conform as follows:
     signature and the implementation.
 - If either the signature or the implementation has the `[<Literal>]` attribute, both must have this
     attribute. Furthermore, the declared literal values must be identical.
-- The number of generic parameters—both inferred and explicit—must be identical.
+- The number of generic parameters, both inferred and explicit, must be identical.
 - The types and type constraints must be identical up to renaming of inferred and/or explicit
     generic parameters. For example, assume a signature is written `val head : seq<'T> -> 'T` and
     the compiler could infer the type `val head : seq<'a> -> 'a` from the implementation. These
@@ -248,13 +248,13 @@ let f =
             res
 ```
 
-—or—
+or
 
 ```fsharp
 let f = fun x -> x + 1
 ```
 
-—or—
+or
 
 ```fsharp
 // throw an exception as soon as the module initialization is triggered
@@ -262,7 +262,7 @@ let f : int -> int = failwith "failure"
 ```
 
 For both the first and second signatures, you can still use the functions as first-class function values
-from client code—the parentheses simply act as a constraint on the implementation of the value.
+from client code; the parentheses simply act as a constraint on the implementation of the value.
 
 The reason for this interpretation of types in value and member signatures is that function arity affects compilation. F# functions with known arity compile to direct function calls, while function values require closure allocation. Signatures must contain enough information to reveal the desired arity for efficient native code generation.
 

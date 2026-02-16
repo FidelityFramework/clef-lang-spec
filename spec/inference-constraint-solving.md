@@ -95,7 +95,7 @@ interface declarations.
 New constraints of the form `type :> 'b` are solved again as `type = 'b`.
 
 > Note : Such constraints typically occur in generic code where a method accepts a parameter
-of a "naked" variable type—for example, a function with a signature such as
+of a "naked" variable type; for example, a function with a signature such as
 `T Choose<'T>(T x, T y)`.
 
 ### Solving Nullness, Struct, and Other Simple Constraints
@@ -303,7 +303,7 @@ A function definition `ident1 pat1 ... patn = rhs-expr` is processed as follows:
 
 A group of functions and values may be declared recursive through the use of `let rec`. Groups of
 members in a recursive set of type definitions are also implicitly recursive. In this case, the defined
-values are available for use within their own definitions—that is, within all the expressions on the
+values are available for use within their own definitions, that is, within all the expressions on the
 right-hand side of the definitions.
 
 For example:
@@ -319,7 +319,7 @@ and oneBack count =
 ```
 
 When one or more definitions specifies a value, the recursive expressions are analyzed for safety
-([§](inference-constraint-solving.md#recursive-safety-analysis)). This analysis may result in warnings—including some reported at compile time—and
+([§](inference-constraint-solving.md#recursive-safety-analysis)). This analysis may result in warnings, including some reported at compile time, and
 runtime checks.
 
 Within recursive groups, each definition in the group is checked ([§](inference-constraint-solving.md#generalization)) and then the definitions
@@ -682,8 +682,8 @@ let test1 =
     (ff [1], ff [| 1 |]) // error here
 ```
 
-In this example, `ff` is not generalized, because it is not defined by using a generalizable expression—
-computed functions such as `Seq.map id >> Seq.length` are not generalizable. This means that its
+In this example, `ff` is not generalized, because it is not defined by using a generalizable expression.
+Computed functions such as `Seq.map id >> Seq.length` are not generalizable. This means that its
 inferred type, after processing the definition, is
 
 ```fsharp

@@ -24,7 +24,7 @@ CCS validates type **identity** (e.g. `NTUint (Resolved Register)` vs `NTUint (F
 
 ### 2.1 Width Dimensions
 
-Width is parameterized, not baked into variant names. The `WidthDimension` type names are NTU-native — they are NOT named after C types.
+Width is parameterized, not baked into variant names. The `WidthDimension` type names are NTU-native; they are NOT named after C types.
 
 ```fsharp
 /// Platform-resolved width dimensions
@@ -160,7 +160,7 @@ let write (fd: platformint) (buf: nativeptr<byte>) (count: platformsize) : platf
 ### 5.1 Width and Kind Definitions
 
 ```fsharp
-/// Platform-resolved width dimensions — NTU-native vocabulary.
+/// Platform-resolved width dimensions: NTU-native vocabulary.
 [<RequireQualifiedAccess>]
 type WidthDimension =
     | Pointer       // Address width (pointer-sized)
@@ -173,7 +173,7 @@ type NTUWidth =
     | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
 
 /// NTU (Native Type Universe) type kinds.
-/// Numeric types parameterized by width — 3 kinds replace 16 discrete variants.
+/// Numeric types parameterized by width. 3 kinds replace 16 discrete variants.
 [<RequireQualifiedAccess>]
 type NTUKind =
     // Parameterized numeric types (width as dimension)
@@ -229,17 +229,17 @@ module PlatformContext =
 ### 6.1 NTU Types Unify Only with Themselves
 
 ```fsharp
-// Valid unification — same kind and same width
+// Valid unification: same kind and same width
 unify(NTUint(Resolved Register), NTUint(Resolved Register)) = Success
 
-// Invalid unification — same kind but different width
+// Invalid unification: same kind but different width
 unify(NTUint(Resolved Register), NTUint(Fixed 64)) = Error(TypeMismatch)
 unify(NTUint(Resolved Register), NTUint(Fixed 32)) = Error(TypeMismatch)
 
-// Invalid unification — different kinds
+// Invalid unification: different kinds
 unify(NTUint(Fixed 32), NTUuint(Fixed 32)) = Error(TypeMismatch)
 
-// Pointer types — element types must unify
+// Pointer types: element types must unify
 unify(NTUptr<int>, NTUptr<int>) = Success
 unify(NTUptr<int>, NTUptr<float>) = Error(TypeMismatch)
 ```
@@ -279,7 +279,7 @@ MLIR: i64 (on x86_64) or i32 (on ARM32)
 Width resolution is now dimension-based. Platform quotations provide the `Dimensions` map that `PlatformContext.resolveWidth` uses:
 
 ```fsharp
-// From Fidelity.Platform library — dimension resolution map
+// From Fidelity.Platform library: dimension resolution map
 type NTUResolutions = Map<WidthDimension, int>
 
 let linux_x86_64: Expr<NTUResolutions> = <@

@@ -36,7 +36,7 @@ match xs with                - head: GEP field 0, load
 
 ### 3.1 Primitive Operations (Alex Witnesses Directly)
 
-These operations are NOT decomposed—Alex generates MLIR directly:
+These operations are NOT decomposed; Alex generates MLIR directly:
 
 | Operation | Signature | MLIR Generation |
 |-----------|-----------|-----------------|

@@ -244,7 +244,7 @@ let n = n % 7
 
 The `::` operator is special. It represents the union case for the addition of an element to the head of
 an immutable linked list, and cannot be redefined, although it may be used to form infix expressions.
-It always accepts arguments in tupled form — as do all union cases — rather than in curried form.
+It always accepts arguments in tupled form, as do all union cases, rather than in curried form.
 
 ### Precedence of Symbolic Operators and Pattern/Expression Constructs
 

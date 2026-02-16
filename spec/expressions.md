@@ -1590,7 +1590,7 @@ Map<int,int>.empty.[1]
 ```
 
 If the `long-ident-or-op` starts with the special pseudo-identifier keyword `global`, F# resolves the
-identifier with respect to the global namespace — that is, ignoring all `open` directives (see [§](inference-application-resolution.md#resolving-application-expressions)). For example:
+identifier with respect to the global namespace; that is, ignoring all `open` directives (see [§](inference-application-resolution.md#resolving-application-expressions)). For example:
 
 ```fsharp
 global.Math.PI
@@ -2554,7 +2554,7 @@ An expression of the following form is a _recursive definition expression_:
 let rec function-or-value-defns in expr
 ```
 
-The defined functions and values are available for use within their own definitions—that is can be
+The defined functions and values are available for use within their own definitions; that is, they can be
 used within any of the expressions on the right-hand side of `function-or-value-defns`. Multiple
 functions or values may be defined by using `let rec ... and ...`. For example:
 
@@ -2722,7 +2722,7 @@ ensures that information from the annotation is used during the analysis of `exp
 
 ### Static Coercion Expressions
 
-A _static coercion expression_ — also called a flexible type constraint — has the following form:
+A _static coercion expression_, also called a flexible type constraint, has the following form:
 
 ```fsgrammar
 expr :> ty
@@ -3088,7 +3088,7 @@ At runtime an elaborated application of a method is evaluated as follows:
 - The elaborated form is `e0.M(e1 , ..., en)` for an instance method or `M(e, ..., en)` for a static method.
 - The (optional) `e0` and `e1` ,..., _en_ are evaluated in order.
 - If `e0` evaluates to `null`, a `NullReferenceException` is raised.
-- If the method is declared `abstract` — that is, if it is a virtual dispatch slot — then the body of the
+- If the method is declared `abstract`, that is, if it is a virtual dispatch slot, then the body of the
     member is chosen according to the dispatch maps of the value of `e0` ([§](inference-supplementary.md#dispatch-slot-checking)).
 - The formal parameters of the method are mapped to corresponding argument values. The body
     of the method member is evaluated in the resulting environment.
@@ -3280,7 +3280,7 @@ mutable static field.
 
 > **Clef Note**: This section describes reference equality semantics. In Clef, there is no `obj` base type and no runtime type introspection. Equality and hashing are implemented through statically resolved type constraints. The operations `ReferenceEquals`, `GetType()`, and `GetHashCode()` from `System.Object` are not available.
 
-F# supports operations that detect object identity—that is, whether two references refer to the same "physical" location in memory.
+F# supports operations that detect object identity; that is, whether two references refer to the same "physical" location in memory.
 
 The results of identity-based operations are underspecified when used with values of the following F# types:
 

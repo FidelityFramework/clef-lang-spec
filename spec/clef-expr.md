@@ -448,7 +448,7 @@ let rec factorial n =
 // 4. Connect body to Binding node via SetChildren
 ```
 
-**Invariant**: All VarRefs—including self-references in recursive functions—have `defId = Some nodeId`:
+**Invariant**: All VarRefs, including self-references in recursive functions, have `defId = Some nodeId`:
 
 ```
 // CORRECT - Self-reference has defId

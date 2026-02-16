@@ -11,7 +11,7 @@ weight: 260
 
 Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **Baker-decomposed pattern matches**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
 
-**Key Insight**: Option operations are structurally trivial—each is a single match expression with two branches (Some/None). Baker decomposes them to `isSome` checks and value extraction.
+**Key Insight**: Option operations are structurally trivial: each is a single match expression with two branches (Some/None). Baker decomposes them to `isSome` checks and value extraction.
 
 ## 2. Memory Layout (Reference)
 
@@ -332,11 +332,11 @@ Option operations are extremely lightweight:
 
 1. **Stack Allocation**: Option values SHALL always be stack-allocated (voption semantics)
 2. **Tag Encoding**: `None` = 0, `Some` = 1; tag width per platform policy (minimum `i8`)
-3. **No Null**: `None` is NOT represented as null pointer—it's a valid struct with tag=0
+3. **No Null**: `None` is NOT represented as null pointer; it is a valid struct with tag=0
 4. **Decomposition**: Option HOFs SHALL be decomposed by Baker to primitive operations
 5. **Lazy Defaults**: `defaultWith` and `orElseWith` SHALL only evaluate thunk when needed
 6. **Vacuous Truth**: `Option.forall` on `None` SHALL return `true`
-7. **Tag Is Not Boolean**: Tag MUST be at least `i8`, NEVER `i1`—tags are case indices, not truth values
+7. **Tag Is Not Boolean**: Tag MUST be at least `i8`, NEVER `i1`, because tags are case indices, not truth values
 
 ## 7. Relationship to Result
 

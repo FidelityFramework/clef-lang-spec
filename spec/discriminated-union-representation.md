@@ -9,7 +9,7 @@ draft: true
 
 ## Informative References
 
-> **Commentary**: Discriminated Unions (DUs) are arguably F#'s most distinctive feature—the embodiment of algebraic data types that enable type-safe modeling of domain variants. Their native representation must support the full power of F# while enabling efficient compilation without a managed runtime.
+> **Commentary**: Discriminated Unions (DUs) are arguably F#'s most distinctive feature: the embodiment of algebraic data types that enable type-safe modeling of domain variants. Their native representation must support the full power of F# while enabling efficient compilation without a managed runtime.
 >
 > **Academic Foundation**: This representation draws from:
 > - Pierce, B. C. (2002). *Types and Programming Languages*. MIT Press. (Sum types, case elimination)

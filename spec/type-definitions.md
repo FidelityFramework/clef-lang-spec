@@ -1771,7 +1771,7 @@ are concatenated into a single argument group.
 
 ### Named Arguments to Method Members
 
-Calls to methods—but not to let-bound functions or function values—may use named arguments.
+Calls to methods, but not to let-bound functions or function values, may use named arguments.
 For example:
 
 ```fsharp
@@ -1855,7 +1855,7 @@ type C =
 
 ### Optional Arguments to Method Members
 
-Method members—but not functions definitions—may have optional arguments. F# supports
+Method members, but not functions definitions, may have optional arguments. F# supports
 two forms of optional arguments: F#-style optional arguments and caller-side optional arguments.
 
 Caller-side optional arguments are handled on the **caller side**. When a method call omits
@@ -2268,7 +2268,7 @@ the sum of `n` and the argument that was passed in the instantiation of `SubClas
 instantiates `SubClass` with the value `7`, so `v2.AbstractMethod 6` evaluates to `13`.
 
 The combination of an abstract slot declaration and a default implementation of that slot create the
-F# equivalent of a “virtual” method in some other languages—that is, an abstract member that is
+F# equivalent of a “virtual” method in some other languages, that is, an abstract member that is
 guaranteed to have an implementation. For example:
 
 ```fsharp
@@ -2517,7 +2517,7 @@ R (1, 2) < R (2, 1)
 R (1, 2) > R (1, 0)
 ```
 
-To facilitate this, by default, record, union, and struct type definitions—called _structural types_ —
+To facilitate this, by default, record, union, and struct type definitions, called _structural types_,
 implicitly include compiler-generated declarations for structural equality, hashing, and comparison.
 These implicit declarations consist of the following for structural equality and hashing:
 

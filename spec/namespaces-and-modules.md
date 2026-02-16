@@ -341,19 +341,19 @@ A value that has the `Literal` attribute is subject to the following restriction
   - A simple constant expression, with the exception of `()`, native integer literals, unsigned native
        integer literals, byte array literals, BigInteger literals, and user-defined numeric literals.
 
-— OR —
+    or
 
 - A reference to another literal
 
-— OR —
+    or
 
 - A bitwise combination of literal constant expressions
 
-— OR —
+    or
 
 - A `+` concatenation of two literal constant expressions which are strings
 
-— OR —
+    or
 
 - `enum x` or `LanguagePrimitives.EnumOfValue x` where `x` is a literal constant expression.
 
@@ -481,7 +481,7 @@ Import declarations can be used in:
 An import declaration is processed by first resolving the `long-ident` to one or more namespace
 declaration groups and/or modules [ `F1`, ..., `Fn` ] by _Name Resolution in Module and Namespace Paths_
 ([§](inference-name-resolution.md#name-resolution-in-module-and-namespace-paths)). For example, `Collections` may resolve to one or more namespace
-declaration groups—one for each source package that contributes a namespace declaration group in the
+declaration groups, one for each source package that contributes a namespace declaration group in the
 current environment. Next, each `Fi` is added to the environment successively by using the technique
 specified in [§](inference-name-resolution.md#opening-modules-and-namespace-declaration-groups). An error occurs if any `Fi` is a module that has the `RequireQualifiedAccess`
 attribute.

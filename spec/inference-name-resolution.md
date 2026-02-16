@@ -24,7 +24,7 @@ encompasses:
 
     If the program references multiple packages, the packages are added to the name resolution
 environment in the order in which the references appear in the project file. The order is
-important only if ambiguities occur in referencing the contents of packages—for example, if
+important only if ambiguities occur in referencing the contents of packages; for example, if
 two packages define the type `MyNamespace.C`.
 
 - _ExprItems_ : a table that maps names to the following items:
@@ -444,7 +444,7 @@ For the resolved record type `R`, verify that every field defined in `R` has exa
 
 #### Step 4: Layout Computation (Clef Extension)
 
-> **Core Principle**: "Field order determines memory layout" ([§](native-type-universe.md#32-records-named-products)). The compiler controls layout—not MLIR, not LLVM.
+> **Core Principle**: "Field order determines memory layout" ([§](native-type-universe.md#32-records-named-products)). The compiler controls layout, not MLIR, not LLVM.
 
 For the resolved record type `R` with fields `f_1, f_2, ..., f_n` in declaration order:
 

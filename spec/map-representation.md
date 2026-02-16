@@ -11,7 +11,7 @@ weight: 240
 
 Clef implements `Map<'K, 'V>` as a persistent immutable AVL tree. Map operations are decomposed by Baker into primitive tree operations, with Alex witnessing the primitives directly.
 
-**Key Insight**: Maps are self-balancing binary search trees. All mutations return new maps with structural sharing—unchanged subtrees are shared between old and new versions.
+**Key Insight**: Maps are self-balancing binary search trees. All mutations return new maps with structural sharing: unchanged subtrees are shared between old and new versions.
 
 ## 2. Memory Layout
 

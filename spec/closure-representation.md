@@ -192,7 +192,7 @@ loop: (n: int, acc: int, i: int) -> int
        ↑ capture   ↑ explicit params
 ```
 
-**Call Site**: `loop(n, 0, 1)` — capture `n` passed as first argument.
+**Call Site**: `loop(n, 0, 1)`, where capture `n` is passed as first argument.
 
 ### 6.3 Classification Criteria
 

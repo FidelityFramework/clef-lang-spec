@@ -191,7 +191,7 @@ let y = 1<b> / 1<a a> // val y : int = 1
 
 ### Constraint Solving
 
-The mechanism described in [§](inference-constraint-solving.md#constraint-solving) is extended to support equational constraints between measure expressions. Such expressions arise from equations between parameterized types — that is, when `type<tyarg11 , ..., tyarg1n> = type<tyarg21, ..., tyarg2n>` is reduced to a series of constraints `tyarg1i = tyarg2i`. For the arguments that are measures, rather than types, the rules listed in [§](units-of-measure.md#relations-of-measures) are applied to obtain primitive equations of the form `'U = measure-int` where `'U` is a measure variable and `measure-int` is a measure expression in internal form. The variable `'U` is then replaced by `measure-int` wherever else it occurs. For example, the equation `float<m^2/s^2> = float<'U^2>` would be reduced to the `constraint m^2/s^2 = 'U^2`, which would be further reduced to the primitive equation `'U = m/s`.
+The mechanism described in [§](inference-constraint-solving.md#constraint-solving) is extended to support equational constraints between measure expressions. Such expressions arise from equations between parameterized types, that is, when `type<tyarg11 , ..., tyarg1n> = type<tyarg21, ..., tyarg2n>` is reduced to a series of constraints `tyarg1i = tyarg2i`. For the arguments that are measures, rather than types, the rules listed in [§](units-of-measure.md#relations-of-measures) are applied to obtain primitive equations of the form `'U = measure-int` where `'U` is a measure variable and `measure-int` is a measure expression in internal form. The variable `'U` is then replaced by `measure-int` wherever else it occurs. For example, the equation `float<m^2/s^2> = float<'U^2>` would be reduced to the `constraint m^2/s^2 = 'U^2`, which would be further reduced to the primitive equation `'U = m/s`.
 
 If constraints cannot be solved, a type error occurs. For example, the following expression
 
@@ -285,7 +285,7 @@ type unativeint<[<Measure>] 'U>
 These type definitions have the following special properties:
 
 - They extend `System.ValueType`.
-- They explicitly implement `System.IFormattable`, `System.IComparable`, `System.IConvertible`, and corresponding generic interfaces, instantiated at the given type—for example, `System.IComparable<float<'u>>` and `System.IEquatable<float<'u>>` (so that you can invoke, for example, `CompareTo` after an explicit upcast).
+- They explicitly implement `System.IFormattable`, `System.IComparable`, `System.IConvertible`, and corresponding generic interfaces, instantiated at the given type; for example, `System.IComparable<float<'u>>` and `System.IEquatable<float<'u>>` (so that you can invoke, for example, `CompareTo` after an explicit upcast).
 - As a result of erasure, their compiled form is the corresponding primitive type.
 - For the purposes of constraint solving and other logical operations on types, a type equivalence holds between the unparameterized primitive type and the corresponding measured type definition that is instantiated at `<1>`:
 

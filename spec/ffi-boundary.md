@@ -184,8 +184,8 @@ let ptr = FnPtr.ofFunction (fun x -> x * multiplier)  // Compile error
 
 The following intrinsics are NOT available in Clef:
 
-- ~~`FnPtr.null`~~ — Use `Option<FnPtr<'F>>` with `None` instead
-- ~~`FnPtr.isNull`~~ — Use pattern matching on `Option<FnPtr<'F>>` instead
+- ~~`FnPtr.null`~~: Use `Option<FnPtr<'F>>` with `None` instead
+- ~~`FnPtr.isNull`~~: Use pattern matching on `Option<FnPtr<'F>>` instead
 
 **Migration:**
 ```fsharp
@@ -237,9 +237,9 @@ When a function return type is `Option<nativeptr<'T>>` or `Option<FnPtr<'F>>`:
 
 Types NOT wrapped in `Option` are passed directly without marshalling:
 
-- `nativeptr<'T>` — passed as-is (must be non-null)
-- `FnPtr<'F>` — passed as-is (must be non-null)
-- `int`, `float`, etc. — passed as-is (value types)
+- `nativeptr<'T>`: passed as-is (must be non-null)
+- `FnPtr<'F>`: passed as-is (must be non-null)
+- `int`, `float`, etc.: passed as-is (value types)
 
 ## 5. Farscape Binding Generation Contract
 

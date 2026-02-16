@@ -126,7 +126,7 @@ Type variables participate fully in:
 - Let-polymorphism (generalization at let-binding sites)
 - SRTP constraint collection and resolution
 
-Monomorphization—the instantiation of polymorphic types with concrete types—occurs during PSG saturation when code generation requires concrete representations. This timing preserves optimization opportunities and maintains principal types throughout type inference.
+Monomorphization, the instantiation of polymorphic types with concrete types, occurs during PSG saturation when code generation requires concrete representations. This timing preserves optimization opportunities and maintains principal types throughout type inference.
 
 ### Named Types
 

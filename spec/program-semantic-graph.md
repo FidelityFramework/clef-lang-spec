@@ -12,11 +12,11 @@ The Program Semantic Graph (PSG) is the unified intermediate representation prod
 
 ### 1.1 Architectural Heritage
 
-The PSG draws on the **nanopass** tradition established in Standard ML and Scheme compiler research. Where traditional compilers make large, monolithic transformations between representations, nanopass architecture decomposes compilation into many small, single-purpose passes—each doing one thing well.
+The PSG draws on the **nanopass** tradition established in Standard ML and Scheme compiler research. Where traditional compilers make large, monolithic transformations between representations, nanopass architecture decomposes compilation into many small, single-purpose passes, each doing one thing well.
 
 This heritage distinguishes Clef from the F# Compiler Services (FCS) design. FCS was built for .NET integration, where semantic information flows to the CLR runtime. The PSG instead preserves semantic information through to native code generation, carrying proofs about types, memory, and execution that the CLR would normally handle implicitly.
 
-**Key insight**: Traversal information is itself semantic information. The classification of what executes during module initialization versus what constitutes a definition versus what serves as an entry point—these are semantic facts about the program that flow through the pipeline as first-class data.
+**Key insight**: Traversal information is itself semantic information. The classification of what executes during module initialization versus what constitutes a definition versus what serves as an entry point: these are semantic facts about the program that flow through the pipeline as first-class data.
 
 ### 1.2 Relationship to FCS
 
@@ -27,7 +27,7 @@ The PSG consumes both the syntax tree (`SynExpr`) and typed tree (`FSharpExpr`) 
 | `SynExpr` | Structural skeleton, source ranges |
 | `FSharpExpr` | Resolved types, SRTP resolution, semantic edges |
 
-The typed tree overlay via zipper captures information that exists only after type inference and constraint solving—particularly SRTP (Statically Resolved Type Parameter) resolution, which the syntax tree cannot express.
+The typed tree overlay via zipper captures information that exists only after type inference and constraint solving, particularly SRTP (Statically Resolved Type Parameter) resolution, which the syntax tree cannot express.
 
 ## 2. SemanticGraph Structure
 
@@ -57,14 +57,14 @@ type SemanticGraph = {
 
 ### 2.2 Lazy Coeffects
 
-The `Types` and `ModuleClassifications` fields use the **codata pattern**—they are computed on first observation rather than eagerly during construction.
+The `Types` and `ModuleClassifications` fields use the **codata pattern**: they are computed on first observation rather than eagerly during construction.
 
 This design serves two purposes:
 
 1. **Efficiency**: Classification is only computed when Alex needs it
 2. **Separation of concerns**: CCS builds the graph; consumers decide what derived information they need
 
-The lazy fields represent **coeffects**—observations about the graph that can be computed from its structure but are not part of the primary construction.
+The lazy fields represent **coeffects**, that is, observations about the graph that can be computed from its structure but are not part of the primary construction.
 
 ## 3. SemanticNode Structure
 
@@ -228,7 +228,7 @@ Module classification is computed from `EmissionStrategy`:
 2. Nodes with `Inline` or `SeparateFunction` strategy → `Definitions`
 3. Bindings marked `isEntryPoint` → `EntryPoint`
 
-This classification is semantic traversal information—it describes how the program executes, not just what it contains.
+This classification is semantic traversal information: it describes how the program executes, not just what it contains.
 
 ## 7. Intrinsic Metadata
 
@@ -343,7 +343,7 @@ Alex uses these traversal patterns to generate MLIR in the correct order, respec
 
 **NORMATIVE**: CCS SHALL saturate the PSG with all semantic structure required for compilation, including synthetic constructs not directly expressed in source code.
 
-The term **saturation** refers to making the PSG semantically complete—containing all information needed for downstream compilation without requiring structure synthesis during code generation.
+The term **saturation** refers to making the PSG semantically complete, containing all information needed for downstream compilation without requiring structure synthesis during code generation.
 
 ### 12.2 Motivation
 
@@ -540,7 +540,7 @@ This enables:
 
 ### 14.1 Definition
 
-**Coeffect analysis** computes metadata about PSG structure to inform lowering decisions. Unlike enrichment, coeffect analysis does NOT create new PSG nodes—it computes mappings, indices, and tables.
+**Coeffect analysis** computes metadata about PSG structure to inform lowering decisions. Unlike enrichment, coeffect analysis does NOT create new PSG nodes; it computes mappings, indices, and tables.
 
 | Aspect | Enrichment | Coeffect Analysis |
 |--------|------------|-------------------|
