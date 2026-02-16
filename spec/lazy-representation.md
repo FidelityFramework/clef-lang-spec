@@ -138,7 +138,7 @@ Capture analysis for lazy values must distinguish:
 
 ### 5.2 IsModuleLevel Tracking
 
-CCS tracks binding scope in `ResolvedBinding`:
+CCS (Clef Compiler Service) tracks binding scope in `ResolvedBinding`:
 
 ```fsharp
 type ResolvedBinding = {

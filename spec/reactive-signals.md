@@ -9,7 +9,7 @@ weight: 390
 
 ## 1. Overview
 
-This chapter specifies native reactive signals for CCS, inspired by SolidJS's fine-grained reactivity and TanStack Store's framework-agnostic approach.
+This chapter specifies native reactive signals for CCS (Clef Compiler Service), inspired by SolidJS's fine-grained reactivity and TanStack Store's framework-agnostic approach.
 
 **Design Goals:**
 - Mirror SolidJS/TanStack signal semantics for frontend/backend consistency

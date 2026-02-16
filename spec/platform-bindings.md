@@ -3,7 +3,7 @@ title: "Platform Bindings and System Intrinsics"
 weight: 280
 ---
 
-Platform bindings define the interface between Clef code and platform-specific operations. This chapter specifies the three-layer binding architecture used by CCS and Firefly.
+Platform bindings define the interface between Clef code and platform-specific operations. This chapter specifies the three-layer binding architecture used by CCS (Clef Compiler Service) and Firefly.
 
 ## Overview
 

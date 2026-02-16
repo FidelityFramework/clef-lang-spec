@@ -63,7 +63,7 @@ These attributes control memory layout for native compilation:
 
 #### Inline Functions and Escape Analysis
 
-In Clef, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, CCS captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
+In Clef, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, CCS (Clef Compiler Service) captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
 
 **The Escape Problem**: When a function allocates memory via `NativePtr.stackalloc` and returns a pointer to that memory, the pointer becomes invalid when the function returns (the stack frame is deallocated).
 

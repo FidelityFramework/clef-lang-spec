@@ -203,7 +203,7 @@ IntrinsicCategory.Conversion
 
 ## 5. Type Signatures Summary
 
-| Function | Type Signature | CCS Operation |
+| Function | Type Signature | CCS (Clef Compiler Service) Operation |
 |----------|----------------|----------------|
 | `int`, `int32` | `'T -> int` | `toInt` |
 | `int64` | `'T -> int64` | `toInt64` |

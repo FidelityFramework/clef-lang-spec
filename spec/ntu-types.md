@@ -10,7 +10,7 @@ draft: true
 
 ## 1. Overview
 
-This chapter specifies the NTU (Native Type Universe) nomenclature used internally by CCS for platform-generic types. NTU types resolve via quotation-based platform bindings, following the F* pattern where type WIDTH is an erased assumption.
+This chapter specifies the NTU (Native Type Universe) nomenclature used internally by CCS (Clef Compiler Service) for platform-generic types. NTU types resolve via quotation-based platform bindings, following the F* pattern where type WIDTH is an erased assumption.
 
 Width is a first-class dimension in NTU. Numeric types are parameterized by `NTUWidth`, which can be `Fixed` (known at all times) or `Resolved` (platform-dependent, resolved by Alex via `PlatformContext`). This replaces 16 discrete integer/float variants with 3 parameterized kinds.
 

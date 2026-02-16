@@ -8,7 +8,7 @@ weight: 60
 
 ## 1. Overview
 
-This chapter specifies the internal representation of types in CCS. The design follows the ML tradition established by OCaml, F#/FCS, and F*: **types are references to definitions, not embedded data**.
+This chapter specifies the internal representation of types in CCS (Clef Compiler Service). The design follows the ML tradition established by OCaml, F#/FCS, and F*: **types are references to definitions, not embedded data**.
 
 ## 2. Core Principle: Reference + Deferred Lookup
 

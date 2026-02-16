@@ -9,7 +9,7 @@ weight: 380
 
 ## 1. Overview
 
-This chapter specifies two new intrinsic modules for CCS:
+This chapter specifies two new intrinsic modules for CCS (Clef Compiler Service):
 
 1. **Crypto** - Cryptographic operations (SHA-1, Base64 encoding/decoding)
 2. **Bits** - Bit manipulation and byte order operations

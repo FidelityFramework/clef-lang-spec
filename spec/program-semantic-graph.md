@@ -8,7 +8,7 @@ weight: 160
 
 ## 1. Overview
 
-The Program Semantic Graph (PSG) is the unified intermediate representation produced by CCS. It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
+The Program Semantic Graph (PSG) is the unified intermediate representation produced by CCS (Clef Compiler Service). It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
 
 ### 1.1 Architectural Heritage
 

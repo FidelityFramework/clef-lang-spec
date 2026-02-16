@@ -1324,7 +1324,7 @@ type definition is declared by using the `delegate` keyword with a member signat
 type Handler<'T, 'Sender> = delegate of 'Sender * 'T -> unit
 ```
 
-> **Clef Note**: In Clef, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform operations use CCS intrinsics rather than P/Invoke attributes. See [Platform Bindings](platform-bindings.md).
+> **Clef Note**: In Clef, delegates are compiled to function pointer types. The sender parameter uses a specific type rather than `obj`. Platform operations use CCS (Clef Compiler Service) intrinsics rather than P/Invoke attributes. See [Platform Bindings](platform-bindings.md).
 
 ## Exception Definitions
 

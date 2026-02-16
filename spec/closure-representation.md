@@ -100,7 +100,7 @@ Type ::= ...
        | TClosure(argTypes: Type list, retType: Type, captures: CaptureInfo list)
 ```
 
-At the native level, CCS distinguishes:
+At the native level, CCS (Clef Compiler Service) distinguishes:
 - `TFun` - Direct function, no captures
 - `TClosure` - Closure with captured environment
 

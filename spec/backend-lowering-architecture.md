@@ -23,7 +23,7 @@ This chapter specifies how Clef lowers high-level constructs to backend-specific
 Clef uses a two-layer intermediate representation:
 
 ```
-F# Source → CCS → PSG → Alex → MLIR (mixed dialects) → Backend → Native Binary
+F# Source → CCS (Clef Compiler Service) → PSG → Alex → MLIR (mixed dialects) → Backend → Native Binary
                                       ↑
                                Portable + Backend-Specific
 ```

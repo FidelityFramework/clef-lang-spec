@@ -46,7 +46,7 @@ let example () =
 
 Arena-allocated values are bulk-allocated and freed together.
 
-> **Status (January 2026)**: Arena is implemented as an CCS intrinsic type with compiler-provided operations.
+> **Status (January 2026)**: Arena is implemented as a CCS (Clef Compiler Service) intrinsic type with compiler-provided operations.
 
 **Type Definition**:
 ```fsharp

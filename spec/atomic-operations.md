@@ -316,7 +316,7 @@ Most developers never use `Atomic` directly. The actor runtime uses it internall
 
 ## Compiler Intrinsic Status
 
-Atomic operations are CCS intrinsics:
+Atomic operations are CCS (Clef Compiler Service) intrinsics:
 
 ```fsharp
 // In CCS Expressions/Intrinsics.fs
@@ -365,5 +365,5 @@ operation-name :=
 
 - [Memory Regions](memory-regions.md) - Memory region types and semantics
 - [Platform Bindings](platform-bindings.md) - Platform-specific code generation
-- BAREWire Cache-Aware Layouts - `~/repos/BAREWire/docs/09 Cache-Aware Layouts.md`
-- Verification Workflow - `~/repos/Firefly/docs/Verification_Workflow_Architecture.md`
+- BAREWire Cache-Aware Layouts
+- Composer Verification Workflow

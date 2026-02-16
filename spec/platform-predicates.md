@@ -33,7 +33,7 @@ Fidelity adopts this pattern using F# quotations as the carrier mechanism.
 
 | Phase | Predicate Treatment |
 |-------|---------------------|
-| CCS Type Checking | Abstract - values unknown |
+| CCS (Clef Compiler Service) Type Checking | Abstract - values unknown |
 | SemanticGraph | Carried as quotations |
 | Alex Code Generation | Resolved from platform library |
 | MLIR Output | Concrete - dead code eliminated |

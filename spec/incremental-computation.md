@@ -561,9 +561,9 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 | Manual graph construction | PSG is the graph; compiler builds it from code structure |
 | Manual height computation | Compiler assigns heights statically for applicative subgraphs |
 
-## 14. Implementation in CCS/Firefly Pipeline
+## 14. Implementation in the CCS/Composer Pipeline
 
-### 14.1 CCS Phase
+### 14.1 CCS (Clef Compiler Service) Phase
 
 1. **checkIncremental** in Coordinator.fs:
    - Checks the incremental body expression

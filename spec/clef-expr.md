@@ -9,7 +9,7 @@ weight: 310
 
 ## Overview
 
-`ClefExpr` is CCS's native typed expression representation. It provides an **expression-centric view** over the SemanticGraph, the core intermediate representation used by Clef compilation.
+`ClefExpr` is the CCS (Clef Compiler Service) native typed expression representation. It provides an **expression-centric view** over the SemanticGraph, the core intermediate representation used by Clef compilation.
 
 ### Why ClefExpr Exists
 
@@ -581,10 +581,7 @@ ClefExpr enables IDE features:
 
 ## Appendix A: Complete Type Definition
 
-The full type definition is in:
-```
-/home/hhh/repos/clef/src/Compiler/Checking.Native/ClefExpr.fs
-```
+The full type definition is in `ClefExpr.fs` within the CCS source tree (`Compiler/Checking.Native`).
 
 Key modules:
 - `ClefExpr` - The discriminated union type
