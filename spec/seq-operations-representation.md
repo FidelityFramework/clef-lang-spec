@@ -3,8 +3,6 @@ title: "Sequence Operations Representation in Clef"
 weight: 220
 ---
 
-# Sequence Operations Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
 > **Depends On**: [Closure Representation](../closure-representation.md), [Seq Representation](../seq-representation.md)

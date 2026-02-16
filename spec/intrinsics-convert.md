@@ -3,8 +3,6 @@ title: "Convert Intrinsic Module Specification"
 weight: 370
 ---
 
-# Convert Intrinsic Module Specification
-
 > **Status**: Draft
 > **Normative**: Yes
 > **Last Updated**: 2026-01-08

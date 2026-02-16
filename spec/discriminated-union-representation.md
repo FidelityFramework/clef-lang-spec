@@ -4,8 +4,6 @@ weight: 9020
 draft: true
 ---
 
-# Discriminated Union Representation in Clef
-
 > **Status**: Draft
 > **Last Updated**: 2026-01-22
 

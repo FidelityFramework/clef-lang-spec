@@ -3,8 +3,6 @@ title: "Lexical Filtering"
 weight: 320
 ---
 
-# Lexical Filtering
-
 ## Lightweight Syntax
 
 F# supports lightweight syntax, in which whitespace makes indentation significant.

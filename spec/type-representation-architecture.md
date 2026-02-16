@@ -3,8 +3,6 @@ title: "Type Representation Architecture"
 weight: 60
 ---
 
-# Type Representation Architecture
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-15
 

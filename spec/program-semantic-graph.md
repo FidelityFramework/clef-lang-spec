@@ -3,8 +3,6 @@ title: "Program Semantic Graph"
 weight: 160
 ---
 
-# Program Semantic Graph
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-21 (Added Section 13: Enrichment, Section 14: Coeffect Analysis)
 

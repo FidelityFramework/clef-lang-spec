@@ -3,8 +3,6 @@ title: "Closure Representation in Clef"
 weight: 180
 ---
 
-# Closure Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
 

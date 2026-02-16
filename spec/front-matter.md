@@ -3,8 +3,6 @@ title: "Front Matter"
 weight: 1
 ---
 
-# Front Matter
-
 This is the normative language specification for **Clef**, a natively compiled language in the ML family derived from F#.
 
 Clef preserves F# syntax and type-checking behavior while defining explicit native semantics for type layouts, memory ownership, lifetime verification, and deterministic resource management. This specification defines those native semantics.

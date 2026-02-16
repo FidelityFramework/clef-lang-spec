@@ -4,8 +4,6 @@ weight: 9090
 draft: true
 ---
 
-# NTU Type Nomenclature Specification
-
 > **Status**: Draft
 > **Normative**: Yes
 > **Last Updated**: 2026-02-11

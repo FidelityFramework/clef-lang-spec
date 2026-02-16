@@ -3,8 +3,6 @@ title: "RFC status"
 weight: 2
 ---
 
-# RFC status
-
 | Version | Feature ID | Feature with RFC Link | Status |
 |---------|------------|---------------------|------|
 | F# 4.0 | N/A | [Auto Quotation](https://github.com/fsharp/fslang-design/tree/main/FSharp-4.0/AutoQuotationDesignAndSpec.md) | This was already covered (see [§](https://github.com/fsharp/fslang-spec/blob/main/releases/FSharp-Spec-latest.md#81373-conversion-to-quotation-values) and the [FSharp.Core documentation](https://fsharp.github.io/fsharp-core-docs/reference/fsharp-quotations-fsharpexpr.html#ValueWithName)) |

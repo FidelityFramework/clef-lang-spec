@@ -3,8 +3,6 @@ title: "Special Attributes and Types"
 weight: 330
 ---
 
-# Special Attributes and Types
-
 This chapter describes attributes and types that have special significance to the Clef compiler.
 
 > **Clef Note**: Clef does not use CLI assemblies or the .NET runtime. Attributes related to assembly metadata, P/Invoke interop, serialization, and runtime reflection are not applicable. This chapter covers only those attributes meaningful for native compilation.

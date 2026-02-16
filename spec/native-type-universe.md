@@ -3,8 +3,6 @@ title: "Clef Type Universe Specification"
 weight: 80
 ---
 
-# Clef Type Universe Specification
-
 > **Status**: Draft
 > **Phase**: A (Type Universe) - Part of Clef principled type system redesign
 > **Last Updated**: 2024-12-30

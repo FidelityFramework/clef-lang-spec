@@ -4,8 +4,6 @@ weight: 9060
 draft: true
 ---
 
-# Name Resolution
-
 This chapter describes how Clef resolves names in various contexts during type inference. This is a component of the overall [Inference Procedures](inference-procedures.md).
 
 The following sections describe how F# resolves names in various contexts.

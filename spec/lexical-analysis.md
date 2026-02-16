@@ -3,8 +3,6 @@ title: "Lexical Analysis"
 weight: 30
 ---
 
-# Lexical Analysis
-
 Lexical analysis converts an input stream of Unicode characters into a stream of tokens by iteratively
 processing the stream. If more than one token can match a sequence of characters in the source file,
 lexical processing always forms the longest possible lexical element. Some tokens, such as `block-comment-start`, are discarded after processing as described later in this section.

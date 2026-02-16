@@ -3,8 +3,6 @@ title: "Type Definitions"
 weight: 110
 ---
 
-# Type Definitions
-
 Type definitions define new named types. The grammar of type definitions is shown below.
 
 ```fsgrammar

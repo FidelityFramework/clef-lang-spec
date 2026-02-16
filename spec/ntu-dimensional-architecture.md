@@ -4,8 +4,6 @@ weight: 9080
 draft: true
 ---
 
-# NTU Dimensional Type Architecture
-
 > **Status**: Design — Active
 > **Normative**: Prospective (will become normative as sections are implemented)
 > **Last Updated**: 2026-02-11

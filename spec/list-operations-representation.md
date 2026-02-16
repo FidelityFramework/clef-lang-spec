@@ -3,8 +3,6 @@ title: "List Operations Representation in Clef"
 weight: 230
 ---
 
-# List Operations Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
 > **Depends On**: [Native Type Universe § 5.3 List](native-type-universe.md#53-list)

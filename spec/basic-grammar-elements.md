@@ -3,8 +3,6 @@ title: "Basic Grammar Elements"
 weight: 40
 ---
 
-# Basic Grammar Elements
-
 This section defines grammar elements that are used repeatedly in later sections.
 
 ## Operator Names

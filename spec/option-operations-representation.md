@@ -3,8 +3,6 @@ title: "Option Operations Representation in Clef"
 weight: 260
 ---
 
-# Option Operations Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-22
 > **Depends On**: [Native Type Universe § 5.1 Option](native-type-universe.md#51-option)

@@ -3,8 +3,6 @@ title: "Lazy Value Representation in Clef"
 weight: 190
 ---
 
-# Lazy Value Representation in Clef
-
 > **Normative specification for lazy value memory layout and thunk semantics in Clef compilation.**
 
 ## 1. Overview

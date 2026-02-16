@@ -3,8 +3,6 @@ title: "Program Structure and Execution"
 weight: 150
 ---
 
-# Program Structure and Execution
-
 > **Clef Note**: Clef programs do not use CLI assemblies. Instead, programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
 
 Clef programs are composed of an ordered sequence of signature (`.fsi`) files and implementation (`.fs`) files, plus any library dependencies specified in the project file (`.fidproj`). Script files (`.fsx`) are supported for development and tooling but are not part of native compilation.

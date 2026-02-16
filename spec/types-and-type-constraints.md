@@ -3,8 +3,6 @@ title: "Types and Type Constraints"
 weight: 50
 ---
 
-# Types and Type Constraints
-
 The notion of _type_ is central to the static checking of Clef programs. The word is used with three distinct but related meanings:
 
 - **Type definitions**, such as the definitions of `string`, `option<_>`, or `Map<_,_>`. In Clef, all types have explicit memory representations defined at compile time.

@@ -3,8 +3,6 @@ title: "Namespaces and Modules"
 weight: 130
 ---
 
-# Namespaces and Modules
-
 F# is primarily an expression-based language. However, F# source code units are made up of
 _declarations_ , some of which can contain further declarations. Declarations are grouped using
 _namespace declaration groups_ , _type definitions_ , and _module definitions_. These also have

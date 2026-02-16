@@ -3,8 +3,6 @@ title: "Backend Lowering Architecture"
 weight: 290
 ---
 
-# Backend Lowering Architecture
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
 

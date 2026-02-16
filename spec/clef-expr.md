@@ -3,8 +3,6 @@ title: "ClefExpr: CCS Typed Expression Representation"
 weight: 310
 ---
 
-# ClefExpr: CCS Typed Expression Representation
-
 > **Status**: Draft
 > **Phase**: A (Core Representation) - Part of CCS architecture
 > **Last Updated**: 2026-01-12

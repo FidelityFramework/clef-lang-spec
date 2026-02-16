@@ -3,8 +3,6 @@ title: "Patterns"
 weight: 100
 ---
 
-# Patterns
-
 Patterns are used to perform simultaneous case analysis and decomposition on values together with
 the `match`, `try...with`, `function`, `fun`, and `let` expression and declaration constructs. Rules are
 attempted in order from top to bottom and left to right. The syntactic forms of patterns are shown

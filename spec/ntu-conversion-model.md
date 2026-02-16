@@ -3,8 +3,6 @@ title: "NTU Conversion Model"
 weight: 360
 ---
 
-# NTU Conversion Model
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-19
 

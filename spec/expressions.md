@@ -3,8 +3,6 @@ title: "Expressions"
 weight: 90
 ---
 
-# Expressions
-
 The expression forms and related elements are as follows:
 
 ```fsgrammar

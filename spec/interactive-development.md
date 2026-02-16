@@ -3,8 +3,6 @@ title: "Interactive Development"
 weight: 350
 ---
 
-# Interactive Development
-
 This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (fsni), script execution, and integration with development tooling.
 
 ## Overview

@@ -3,8 +3,6 @@ title: "Reactive Signals Module Specification"
 weight: 390
 ---
 
-# Reactive Signals Module Specification
-
 > **Status**: Draft
 > **Normative**: Yes
 > **Last Updated**: 2026-01-08

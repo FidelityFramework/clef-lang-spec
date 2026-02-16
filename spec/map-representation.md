@@ -3,8 +3,6 @@ title: "Map Representation in Clef"
 weight: 240
 ---
 
-# Map Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
 > **Depends On**: [Native Type Universe § 5.4 Map](native-type-universe.md#54-map)

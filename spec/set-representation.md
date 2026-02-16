@@ -3,8 +3,6 @@ title: "Set Representation in Clef"
 weight: 250
 ---
 
-# Set Representation in Clef
-
 > **Status**: Normative
 > **Last Updated**: 2026-01-20
 > **Depends On**: [Native Type Universe § 5.5 Set](native-type-universe.md#55-set)

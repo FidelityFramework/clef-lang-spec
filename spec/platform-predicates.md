@@ -4,8 +4,6 @@ weight: 9100
 draft: true
 ---
 
-# Platform Predicates Specification
-
 > **Status**: Draft
 > **Normative**: Yes
 > **Last Updated**: 2026-01-04
