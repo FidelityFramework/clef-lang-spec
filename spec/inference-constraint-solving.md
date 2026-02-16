@@ -1,3 +1,9 @@
+---
+title: "Constraint Solving and Definition Checking"
+weight: 9050
+draft: true
+---
+
 # Constraint Solving and Definition Checking
 
 This chapter describes constraint solving and the checking/elaborating of function, value, and member definitions. This is a component of the overall [Inference Procedures](inference-procedures.md).

@@ -1,3 +1,8 @@
+---
+title: "Error Handling"
+weight: 340
+---
+
 # Error Handling
 
 This chapter specifies error handling semantics in Clef, including the relationship between compile-time error propagation through tooling and runtime error handling in compiled applications.

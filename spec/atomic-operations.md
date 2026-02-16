@@ -1,3 +1,9 @@
+---
+title: "Atomic Operations and Memory Ordering"
+weight: 9010
+draft: true
+---
+
 # Atomic Operations and Memory Ordering
 
 Clef provides atomic operations for concurrent programming. These operations map to hardware atomics with defined memory ordering semantics.

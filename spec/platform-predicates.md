@@ -1,3 +1,9 @@
+---
+title: "Platform Predicates Specification"
+weight: 9100
+draft: true
+---
+
 # Platform Predicates Specification
 
 > **Status**: Draft

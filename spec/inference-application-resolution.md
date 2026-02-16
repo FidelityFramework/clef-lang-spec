@@ -1,3 +1,9 @@
+---
+title: "Application Resolution"
+weight: 9040
+draft: true
+---
+
 # Application Resolution
 
 This chapter describes how Clef resolves application expressions, including function and method applications. This is a component of the overall [Inference Procedures](inference-procedures.md).

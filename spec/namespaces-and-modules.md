@@ -1,3 +1,8 @@
+---
+title: "Namespaces and Modules"
+weight: 130
+---
+
 # Namespaces and Modules
 
 F# is primarily an expression-based language. However, F# source code units are made up of

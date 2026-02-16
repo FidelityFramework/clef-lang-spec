@@ -1,3 +1,8 @@
+---
+title: "RFC status"
+weight: 2
+---
+
 # RFC status
 
 | Version | Feature ID | Feature with RFC Link | Status |

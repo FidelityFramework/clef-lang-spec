@@ -1,3 +1,8 @@
+---
+title: "Namespace and Module Signatures"
+weight: 140
+---
+
 # Namespace and Module Signatures
 
 A signature file contains one or more namespace or module signatures, and specifies the

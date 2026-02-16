@@ -1,3 +1,8 @@
+---
+title: "Reactive Signals Module Specification"
+weight: 390
+---
+
 # Reactive Signals Module Specification
 
 > **Status**: Draft

@@ -1,3 +1,8 @@
+---
+title: "Front Matter"
+weight: 1
+---
+
 # Front Matter
 
 This is the normative language specification for **Clef**, a natively compiled language in the ML family derived from F#.

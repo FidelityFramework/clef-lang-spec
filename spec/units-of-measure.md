@@ -1,3 +1,8 @@
+---
+title: "Units of Measure"
+weight: 120
+---
+
 # Units of Measure
 
 F# supports static checking of _units of measure_. Units of measure, or _measures_ for short, are like types in that they can appear as parameters to other types and values (as in `float<kg>`, `vector<m/s>`, `add<m>`), can be represented by variables (as in `float<'U>`), and are checked for consistency by the type-checker.

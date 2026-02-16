@@ -1,3 +1,8 @@
+---
+title: "Introduction"
+weight: 10
+---
+
 # Introduction
 
 F# is a scalable, succinct, type-safe, type-inferred, efficiently executing functional/imperative/object-oriented programming language. Clef extends the F# language for native compilation, producing standalone executables without runtime dependencies. F# was partly inspired by the [OCaml language](https://ocaml.org/) and shares some common core constructs with it.

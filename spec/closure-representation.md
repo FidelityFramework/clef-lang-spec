@@ -1,3 +1,8 @@
+---
+title: "Closure Representation in Clef"
+weight: 180
+---
+
 # Closure Representation in Clef
 
 > **Status**: Normative

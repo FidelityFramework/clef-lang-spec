@@ -1,3 +1,8 @@
+---
+title: "Lexical Analysis"
+weight: 30
+---
+
 # Lexical Analysis
 
 Lexical analysis converts an input stream of Unicode characters into a stream of tokens by iteratively

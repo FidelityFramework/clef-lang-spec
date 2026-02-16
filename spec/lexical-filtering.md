@@ -1,3 +1,8 @@
+---
+title: "Lexical Filtering"
+weight: 320
+---
+
 # Lexical Filtering
 
 ## Lightweight Syntax

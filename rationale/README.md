@@ -7,45 +7,45 @@ This directory contains design rationale and commentary for the Clef language sp
 
 ## Commentary Resources
 
-For accessible explanations of Clef design decisions, the following articles are available on the [SpeakEZ blog](https://speakez.com/blog/):
+For accessible explanations of Clef design decisions, the following articles are available in the [Clef design documentation](https://clef-lang.com/docs/design/):
 
 ### Core Language Features
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [closure-representation.md](../spec/closure-representation.md) | [Gaining Closure](https://speakez.com/blog/gaining-closure/) | MLKit-style flat closures, capture semantics, space safety |
-| [lazy-representation.md](../spec/lazy-representation.md) | [Why Lazy Is Hard](https://speakez.com/blog/why-lazy-is-hard/) | Thunk representation, memoization, comparison with Haskell/Scala |
-| [seq-representation.md](../spec/seq-representation.md) | [Seq'ing Simplicity](https://speakez.com/blog/seqing-simplicity/) | State machine closures, yield semantics |
-| [seq-operations-representation.md](../spec/seq-operations-representation.md) | [Seq'ing Simplicity](https://speakez.com/blog/seqing-simplicity/) | Wrapper structures for Seq.map/filter/etc. |
+| [closure-representation.md](../spec/closure-representation.md) | [Gaining Closure](https://clef-lang.com/docs/design/gaining-closure/) | MLKit-style flat closures, capture semantics, space safety |
+| [lazy-representation.md](../spec/lazy-representation.md) | [Why Lazy Is Hard](https://clef-lang.com/docs/design/why-lazy-is-hard/) | Thunk representation, memoization, comparison with Haskell/Scala |
+| [seq-representation.md](../spec/seq-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/design/seqing-simplicity/) | State machine closures, yield semantics |
+| [seq-operations-representation.md](../spec/seq-operations-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/design/seqing-simplicity/) | Wrapper structures for Seq.map/filter/etc. |
 
 ### Type System
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [native-type-universe.md](../spec/native-type-universe.md) | [FSharp Native from IL to NTU](https://speakez.com/blog/fsharp-native-from-il-to-ntu/) | Native type universe architecture, departure from BCL |
-| [types-and-type-constraints.md](../spec/types-and-type-constraints.md) | [Traits vs SRTP](https://speakez.com/blog/traits-versus-statically-resolved-type-parameters/) | SRTP design philosophy, comparison with Rust traits |
+| [native-type-universe.md](../spec/native-type-universe.md) | [From IL to NTU](https://clef-lang.com/docs/design/il-to-ntu/) | Native type universe architecture, departure from BCL |
+| [types-and-type-constraints.md](../spec/types-and-type-constraints.md) | [Traits Versus SRTP](https://clef-lang.com/docs/design/traits-versus-srtp/) | SRTP design philosophy, comparison with Rust traits |
 | [ntu-conversion-model.md](../spec/ntu-conversion-model.md) | *(pending)* | Conversion semantics, SRTP resolution |
 
 ### Memory Model
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [memory-regions.md](../spec/memory-regions.md) | [Inferring Memory Lifetimes](https://speakez.com/blog/inferring-memory-lifetimes/) | Region-based memory, lifetime analysis |
-| [memory-regions.md](../spec/memory-regions.md) | [Memory Management By Choice](https://speakez.com/blog/memory-management-by-choice/) | Memory model philosophy |
+| [memory-regions.md](../spec/memory-regions.md) | [Inferring Memory Lifetimes](https://clef-lang.com/docs/design/inferring-memory-lifetimes/) | Region-based memory, lifetime analysis |
+| [memory-regions.md](../spec/memory-regions.md) | [Memory Management By Choice](https://clef-lang.com/docs/design/memory-management-by-choice/) | Memory model philosophy |
 
 ### Compilation Architecture
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [backend-lowering-architecture.md](../spec/backend-lowering-architecture.md) | [Why F# Is A Natural Fit for MLIR](https://speakez.com/blog/why-fsharp-is-a-natural-fit-for-mlir/) | Two-layer model, dialect mixing |
-| *(general)* | [Absorbing Alloy](https://speakez.com/blog/absorbing-alloy/) | Types as intrinsics, not library |
+| [backend-lowering-architecture.md](../spec/backend-lowering-architecture.md) | [Why Clef Is A Natural Fit for MLIR](https://clef-lang.com/docs/design/why-clef-fits-mlir/) | Two-layer model, dialect mixing |
+| *(general)* | [Absorbing Alloy](https://clef-lang.com/docs/design/absorbing-alloy/) | Types as intrinsics, not library |
 
 ### Concurrency & Effects
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| *(async/effects)* | [Coeffects And Codata In Firefly](https://speakez.com/blog/coeffects-and-codata-in-firefly/) | Coeffect system, observable effects |
-| *(continuations)* | [Delimited Continuations: Fidelity's Turning Point](https://speakez.com/blog/delimited-continuations-fidelitys-turning-point/) | DCont architecture |
+| *(async/effects)* | [Coeffects and Codata in Composer](https://clef-lang.com/docs/design/coeffects-and-codata/) | Coeffect system, observable effects |
+| *(continuations)* | [Delimited Continuations: Fidelity's Turning Point](https://clef-lang.com/docs/design/delimited-continuations/) | DCont architecture |
 
 ---
 
@@ -80,6 +80,6 @@ This follows the [Standard ML precedent](https://mitpress.mit.edu/9780262631372/
 
 ---
 
-## Future Migration
+## Authoritative Source
 
-This commentary content may migrate to [clef-lang.com](https://clef-lang.com) as a dedicated commentary section. Until then, the SpeakEZ blog serves as the authoritative source for design rationale.
+Design rationale articles are published at [clef-lang.com/docs/design/](https://clef-lang.com/docs/design/). The tables above link to the authoritative versions.

@@ -1,3 +1,8 @@
+---
+title: "Program Structure"
+weight: 20
+---
+
 # Program Structure
 
 The inputs to the F# compiler or the F# Interactive dynamic compiler consist of:

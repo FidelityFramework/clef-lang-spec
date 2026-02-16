@@ -1,3 +1,8 @@
+---
+title: "Special Attributes and Types"
+weight: 330
+---
+
 # Special Attributes and Types
 
 This chapter describes attributes and types that have special significance to the Clef compiler.

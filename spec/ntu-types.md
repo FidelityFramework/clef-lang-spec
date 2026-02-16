@@ -1,3 +1,9 @@
+---
+title: "NTU Type Nomenclature Specification"
+weight: 9090
+draft: true
+---
+
 # NTU Type Nomenclature Specification
 
 > **Status**: Draft
