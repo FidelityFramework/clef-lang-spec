@@ -5,24 +5,24 @@ weight: 10
 
 Clef is a concurrent, natively compiled language in the ML family. It produces standalone executables for CPUs, GPUs, NPUs, FPGAs, and other accelerators without runtime dependencies. Clef uses ML-family syntax rooted in F# and shares common constructs with [OCaml](https://ocaml.org/), while incorporating influences from F\* (proof-carrying compilation), Scheme (nanopass compilation architecture), and hardware-oriented concurrency models.
 
-Clef's type system resolves types to native representations at compile time rather than to .NET Base Class Library (BCL) types. Concurrency is a first-class language concern: the actor model, `Incremental<'T>`, delimited continuations, and interaction nets are foundational primitives, not library conveniences. This specification defines those native and concurrent semantics.
+Clef's type system resolves types to native representations at compile time rather than to .NET Base Class Library (BCL) types. Concurrency is a first-class language concern: the actor model, `Incremental<'T>`, delimited continuations, and interaction nets are foundational primitives. This specification defines those native and concurrent semantics.
 
 ## Clef Compiler Service (CCS)
 
-The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS originated from the F# Compiler Services (FCS) codebase but has diverged substantially, with native type semantics, a nanopass compilation architecture, and concurrency primitives that have no FCS counterpart.
+The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS originated from the F# Compiler Services (FCS) codebase but has diverged substantially, with native type semantics, a nanopass compilation architecture, and Program Semantic Graph (PSG) construction that has no FCS counterpart.
 
 ### What CCS Provides
 
-CCS performs parsing, type inference, and constraint resolution for Clef programs:
+CCS constitutes the front end of the Composer compiler pipeline. It performs parsing, type inference, constraint resolution, and Program Semantic Graph (PSG) construction for Clef programs:
 
 | Capability | Description |
 |------------|-------------|
-| **Parsing** | F# syntax analysis producing syntax trees |
+| **Parsing** | Clef syntax analysis producing syntax trees |
 | **Type Checking** | Type inference with native type resolution |
 | **SRTP Resolution** | Statically resolved type parameters against native witnesses |
-| **Typed Tree** | Fully typed representation for downstream compilation |
+| **PSG Construction** | Program Semantic Graph with fully resolved types and concurrency annotations |
 
-CCS outputs a typed abstract syntax tree with resolved types and constraints. This output flows to compilation backends (such as Firefly) for code generation.
+CCS outputs a PSG with native types attached. This graph flows to downstream stages of the Composer pipeline for code generation targeting CPUs, GPUs, and other accelerators.
 
 ### Distinction from FCS
 
@@ -35,7 +35,7 @@ CCS is not an extension or plugin to FCS. It is a separate compiler frontend wit
 | **Option Types** | Reference type, nullable | `option<'T>` with value semantics, stack-allocated, non-nullable |
 | **SRTP Resolution** | .NET method tables | Native witness hierarchy |
 | **Base Type** | `System.Object` (`obj`) | None - no universal base type |
-| **Output** | IL generation | Typed tree for native backends |
+| **Output** | IL generation | Program Semantic Graph (PSG) for Composer pipeline |
 
 ### Architectural Principles
 
@@ -49,18 +49,18 @@ CCS adheres to these principles:
 
 **SRTP Against Native Witnesses**: Statically resolved type parameters resolve against the native witness hierarchy. This enables compile-time polymorphism without runtime overhead.
 
-**Typed Tree Fidelity**: CCS produces typed trees that preserve full type information, constraint resolutions, and SRTP witness selections. Downstream stages consume this information directly. The typed representation is defined by [`ClefExpr`](clef-expr.md), CCS's native expression type that replaces FCS's `FSharpExpr`.
+**PSG Fidelity**: CCS produces a Program Semantic Graph that preserves full type information, constraint resolutions, SRTP witness selections, and concurrency annotations. Downstream stages of the Composer pipeline consume this graph directly. The typed representation is defined by [`ClefExpr`](clef-expr.md), CCS's native expression type that replaces FCS's `FSharpExpr`.
 
 ### Layer Separation
 
-CCS has a focused responsibility within the Fidelity ecosystem:
+CCS has a focused responsibility within the Composer pipeline:
 
 | Component | Responsibility |
 |-----------|---------------|
 | **CCS** | Type universe, literal typing, type inference, SRTP resolution, PSG construction, editor services |
-| **Firefly/Alex** | PSG consumption, platform-aware MLIR generation, native code output |
+| **Composer** | PSG consumption, nanopass transformations, platform-aware MLIR generation, native code output |
 
-CCS produces a Program Semantic Graph (PSG) with native types attached and full symbol information preserved for design-time tooling. Firefly consumes the PSG as "correct by construction" and focuses purely on code generation.
+CCS produces a PSG with native types attached and full symbol information preserved for design-time tooling. Composer consumes the PSG as "correct by construction" and applies a series of nanopass transformations before generating platform-specific code.
 
 ### Normative Requirements
 
