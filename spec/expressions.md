@@ -60,7 +60,7 @@ expr :=
     %expr                              -- expression splice
     %%expr                              -- weakly typed expression splice
 
-    (static-typars : (member-sig) expr) -– static member invocation
+    (static-typars : (member-sig) expr) -- static member invocation
 ```
 
 Expressions are defined in terms of patterns and other entities that are discussed later in this

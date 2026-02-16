@@ -230,7 +230,7 @@ All definitions have observable initialization except for the following definiti
   - A use of the `sizeof<_>` operator or the `defaultof<_>` operator from `Unchecked`.
   - A let expression where the constituent expressions are initialization constant expressions.
   - A match expression where the input is an initialization constant expression, each case is a test against a constant, and each target is an initialization constant expression.
-  - A use of one of the unary or binary operators `=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, `<<<`, `>>>`, `|||`, `&&&`, `^^^`, `~~~`, `enum<_>`, `not`, `compare`, prefix `–`, and prefix `+` on one or two arguments, respectively. The arguments themselves must be initialization constant expressions, but cannot be operations on decimals or strings.
+  - A use of one of the unary or binary operators `=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, `<<<`, `>>>`, `|||`, `&&&`, `^^^`, `~~~`, `enum<_>`, `not`, `compare`, prefix `-`, and prefix `+` on one or two arguments, respectively. The arguments themselves must be initialization constant expressions, but cannot be operations on decimals or strings.
   - A use of a `[<Literal>]` value.
   - A use of a case from an enumeration type.
   - A use of a value that is defined in the same compilation unit and does not have observable initialization.

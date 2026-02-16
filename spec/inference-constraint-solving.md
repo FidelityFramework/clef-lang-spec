@@ -315,7 +315,7 @@ let rec twoForward count =
     else oneBack (count + 2)
 and oneBack count =
     printfn "at %d, taking one step back " count
-    twoForward (count – 1)
+    twoForward (count - 1)
 ```
 
 When one or more definitions specifies a value, the recursive expressions are analyzed for safety
@@ -331,7 +331,7 @@ declaration:
 let rec countDown count x =
     if count > 0 then
         let a = countDown (count - 1) 1 // constrains "x" to be of type int
-        let b = countDown (count – 1) "Hello" // constrains "x" to be of type string
+        let b = countDown (count - 1) "Hello" // constrains "x" to be of type string
         a + b
     else
         1

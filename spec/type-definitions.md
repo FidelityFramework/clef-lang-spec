@@ -142,11 +142,11 @@ method-or-prop-defn :=
     ident.~opt function-defn -- method definition
     ident.~opt value-defn -- property definition
     ident.~opt ident with function-or-value-defns -- property definition via get/set methods
-    member ident = exp – - auto-implemented property definition
-    member ident = exp with get – - auto-implemented property definition
-    member ident = exp with set – - auto-implemented property definition
-    member ident = exp with get,set – - auto-implemented property definition
-    member ident = exp with set,get – - auto-implemented property definition
+    member ident = exp -- auto-implemented property definition
+    member ident = exp with get -- auto-implemented property definition
+    member ident = exp with set -- auto-implemented property definition
+    member ident = exp with get,set -- auto-implemented property definition
+    member ident = exp with set,get -- auto-implemented property definition
 
 member-sig :=
     ident typar-defns~opt : curried-sig -- method or property signature
@@ -2256,7 +2256,7 @@ type SubClass(x: int) =
     inherit BaseClass()
     override this.AbstractMethod n = n + x
 
-let v1 = BaseClass() // not allowed – BaseClass is abstract
+let v1 = BaseClass() // not allowed: BaseClass is abstract
 let v2 = (SubClass(7) :> BaseClass)
 
 v2.AbstractMethod 6 // evaluates to 13

@@ -94,7 +94,7 @@ If an `if-directive` token is matched during tokenization, text is recursively t
 corresponding `else-directive` or `endif-directive`. If the evaluation of the associated
 `if-expression-text` when parsed as an _if-expression_ is true in the compilation environment defines
 (where each `ident-text` is evaluataed according to the values given by command line options such
-as `–define`), the token stream includes the tokens between the `if-directive` and the corresponding
+as `--define`), the token stream includes the tokens between the `if-directive` and the corresponding
 `else-directive` or `endif-directive`. Otherwise, the tokens are discarded. The converse applies to
 the text between any corresponding `else-directive` and the `endif-directive`.
 
@@ -419,10 +419,10 @@ token decimal = ( float | int ) [Mm]
 
 ### Post-filtering of Adjacent Prefix Tokens
 
-Negative integers are specified using the `–` token; for example, `-3`. The token steam is post-filtered
+Negative integers are specified using the `-` token; for example, `-3`. The token steam is post-filtered
 according to the following rules:
 
-- If the token stream contains the adjacent tokens `– token`:
+- If the token stream contains the adjacent tokens `- token`:
 
   If `token` is a constant numeric literal, the pair of tokens is merged. For example, adjacent tokens
   `-` and `3` becomes the single token `-3`. Otherwise, the tokens remain separate. However the `-`
@@ -432,14 +432,14 @@ according to the following rules:
   `token1` is a terminating token from expression forms that have lower precedence than the
   grammar production `expr = MINUS expr`.
 
-  For example, the `–` and `b` tokens in the following sequence are not merged if all three tokens
+  For example, the `-` and `b` tokens in the following sequence are not merged if all three tokens
   are adjacent:
 
 ```fsharp
     a-b
 ```
 
-- Otherwise, the usual grammar rules apply to the uses of `–` and `+`, with an addition for
+- Otherwise, the usual grammar rules apply to the uses of `-` and `+`, with an addition for
   `ADJACENT_PREFIX_OP`:
 
 ```fsgrammar
