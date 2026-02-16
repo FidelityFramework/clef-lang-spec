@@ -3,13 +3,13 @@ title: "Introduction"
 weight: 10
 ---
 
-F# is a scalable, succinct, type-safe, type-inferred, efficiently executing functional/imperative/object-oriented programming language. Clef extends the F# language for native compilation, producing standalone executables without runtime dependencies. F# was partly inspired by the [OCaml language](https://ocaml.org/) and shares some common core constructs with it.
+Clef is a concurrent, natively compiled language in the ML family. It produces standalone executables for CPUs, GPUs, NPUs, FPGAs, and other accelerators without runtime dependencies. Clef uses ML-family syntax rooted in F# and shares common constructs with [OCaml](https://ocaml.org/), while incorporating influences from F\* (proof-carrying compilation), Scheme (nanopass compilation architecture), and hardware-oriented concurrency models.
 
-Clef preserves the same syntax and type-checking behavior as standard F#, but with native type semantics: types are resolved to native representations at compile time rather than to .NET Base Class Library (BCL) types. This specification defines those native semantics.
+Clef's type system resolves types to native representations at compile time rather than to .NET Base Class Library (BCL) types. Concurrency is a first-class language concern: the actor model, `Incremental<'T>`, delimited continuations, and interaction nets are foundational primitives, not library conveniences. This specification defines those native and concurrent semantics.
 
 ## Clef Compiler Service (CCS)
 
-The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS is a purpose-built fork of the F# Compiler Services (FCS), optimized for native compilation.
+The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS originated from the F# Compiler Services (FCS) codebase but has diverged substantially, with native type semantics, a nanopass compilation architecture, and concurrency primitives that have no FCS counterpart.
 
 ### What CCS Provides
 

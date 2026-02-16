@@ -498,7 +498,7 @@ let makeAdder n = fun x -> x + n
 
 ## Why IL Infrastructure Is Removed from CCS
 
-Clef Compiler Service (CCS) is derived from F# Compiler Services (FCS) but targets native compilation via MLIR, not CLR bytecode. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
+Clef Compiler Service (CCS) targets native compilation via MLIR (Multi-Level Intermediate Representation), not CLR bytecode. While CCS originated from the F# Compiler Services (FCS) codebase, its type universe, compilation passes, and concurrency primitives are independently defined. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
 
 ### The Architecture Boundary
 
