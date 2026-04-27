@@ -185,7 +185,7 @@ _Compiler directives_ are declarations in non-nested modules or namespace declar
 # id string ... string
 ```
 
-The lexical preprocessor directives `#if`, `#else`, `#endif` and `#indent "off"` are similar to compiler directives. For details on `#if`, `#else`, `#endif`, see [§](lexical-analysis.md#conditional-compilation). The `#indent "off"` directive is described in [§](features-for-ml-compatibility.md#file-extensions-and-lexical-matters).
+The lexical preprocessor directives `#if`, `#else`, `#endif` are similar to compiler directives. For details, see [§](lexical-analysis.md#conditional-compilation).
 
 The following directives are valid in all files:
 

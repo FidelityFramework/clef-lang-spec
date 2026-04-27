@@ -178,9 +178,9 @@ const :=
     | ieee64                -- 64 - bit number of type "float"
     | bignum                -- User or library-defined integral literal type
     | char                  -- Unicode character of type "char"
-    | string v              -- String of type "string" (System.String)
-    | verbatim-string       -- String of type "string" (System.String)
-    | triple-quoted-string  -- String of type "string" (System.String)
+    | string v              -- String of type "string" (NativeStr, UTF-8)
+    | verbatim-string       -- String of type "string" (NativeStr, UTF-8)
+    | triple-quoted-string  -- String of type "string" (NativeStr, UTF-8)
     | bytestring            -- String of type "byte[]"
     | verbatim-bytearray    -- String of type "byte[]"
     | bytechar              -- Char of type "byte"

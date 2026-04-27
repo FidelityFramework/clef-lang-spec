@@ -181,39 +181,53 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 |---|---------|------|--------|
 | 1 | Introduction | `introduction.md` | Revised |
 | 2 | Program Structure | `program-structure.md` | Revised |
-| 3 | Lexical Analysis | `lexical-analysis.md` | Stable |
-| 4 | Basic Grammar Elements | `basic-grammar-elements.md` | Stable |
+| 3 | Lexical Analysis | `lexical-analysis.md` | **Needs revision** |
+| 4 | Basic Grammar Elements | `basic-grammar-elements.md` | **Needs revision** |
 | 5 | Types and Type Constraints | `types-and-type-constraints.md` | Revised |
 | 6 | **Type Representation Architecture** | `type-representation-architecture.md` | **New** |
 | 7 | **Native Type Mappings** | `native-type-mappings.md` | **New** |
 | 8 | **Native Type Universe** | `native-type-universe.md` | **New** |
-| 9 | Expressions | `expressions.md` | Revised |
-| 10 | Patterns | `patterns.md` | Stable |
-| 11 | Type Definitions | `type-definitions.md` | Revised |
-| 12 | Units of Measure | `units-of-measure.md` | Stable |
-| 13 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
-| 14 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
-| 15 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
-| 16 | **Program Semantic Graph** | `program-semantic-graph.md` | **New** |
-| 17 | **Memory Regions** | `memory-regions.md` | **New** |
-| 18 | **Closure Representation** | `closure-representation.md` | **New** |
-| 19 | **Lazy Representation** | `lazy-representation.md` | **New** |
-| 20 | **Seq Representation** | `seq-representation.md` | **New** |
-| 21 | **Seq Operations Representation** | `seq-operations-representation.md` | **New** |
-| 22 | **Access Kinds** | `access-kinds.md` | **New** |
-| 23 | **Platform Bindings** | `platform-bindings.md` | **New** |
-| 24 | **Backend Lowering Architecture** | `backend-lowering-architecture.md` | **New** |
-| 25 | Inference Procedures | `inference-procedures.md` | Revised |
-| 26 | **Clef Expressions** | `clef-expr.md` | **New** |
-| 27 | Lexical Filtering | `lexical-filtering.md` | Stable |
-| 28 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
-| 29 | **Error Handling** | `error-handling.md` | **New** |
-| 30 | **Interactive Development** | `interactive-development.md` | **New** |
-| 31 | **NTU Conversion Model** | `ntu-conversion-model.md` | **New** |
-| 32 | **Intrinsics: Convert** | `intrinsics-convert.md` | **New** |
-| 33 | **Intrinsics: Crypto/Bits** | `intrinsics-crypto-bits.md` | **New** |
-| 34 | **Reactive Signals** | `reactive-signals.md` | **New** |
-| 35 | Features for ML Compatibility | `features-for-ml-compatibility.md` | Stable |
+| 9 | **NTU Types** | `ntu-types.md` | **New** |
+| 10 | **NTU Dimensional Architecture** | `ntu-dimensional-architecture.md` | **New** |
+| 11 | Expressions | `expressions.md` | Revised |
+| 12 | Patterns | `patterns.md` | **Needs revision** |
+| 13 | Type Definitions | `type-definitions.md` | Revised |
+| 14 | Units of Measure | `units-of-measure.md` | **Needs revision** |
+| 15 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
+| 16 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
+| 17 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
+| 18 | **Program Semantic Graph** | `program-semantic-graph.md` | **New** |
+| 19 | **Memory Regions** | `memory-regions.md` | **New** |
+| 20 | **Closure Representation** | `closure-representation.md` | **New** |
+| 21 | **Lazy Representation** | `lazy-representation.md` | **New** |
+| 22 | **Discriminated Union Representation** | `discriminated-union-representation.md` | **New** |
+| 23 | **Atomic Operations** | `atomic-operations.md` | **New** |
+| 24 | **Incremental Computation** | `incremental-computation.md` | **New** |
+| 25 | **Seq Representation** | `seq-representation.md` | **New** |
+| 26 | **Seq Operations Representation** | `seq-operations-representation.md` | **New** |
+| 27 | **List Operations Representation** | `list-operations-representation.md` | **New** |
+| 28 | **Map Representation** | `map-representation.md` | **New** |
+| 29 | **Set Representation** | `set-representation.md` | **New** |
+| 30 | **Option Operations Representation** | `option-operations-representation.md` | **New** |
+| 31 | **Access Kinds** | `access-kinds.md` | **New** |
+| 32 | **Platform Bindings** | `platform-bindings.md` | **New** |
+| 33 | **FFI Boundary** | `ffi-boundary.md` | **New** |
+| 34 | **Platform Predicates** | `platform-predicates.md` | **New** |
+| 35 | **Backend Lowering Architecture** | `backend-lowering-architecture.md` | **New** |
+| 36 | Inference Procedures | `inference-procedures.md` | Revised |
+| 37 | Inference: Name Resolution | `inference-name-resolution.md` | **Draft** |
+| 38 | Inference: Application Resolution | `inference-application-resolution.md` | **Draft** |
+| 39 | Inference: Constraint Solving | `inference-constraint-solving.md` | **Draft** |
+| 40 | Inference: Supplementary | `inference-supplementary.md` | **Draft** |
+| 41 | **Clef Expressions** | `clef-expr.md` | **New** |
+| 42 | Lexical Filtering | `lexical-filtering.md` | **Needs revision** |
+| 43 | Special Attributes and Types | `special-attributes-and-types.md` | Revised |
+| 44 | **Error Handling** | `error-handling.md` | **New** |
+| 45 | **Interactive Development** | `interactive-development.md` | **New** |
+| 46 | **NTU Conversion Model** | `ntu-conversion-model.md` | **New** |
+| 47 | **Intrinsics: Convert** | `intrinsics-convert.md` | **New** |
+| 48 | **Intrinsics: Crypto/Bits** | `intrinsics-crypto-bits.md` | **New** |
+| 49 | **Reactive Signals** | `reactive-signals.md` | **New** |
 
 ### Removed Chapters
 
@@ -223,16 +237,16 @@ The following chapters from the standard F# specification are **not applicable**
 |---------|--------|
 | Provided Types | Type providers require .NET runtime |
 | Custom Attributes and Reflection | System.Reflection not available |
+| Features for ML Compatibility | Clef has no OCaml-compatibility heritage; F# tokens (`(*IF-FSHARP*)`, `(*IF-OCAML*)`), the `--mlcompatibility` flag, the `#indent "off"` directive, and the `.ml`/`.mli` extensions do not apply |
 
 ### Chapter Status Key
 
 | Status | Meaning |
 |--------|---------|
-| **Stable** | Minimal changes needed from fslang-spec |
-| **Review** | Needs review for BCL assumptions |
-| **Needs revision** | Known BCL dependencies to remove |
+| **Revised** | Adapted from fslang-spec; further revision may be needed |
+| **Needs revision** | Known BCL or F#-specific dependencies to remove |
+| **Draft** | Inherited from fslang-spec; voice and content not yet adapted |
 | **New** | Clef-specific chapter (not in fslang-spec) |
-| **Rewritten** | Completely rewritten for Clef |
 
 ## Normative Language
 

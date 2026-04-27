@@ -447,7 +447,7 @@ let flashData : Ptr<byte, Flash, ReadOnly> = ...
 
 ## Notational Conventions in This Specification
 
-This specification describes the F# language by using a mixture of informal and semiformal techniques. All examples in this specification use lightweight syntax, unless otherwise specified.
+This specification describes the Clef language by using a mixture of informal and semiformal techniques. All examples in this specification use lightweight syntax, unless otherwise specified.
 
 Regular expressions are given in the usual notation, as shown in the table:
 

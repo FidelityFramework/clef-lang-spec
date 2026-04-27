@@ -10,6 +10,8 @@
         "type-representation-architecture",
         "native-type-mappings",
         "native-type-universe",
+        "ntu-types",
+        "ntu-dimensional-architecture",
         "expressions",
         "patterns",
         "type-definitions",
@@ -21,6 +23,8 @@
         "memory-regions",
         "closure-representation",
         "lazy-representation",
+        "discriminated-union-representation",
+        "atomic-operations",
         "incremental-computation",
         "seq-representation",
         "seq-operations-representation",
@@ -30,8 +34,14 @@
         "option-operations-representation",
         "access-kinds",
         "platform-bindings",
+        "ffi-boundary",
+        "platform-predicates",
         "backend-lowering-architecture",
         "inference-procedures",
+        "inference-name-resolution",
+        "inference-application-resolution",
+        "inference-constraint-solving",
+        "inference-supplementary",
         "clef-expr",
         "lexical-filtering",
         "special-attributes-and-types",
@@ -40,7 +50,6 @@
         "ntu-conversion-model",
         "intrinsics-convert",
         "intrinsics-crypto-bits",
-        "reactive-signals",
-        "features-for-ml-compatibility"
+        "reactive-signals"
     ]
 }
