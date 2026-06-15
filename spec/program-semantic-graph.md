@@ -637,11 +637,3 @@ Coeffect analysis provides metadata enabling the compiler to pivot between repre
 **Example**: With yield state analysis, a seq expression can lower to:
 - State machine (control-flow emphasis)
 - Vectorized operation (dataflow emphasis, if applicable)
-
-## See Also
-
-- [Type Representation Architecture](type-representation-architecture.md) - NativeType structure and lookup
-- [Backend Lowering Architecture](backend-lowering-architecture.md) - PSG to MLIR lowering
-- [Closure Representation](closure-representation.md) - Lambda capture in PSG
-- [Lazy Representation](lazy-representation.md) - LazyExpr semantics
-- [Seq Representation](seq-representation.md) - SeqExpr semantics

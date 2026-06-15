@@ -133,8 +133,3 @@ ptr-type := Ptr < type , region-type , access-kind >
 | CCS8020 | Cannot write to ReadOnly pointer |
 | CCS8021 | Cannot read from WriteOnly pointer |
 | CCS8022 | Access kind mismatch in assignment |
-
-## See Also
-
-- [Memory Regions](memory-regions.md) - Region type semantics
-- [Platform Bindings](platform-bindings.md) - Platform-specific register access

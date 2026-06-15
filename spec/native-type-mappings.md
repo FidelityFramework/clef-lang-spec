@@ -589,8 +589,3 @@ The following were removed from `TypedTreeOps.fs`:
 ### The Key Insight
 
 IL-based loop optimization at the typed tree level was **premature optimization at the wrong layer**. Native loop optimization belongs in MLIR passes where the target architecture is known and appropriate loop transformations (vectorization, unrolling, tiling) can be applied.
-
-## See Also
-
-- [Types and Type Constraints](types-and-type-constraints.md) - Type system overview
-- [Memory Regions](memory-regions.md) - Pointer types

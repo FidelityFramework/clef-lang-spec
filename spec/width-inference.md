@@ -104,4 +104,3 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 - Baaij, C., et al. *CλaSH: structural descriptions of synchronous hardware (Haskell→FPGA).*
 - Gustafson, J. (2017). *Posit Arithmetic*; *Standard for Posit Arithmetic* (2022).
 - Petricek, T., Orchard, D., & Mycroft, A. (2014). Coeffects: A Calculus of Context-Dependent Computation. *ICFP '14*.
-- [NTU Dimensional Architecture](ntu-dimensional-architecture.md), [Units of Measure](units-of-measure.md), [Native Type Universe](native-type-universe.md).

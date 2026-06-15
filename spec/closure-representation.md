@@ -241,9 +241,3 @@ CCS constructs the PSG with complete lambda information:
 6. **Cache Alignment**: Small closures (≤64 bytes) SHOULD be aligned to cache lines
 7. **Nested Functions**: Named functions defined within another function that do not escape SHALL use parameter-passing for captures
 8. **Classification**: A Lambda SHALL be classified as a nested named function iff its enclosing function is present AND its parent PSG node is a Binding
-
-## See Also
-
-- [Lazy Representation](lazy-representation.md) - Extended closure with memoization
-- [Seq Representation](seq-representation.md) - State machine closures
-- [Backend Lowering Architecture](backend-lowering-architecture.md) - MLIR dialect usage

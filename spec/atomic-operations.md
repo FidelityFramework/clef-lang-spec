@@ -360,10 +360,3 @@ operation-name :=
     fetchOr
     fetchXor
 ```
-
-## See Also
-
-- [Memory Regions](memory-regions.md) - Memory region types and semantics
-- [Platform Bindings](platform-bindings.md) - Platform-specific code generation
-- BAREWire Cache-Aware Layouts
-- Composer Verification Workflow

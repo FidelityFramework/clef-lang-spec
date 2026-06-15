@@ -324,9 +324,3 @@ The following areas require additional design work:
 4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
 5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
 6. **Tooling PR Strategy**: Concrete changes needed for Lattice/FSAC to support CCS
-
-## See Also
-
-- [Types and Type Constraints](types-and-type-constraints.md) - Type system fundamentals
-- [Special Attributes and Types](special-attributes-and-types.md) - Result and voption definitions
-- [Platform Bindings](platform-bindings.md) - Error handling at platform boundaries

@@ -722,11 +722,3 @@ type Result<'T, 'E> =
 - `Result<int, string>` → `Result_int_string`
 
 ---
-
-## See Also
-
-- [Closure Representation](closure-representation.md) - Closures as DU payloads
-- [Patterns](patterns.md) - Pattern matching syntax
-- [Type Definitions](type-definitions.md) - DU declaration syntax
-- [Memory Regions](memory-regions.md) - Arena allocation
-- [BAREWire Integration](../rationale/barewire-integration.md) - Serialization protocol

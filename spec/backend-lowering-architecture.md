@@ -161,12 +161,3 @@ This configuration flows through:
 3. **Struct operations SHALL use backend dialects**: Record, union, and closure struct manipulation uses backend-specific operations
 4. **`llvm.call` target restriction**: `llvm.call` SHALL only call functions defined as `llvm.func`; to call a `func.func` from `llvm.func`, use `func.call`
 5. **Platform configuration flow**: `fidproj` platform settings SHALL inform all lowering decisions
-
-## See Also
-
-- [Program Semantic Graph](program-semantic-graph.md) - PSG structure consumed by Alex
-- [Type Representation Architecture](type-representation-architecture.md) - NativeType and TypeConRef
-- [Closure Representation](closure-representation.md) - Flat closure memory layout
-- [Lazy Representation](lazy-representation.md) - Lazy as extended closure
-- [Platform Bindings](platform-bindings.md) - Platform descriptor and syscalls
-- [Native Type Mappings](native-type-mappings.md) - Type-to-layout mapping

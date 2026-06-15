@@ -459,10 +459,3 @@ The platform descriptor is inspected at compile time:
 The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 
 ---
-
-## See Also
-
-- [Memory Regions](memory-regions.md) - Pointer types for intrinsics
-- [Access Kinds](access-kinds.md) - Pointer access semantics
-- [ClefExpr](clef-expr.md) - How intrinsics appear in the expression tree
-- [Program Structure and Execution](program-structure-and-execution.md) - Entry point semantics

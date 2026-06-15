@@ -234,4 +234,3 @@ Unlike the earlier Clef formulation, **closures are used exactly as in SolidJS**
 - Solid contributors. *SolidJS — fine-grained reactivity.* https://www.solidjs.com
 - TanStack. *Store — framework-agnostic reactive store.* https://tanstack.com/store
 - Haaser, G., et al. *FSharp.Data.Adaptive* (`cval`/`aval`). https://github.com/fsprojects/FSharp.Data.Adaptive
-- [Observable Computation](observable-computation.md), [Incremental Computation](incremental-computation.md), [Closure Representation](closure-representation.md).

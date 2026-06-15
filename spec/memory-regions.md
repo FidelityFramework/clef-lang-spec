@@ -180,8 +180,3 @@ region-type :=
 
 region-typed-ptr := Ptr < type , region-type , access-kind >
 ```
-
-## See Also
-
-- [Access Kinds](access-kinds.md) - Read/Write permissions
-- [Platform Bindings](platform-bindings.md) - Platform-specific memory access
