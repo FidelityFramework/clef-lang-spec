@@ -1,492 +1,181 @@
 ---
-title: "Reactive Signals Module Specification"
+title: "Reactive Signals"
 weight: 390
 ---
 
-> **Status**: Draft
-> **Normative**: Yes
-> **Last Updated**: 2026-01-08
+> **Status**: Revised
+> **Normative**: This chapter normatively specifies the **surface API** and its **desugaring**. The underlying reactive semantics are normative in [Observable Computation](observable-computation.md) and [Incremental Computation](incremental-computation.md); this chapter does not restate them.
+> **Last Updated**: 2026-06-14
 
 ## 1. Overview
 
-This chapter specifies native reactive signals for CCS (Clef Compiler Service), inspired by SolidJS's fine-grained reactivity and TanStack Store's framework-agnostic approach.
+Reactive Signals is a developer-facing surface API providing fine-grained reactivity in the style of SolidJS and TanStack Store. It is the **signal scaffolding** that connects a front end — a native renderer or a WebView/JavaScript front end — to the application core. Borrowing this broad, widely-understood convention is a deliberate adoption choice: developers arriving from the SolidJS/React ecosystem find a familiar `Signal`/`Memo`/`Effect` vocabulary.
 
-**Design Goals:**
-- Mirror SolidJS/TanStack signal semantics for frontend/backend consistency
-- Zero-runtime-overhead abstractions where possible
-- Function pointer support for callbacks (no closures)
-- Integration with native event loops (epoll, GLib)
+Signals are a **thin surface layer**, not a separate reactive engine. Each construct desugars to the `Observable<'T>` and `Incremental<'T>` intrinsics:
 
-## 2. Function Pointer Type
+- `Signal<'T>` is a settable reactive source — the graph's input leaf.
+- `Memo<'T>` is a derived, cached, cutoff-bearing value — an `Incremental<'T>`.
+- `Effect` is a side-effecting computation that re-runs on change — a demanded sink on the graph.
 
-### 2.1 Type Definition
+Two consequences follow from being a surface over the intrinsics, and they are the substance of this revision:
 
-CCS introduces a function pointer type for callbacks:
+1. **Reactive callbacks are flat closures, not function pointers.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). The set of signals it reads is its capture set, and the capture set *is* its dependency-edge set. This restores the closure ergonomics SolidJS depends on and removes the top-level-function restriction of the earlier formulation.
+2. **The dependency graph is the Program Semantic Graph, not a runtime signal table.** Dependency tracking is the compile-time capture analysis already used by `Incremental<'T>`; there is no runtime slot table, no `CurrentTracking` global, and no manual subscription bookkeeping.
 
-```fsharp
-type FnPtr<'T, 'R>  // Function pointer from 'T to 'R
-```
+`FnPtr` (function pointers) is retained only as a **C FFI interop primitive** for platform callbacks (event loops, Wayland/GTK listeners); it is **not** the reactive callback mechanism. See [§9](#9-function-pointers-are-for-ffi-not-reactivity).
 
-**NTU Kind:** `NTUfnptr` (new NTU kind, pointer-sized)
+## 2. Mapping to the Intrinsics
 
-**Syntax:**
-```fsharp
-// Function pointer to a function taking int and returning string
-let callback: FnPtr<int, string> = ...
-```
+| Signals surface | Desugars to | Semantics specified in |
+|---|---|---|
+| `Signal<'T>` (settable cell) | Settable source leaf: `set` emits invalidation (Observable side); `get` registers a dependency (Incremental side) | [Observable](observable-computation.md) / [Incremental](incremental-computation.md) |
+| `Memo<'T>` | `Incremental<'T>` node; closure captures are dependency edges; cutoff from `'T : equality` | [Incremental Computation](incremental-computation.md) |
+| `Effect` | Always-demanded `Incremental` sink (an observer that performs effects) | [Incremental §6.3](incremental-computation.md) |
+| `Batch` | Stabilization-boundary control (coalesce to one stabilization) | [Incremental §6.2](incremental-computation.md) |
+| `Store<'T>` | Per-field signals (sugar over `Signal`) | this chapter |
+| Automatic dependency tracking | Flat-closure capture analysis (compile time) | [Closure Representation](closure-representation.md) |
 
-### 2.2 Creating Function Pointers
+Because both ends are intrinsic, a `Signal` driving a `Memo` lowers with the same fusion the intrinsics already specify ([Incremental §11.3](incremental-computation.md)); no library bridge or callback indirection is materialized.
 
-Function pointers can only be created from **top-level functions** (no closures):
+## 3. Signal — Settable Reactive Source
 
-```fsharp
-// Top-level function
-let handleEvent (x: int) : unit =
-    Console.writeln (sprintf "Event: %d" x)
-
-// Create function pointer
-let handler: FnPtr<int, unit> = FnPtr.ofFunction handleEvent
-```
-
-**MLIR Generation:**
-```mlir
-// Function pointer is the address of the function
-%fn_ptr = llvm.mlir.addressof @handleEvent : !llvm.ptr<func<void (i32)>>
-```
-
-### 2.3 Invoking Function Pointers
+A `Signal<'T>` is a settable cell at the root of a reactive graph. Reading it inside a reactive scope creates a dependency; writing it pushes an invalidation to dependents.
 
 ```fsharp
-FnPtr.invoke handler 42  // Calls handleEvent(42)
-```
+type Signal<'T>
 
-**MLIR Generation:**
-```mlir
-llvm.call %fn_ptr(%arg) : !llvm.ptr<func<void (i32)>>, (i32) -> ()
-```
-
-### 2.4 Null Function Pointers
-
-```fsharp
-FnPtr.isNull handler     // Check if null
-FnPtr.null<int, unit>()  // Create null pointer
-```
-
-## 3. Signal Module
-
-### 3.1 Module Definition
-
-```fsharp
-module Signal
-```
-
-The Signal module provides reactive primitives. Unlike SolidJS which uses closures, CCS signals use explicit subscription with function pointers.
-
-### 3.2 Signal Type
-
-```fsharp
-type Signal<'T>  // Opaque handle to a reactive value
-```
-
-**Internal Representation:**
-- Platform word slot index into runtime signal table
-- NTU Kind: None (opaque handle type, layout determined by TypeLayout.PlatformWord)
-
-### 3.3 Creating Signals
-
-```fsharp
 val create : 'T -> Signal<'T>
-```
-
-**Semantics:**
-- Allocates a slot in the signal table
-- Stores initial value
-- Returns opaque handle
-
-**Example:**
-```fsharp
-let count = Signal.create 0
-let name = Signal.create "World"
-```
-
-### 3.4 Reading Signals
-
-```fsharp
-val get : Signal<'T> -> 'T
-```
-
-**Semantics:**
-- Returns current value
-- If called within an effect, registers dependency
-
-**Example:**
-```fsharp
-let currentCount = Signal.get count  // Returns 0
-```
-
-### 3.5 Writing Signals
-
-```fsharp
-val set : Signal<'T> -> 'T -> unit
+val get    : Signal<'T> -> 'T            // within a reactive scope, registers a dependency
+val set    : Signal<'T> -> 'T -> unit    // emits invalidation to dependents if changed
 val update : Signal<'T> -> ('T -> 'T) -> unit
 ```
 
-**Semantics:**
-- `set`: Replaces value, notifies subscribers if changed
-- `update`: Applies function to current value, notifies if changed
+**Desugaring.** A `Signal<'T>` is a settable source leaf. `set` performs an `Observable`-style emission (invalidation) to the dependent `Incremental` nodes; when read within a `Memo`/`Effect` closure, the read is a capture and becomes a dependency edge in the PSG. Change detection on `set` uses the same `'T : equality` cutoff as `Incremental`.
 
-**Example:**
 ```fsharp
-Signal.set count 5           // Set to 5
-Signal.update count ((+) 1)  // Increment by 1
+let count = Signal.create 0
+let name  = Signal.create "World"
 ```
 
-### 3.6 Comparison Function
+## 4. Memo — Derived Cached Value
+
+A `Memo<'T>` is a derived value that recomputes when its dependencies change and caches otherwise. It **is** an `Incremental<'T>`.
 
 ```fsharp
-val setWithCompare : Signal<'T> -> 'T -> FnPtr<'T * 'T, bool> -> unit
+type Memo<'T>
+
+val create : (unit -> 'T) -> Memo<'T>    // the thunk is a flat closure; its captures are the edges
+val get    : Memo<'T> -> 'T               // demand
 ```
 
-**Semantics:**
-- Updates only if comparison function returns false (values are different)
-- Allows custom equality for complex types
-
-## 4. Effect Module
-
-### 4.1 Module Definition
+**Desugaring.** `Memo.create f` constructs an `Incremental<'T>` node whose recompute function is the flat closure `f`. The signals and memos that `f` reads are its captures, which the compiler records as dependency edges (applicative when unconditional, monadic when conditional — see [Incremental §4.1](incremental-computation.md)). Cutoff is structural equality on `'T`, or an `[<IncrementalCutoff>]` predicate.
 
 ```fsharp
-module Effect
+let doubled = Memo.create (fun () -> Signal.get count * 2)   // captures `count`
 ```
 
-Effects are computations that run when their dependencies (signals) change.
+## 5. Effect — Reactive Side Effect
 
-### 4.2 Effect Type
+An `Effect` runs when its tracked dependencies change. It is a demanded `Incremental` sink whose output is a side effect rather than a value.
 
 ```fsharp
-type Effect  // Opaque handle to an effect
+type Effect
+
+val create            : (unit -> unit) -> Effect
+val createWithCleanup : (unit -> (unit -> unit)) -> Effect   // returns a cleanup closure
+val dispose           : Effect -> unit
 ```
 
-### 4.3 Creating Effects
+**Desugaring.** `Effect.create f` registers `f` (a flat closure) as an always-demanded sink. The signals/memos `f` reads are its dependencies. The effect runs once to establish dependencies, then re-runs when any dependency changes. `createWithCleanup` returns a cleanup closure that runs before each re-execution and on disposal.
+
+**Lifetime.** An effect's lifetime is its enclosing actor or region. `dispose` is deterministic region/subscription release; there is no finalizer and no GC. In an actor context, Prospero retiring the actor disposes the effect and frees its captured state with the arena.
 
 ```fsharp
-val create : FnPtr<unit, unit> -> Effect
+let logger =
+    Effect.create (fun () ->
+        let c = Signal.get count          // captures `count`
+        Console.writeln (sprintf "Count: %d" c))
 ```
 
-**Semantics:**
-- Registers the function pointer as an effect
-- Runs the effect immediately to establish dependencies
-- Re-runs whenever dependencies change
+## 6. Batch — Stabilization Control
 
-**Example:**
 ```fsharp
-// Top-level effect function
-let logCount () : unit =
-    let c = Signal.get count
-    Console.writeln (sprintf "Count: %d" c)
-
-// Create effect
-let countLogger = Effect.create (FnPtr.ofFunction logCount)
+val run : (unit -> unit) -> unit
 ```
 
-### 4.4 Creating Effects with Cleanup
+`Batch.run f` defers invalidation propagation until `f` completes, then performs a single stabilization. It maps directly to controlling the stabilization boundary specified in [Incremental §6.2](incremental-computation.md); multiple signal writes within the batch produce one stabilization wave, preventing intermediate inconsistency and redundant effect runs.
 
 ```fsharp
-val createWithCleanup : FnPtr<unit, FnPtr<unit, unit>> -> Effect
-```
-
-**Semantics:**
-- Effect function returns a cleanup function pointer
-- Cleanup runs before each re-execution and on disposal
-
-### 4.5 Disposing Effects
-
-```fsharp
-val dispose : Effect -> unit
-```
-
-**Semantics:**
-- Removes effect from subscription graph
-- Runs cleanup if present
-- Effect will no longer re-run
-
-## 5. Memo Module
-
-### 5.1 Module Definition
-
-```fsharp
-module Memo
-```
-
-Memos are derived values that cache computation results.
-
-### 5.2 Memo Type
-
-```fsharp
-type Memo<'T>  // Opaque handle to a memoized value
-```
-
-### 5.3 Creating Memos
-
-```fsharp
-val create : FnPtr<unit, 'T> -> Memo<'T>
-```
-
-**Semantics:**
-- Computation runs when dependencies change
-- Result is cached until dependencies change
-- Reading a memo is like reading a signal
-
-**Example:**
-```fsharp
-// Top-level computation
-let doubleCount () : int =
-    Signal.get count * 2
-
-// Create memo
-let doubled = Memo.create (FnPtr.ofFunction doubleCount)
-
-// Read memo (cached)
-let value = Memo.get doubled
-```
-
-### 5.4 Reading Memos
-
-```fsharp
-val get : Memo<'T> -> 'T
-```
-
-**Semantics:**
-- Returns cached value
-- Recomputes if dependencies changed
-- If called within an effect, registers dependency
-
-## 6. Batch Module
-
-### 6.1 Module Definition
-
-```fsharp
-module Batch
-```
-
-Batching groups multiple signal updates to avoid redundant effect runs.
-
-### 6.2 Batching Updates
-
-```fsharp
-val run : FnPtr<unit, unit> -> unit
-```
-
-**Semantics:**
-- All signal updates within the batch are deferred
-- Effects run once after batch completes
-- Prevents intermediate state inconsistencies
-
-**Example:**
-```fsharp
-let updateBoth () : unit =
+Batch.run (fun () ->
     Signal.set firstName "John"
-    Signal.set lastName "Doe"
-
-// Effects only run once after both updates
-Batch.run (FnPtr.ofFunction updateBoth)
+    Signal.set lastName  "Doe")          // effects run once, after both writes
 ```
 
-## 7. Store Module (Optional Extension)
-
-### 7.1 Module Definition
+## 7. Store — Nested Reactive State (Optional Extension)
 
 ```fsharp
-module Store
+type Store<'T>
+
+val create    : 'T -> Store<'T>
+val state     : Store<'T> -> 'T
+val setState  : Store<'T> -> ('T -> 'T) -> unit
+val subscribe : Store<'T> -> (unit -> unit) -> (unit -> unit)   // returns an unsubscribe closure
 ```
 
-Stores provide nested reactive objects, similar to TanStack Store.
+A `Store<'T>` provides nested reactive objects in the TanStack Store style. Each reactive field desugars to a `Signal`; `subscribe` registers an effect and returns an unsubscribe closure whose invocation (or whose owning region's release) detaches it. `Store` is sugar; it introduces no mechanism beyond `Signal` and `Effect`.
 
-### 7.2 Store Type
+## 8. Dependency Tracking by Capture
+
+The earlier formulation maintained a runtime signal table (slots, dirty flags, subscriber lists) with a `CurrentTracking` global set during effect execution. **That runtime machinery is removed.** Dependency tracking is the flat-closure capture analysis:
+
+- The signals and memos a `Memo`/`Effect` closure reads are its **captures**; the capture set is the node's **dependency-edge set** in the PSG.
+- **Applicative tracking** (the closure reads a fixed set of signals unconditionally) yields static edges known at compile time.
+- **Dynamic tracking** (the closure reads signals conditionally, so the dependency set varies per run) is the monadic case: the subgraph is rebuilt on demand from thunks and flat closures allocated in the enclosing region, exactly as specified for dynamic incremental subgraphs ([Incremental §4.1](incremental-computation.md)). No garbage collector is involved; lifetime is region/supervision-bounded.
+
+This makes the reactive graph transparent to the compiler (it is the PSG), which is what permits fusion, cutoff proofs, and target-specific lowering — none of which a runtime signal table could provide.
+
+## 9. Function Pointers Are for FFI, Not Reactivity
+
+Reactive callbacks (`Memo`, `Effect`, `Batch`, `Store.subscribe`) take **flat closures**. They may capture signals and local state; that capture is what makes automatic dependency tracking work. They are never `FnPtr` values, and there is no top-level-function restriction.
+
+`FnPtr<'F>` remains in the language as a **C FFI interop primitive** — the representation for passing a function address across a C boundary (platform event loops, Wayland/GTK listener structs). Its normative home is the [FFI Boundary](ffi-boundary.md) chapter, not this one. A platform callback (an `FnPtr`-level C shim, ideally Farscape-generated) typically does nothing more than `set` a `Signal`; from that point the reactive graph is closures and PSG nodes. `FnPtr` lives at the OS edge; the reactive layer above it is closures.
+
+> **Migration note.** The prior version of this chapter specified `FnPtr.ofFunction` callbacks, a runtime signal table, and top-level-only effects. Those are superseded. `FnPtr`'s detailed specification lives in [FFI Boundary](ffi-boundary.md).
+
+## 10. UI Scaffolding: Front End ↔ Core
+
+Signals are the scaffolding between the application core and a front end, and the surface API is identical across targets — which is the point.
+
+- **Native renderer.** Flat closures lower through LLVM to region-allocated closure records plus a function pointer. Signal writes drive re-render through the same stabilization model that governs any `Incremental` graph; a render function is an `Effect` demanded by the frame boundary.
+- **WebView / JavaScript front end.** Through JSIR — Composer's JavaScript-as-MLIR backend — flat closures lower to native JavaScript closures (captured scope is exactly what a JS function object carries). The *same* `Signal`/`Memo`/`Effect` source therefore compiles to JavaScript, enabling interop with JS-side reactive libraries (e.g. SolidJS) and genuine frontend/backend consistency. This target-polymorphism is the reason the reactive primitive is a closure rather than an `FnPtr`: a closure rides JSIR's bidirectional MLIR↔JavaScript mapping idiomatically, whereas a raw function pointer has no natural JavaScript form.
+- **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire; a `Signal` on one side is mirrored to the other without a bespoke serialization layer.
+
+## 11. Event-Loop and Platform Integration
+
+Signals connect to external events at the platform boundary. The platform callback is a C-level shim (`FnPtr`); its body sets a `Signal`, after which propagation is entirely closures and PSG nodes.
 
 ```fsharp
-type Store<'T>  // Opaque handle to a reactive store
-```
-
-### 7.3 Creating Stores
-
-```fsharp
-val create : 'T -> Store<'T>
-```
-
-**Semantics:**
-- Creates a reactive store from an initial value
-- Nested properties become reactive
-
-### 7.4 Reading Store State
-
-```fsharp
-val state : Store<'T> -> 'T
-```
-
-### 7.5 Updating Store State
-
-```fsharp
-val setState : Store<'T> -> ('T -> 'T) -> unit
-```
-
-### 7.6 Subscribing to Store Changes
-
-```fsharp
-val subscribe : Store<'T> -> FnPtr<unit, unit> -> FnPtr<unit, unit>
-```
-
-**Returns:** Unsubscribe function pointer
-
-## 8. Runtime Implementation
-
-### 8.1 Signal Table
-
-The runtime maintains a signal table:
-
-```
-┌─────────────────────────────────────────────────────┐
-│ Signal Table (arena-allocated)                      │
-├──────┬──────────┬────────────┬─────────────────────┤
-│ Slot │ Value    │ Dirty Flag │ Subscriber List     │
-├──────┼──────────┼────────────┼─────────────────────┤
-│ 0    │ 42       │ false      │ [Effect 0, Memo 1]  │
-│ 1    │ "Hello"  │ true       │ [Effect 2]          │
-│ ...  │ ...      │ ...        │ ...                 │
-└──────┴──────────┴────────────┴─────────────────────┘
-```
-
-### 8.2 Dependency Tracking
-
-During effect/memo execution:
-1. Set `CurrentTracking` to effect/memo handle
-2. Execute function
-3. Each `Signal.get` registers dependency
-4. Clear `CurrentTracking`
-
-### 8.3 Notification Flow
-
-On `Signal.set`:
-1. Compare new value with old (skip if equal)
-2. Update value in table
-3. If batching: mark dirty, defer notification
-4. If not batching: notify subscribers immediately
-
-### 8.4 Subscription Management
-
-Effects maintain their dependency list:
-- On re-run: clear old dependencies, establish new ones
-- On dispose: remove from all signal subscriber lists
-
-## 9. Event Loop Integration
-
-### 9.1 Integration with epoll
-
-Signals can be connected to external events:
-
-```fsharp
-// Top-level handler for socket events
+// Platform shim (C FFI boundary): on readable fd, set a signal.
 let onSocketReadable (fd: int) : unit =
-    let data = Sockets.recv fd buffer 1024 0
-    Signal.set socketData data
+    Signal.set socketData (Sockets.recv fd buffer 1024 0)
 
-// Register with epoll
-EventLoop.onReadable socketFd (FnPtr.ofFunction onSocketReadable)
+EventLoop.onReadable socketFd onSocketReadable   // FnPtr only at this OS edge
 ```
 
-### 9.2 Integration with GTK/GLib
+The same pattern applies to GLib/GTK signal connection and to a Wayland `wl_surface::frame` callback driving an animation `Signal`.
 
-For GTK applications:
+## 12. What Changes From the Prior Formulation
 
-```fsharp
-// Top-level handler for window destroy
-let onWindowDestroy () : unit =
-    Signal.set appState AppState.Closing
+| Prior (FnPtr + runtime table) | Now (closures + PSG) |
+|---|---|
+| `FnPtr.ofFunction` for every callback | Flat closure capturing signals and local state |
+| Effects restricted to top-level functions | Effects capture local state freely |
+| Runtime signal table (slots / dirty / subscribers) | PSG dependency graph |
+| `CurrentTracking` global for dependency tracking | Compile-time capture analysis |
+| Manual `dispose`/unsubscribe bookkeeping | Region/actor-scoped deterministic release |
+| `dlsym` symbol resolution for callbacks | Only at the C FFI boundary (Farscape-generated) |
 
-// Connect GTK signal (via platform bindings)
-GTK.signalConnect window "destroy" (FnPtr.ofFunction onWindowDestroy)
-```
-
-## 10. NTU Types Summary
-
-| Type | NTU Kind | Layout | Notes |
-|------|----------|--------|-------|
-| `FnPtr<'T,'R>` | `NTUfnptr` | PlatformWord | Function pointer |
-| `Signal<'T>` | None | PlatformWord | Opaque slot index |
-| `Effect` | None | PlatformWord | Opaque handle |
-| `Memo<'T>` | None | PlatformWord | Opaque handle |
-| `Store<'T>` | None | PlatformWord | Opaque handle |
-
-## 11. IntrinsicModule Classification
-
-Add the following to `IntrinsicModule`:
-
-```fsharp
-type IntrinsicModule =
-    // ... existing variants ...
-    | FnPtr      // Function pointer operations
-    | Signal     // Reactive signals
-    | Effect     // Side effects
-    | Memo       // Memoized computations
-    | Batch      // Update batching
-    | Store      // Reactive stores (optional)
-```
-
-## 12. Type Signatures Summary
-
-### FnPtr Module
-
-| Intrinsic | Type Signature |
-|-----------|----------------|
-| `FnPtr.ofFunction` | `('T -> 'R) -> FnPtr<'T, 'R>` |
-| `FnPtr.invoke` | `FnPtr<'T, 'R> -> 'T -> 'R` |
-| `FnPtr.isNull` | `FnPtr<'T, 'R> -> bool` |
-| `FnPtr.null` | `unit -> FnPtr<'T, 'R>` |
-
-### Signal Module
-
-| Intrinsic | Type Signature |
-|-----------|----------------|
-| `Signal.create` | `'T -> Signal<'T>` |
-| `Signal.get` | `Signal<'T> -> 'T` |
-| `Signal.set` | `Signal<'T> -> 'T -> unit` |
-| `Signal.update` | `Signal<'T> -> ('T -> 'T) -> unit` |
-
-### Effect Module
-
-| Intrinsic | Type Signature |
-|-----------|----------------|
-| `Effect.create` | `FnPtr<unit, unit> -> Effect` |
-| `Effect.createWithCleanup` | `FnPtr<unit, FnPtr<unit, unit>> -> Effect` |
-| `Effect.dispose` | `Effect -> unit` |
-
-### Memo Module
-
-| Intrinsic | Type Signature |
-|-----------|----------------|
-| `Memo.create` | `FnPtr<unit, 'T> -> Memo<'T>` |
-| `Memo.get` | `Memo<'T> -> 'T` |
-
-### Batch Module
-
-| Intrinsic | Type Signature |
-|-----------|----------------|
-| `Batch.run` | `FnPtr<unit, unit> -> unit` |
-
-## 13. Comparison with SolidJS
-
-| SolidJS | CCS Native | Notes |
-|---------|-------------|-------|
-| `createSignal(v)` | `Signal.create v` | Same semantics |
-| `signal()` (getter) | `Signal.get signal` | Explicit call |
-| `setSignal(v)` | `Signal.set signal v` | Same semantics |
-| `createEffect(fn)` | `Effect.create (FnPtr.ofFunction fn)` | Requires top-level function |
-| `createMemo(fn)` | `Memo.create (FnPtr.ofFunction fn)` | Requires top-level function |
-| `batch(fn)` | `Batch.run (FnPtr.ofFunction fn)` | Same semantics |
-
-**Key Difference:** CCS requires function pointers from top-level functions instead of closures. This enables native compilation without a closure runtime.
-
-## 14. Example: Counter Application
+## 13. Example: Counter Application
 
 ```fsharp
 module Counter
@@ -494,39 +183,55 @@ module Counter
 // State
 let count = Signal.create 0
 
-// Derived value
-let countDoubled () = Signal.get count * 2
-let doubled = Memo.create (FnPtr.ofFunction countDoubled)
+// Derived value (closure captures `count`)
+let doubled = Memo.create (fun () -> Signal.get count * 2)
 
-// Side effect
-let logChanges () =
-    let c = Signal.get count
-    let d = Memo.get doubled
-    Console.writeln (sprintf "Count: %d, Doubled: %d" c d)
-
-let logger = Effect.create (FnPtr.ofFunction logChanges)
+// Side effect (closure captures `count` and `doubled`)
+let logger =
+    Effect.create (fun () ->
+        Console.writeln (sprintf "Count: %d, Doubled: %d"
+            (Signal.get count) (Memo.get doubled)))
 
 // Actions
 let increment () = Signal.update count ((+) 1)
-let decrement () = Signal.update count (fun x -> x - 1)
-let reset () = Signal.set count 0
+let reset ()     = Signal.set count 0
 
-// Entry point
 [<EntryPoint>]
 let main _ =
-    increment ()  // Logs: "Count: 1, Doubled: 2"
-    increment ()  // Logs: "Count: 2, Doubled: 4"
-    reset ()      // Logs: "Count: 0, Doubled: 0"
+    increment ()   // logs "Count: 1, Doubled: 2"
+    increment ()   // logs "Count: 2, Doubled: 4"
+    reset ()       // logs "Count: 0, Doubled: 0"
     0
 ```
 
+## 14. Comparison with SolidJS
+
+| SolidJS | Clef Signals | Notes |
+|---|---|---|
+| `createSignal(v)` | `Signal.create v` | Same semantics |
+| `signal()` (getter) | `Signal.get s` | Explicit call; registers dependency in a reactive scope |
+| `setSignal(v)` | `Signal.set s v` | Same semantics |
+| `createMemo(fn)` | `Memo.create fn` | `fn` is a closure; captures are dependencies |
+| `createEffect(fn)` | `Effect.create fn` | `fn` is a closure; no top-level restriction |
+| `batch(fn)` | `Batch.run fn` | Single stabilization boundary |
+
+Unlike the earlier Clef formulation, **closures are used exactly as in SolidJS** — the prior departure to function pointers is removed. The difference from SolidJS is in the implementation, not the surface: dependency tracking is compile-time capture analysis over the PSG rather than a runtime tracking stack, and there is no GC.
+
 ## 15. Normative Requirements
 
-1. **CCS SHALL** add `NTUfnptr` to the NTU kind enumeration
-2. **CCS SHALL** add `FnPtr`, `Signal`, `Effect`, `Memo`, `Batch` to `IntrinsicModule`
-3. **CCS SHALL** type-check these intrinsics according to signatures in Section 12
-4. **Alex SHALL** generate correct MLIR for function pointer operations
-5. **Alex SHALL** generate runtime calls for signal/effect/memo operations
-6. **The runtime SHALL** implement dependency tracking as specified in Section 8
-7. **Function pointers SHALL** only be created from top-level functions (no closures)
-8. **Signal notifications SHALL** respect batching boundaries
+1. **Surface, not engine**: `Signal`, `Memo`, `Effect`, `Batch`, and `Store` SHALL desugar to `Observable<'T>` / `Incremental<'T>`; their reactive semantics SHALL be those specified in the corresponding intrinsic chapters.
+2. **Closures, not function pointers**: Reactive callbacks SHALL be flat closures. The compiler SHALL NOT require `FnPtr` for any reactive callback, and SHALL NOT restrict effects/memos to top-level functions.
+3. **Capture-based tracking**: Dependency tracking SHALL be derived from flat-closure capture analysis. No runtime signal table SHALL be required.
+4. **Memo is Incremental**: `Memo.create` SHALL construct an `Incremental<'T>` node, with cutoff from `'T : equality` or an `[<IncrementalCutoff>]` predicate.
+5. **Signal set is invalidation**: `Signal.set` SHALL emit an invalidation to dependents per the Observable/Incremental model, subject to change detection.
+6. **Batching**: `Batch.run` SHALL coalesce contained writes into a single stabilization boundary.
+7. **Deterministic disposal**: Effect and subscription lifetimes SHALL be tied to the enclosing actor/region with deterministic release; no GC or finalizer SHALL be required to dispose.
+8. **Target parity**: The `Signal`/`Memo`/`Effect` surface SHALL compile to both native (LLVM) and JavaScript (JSIR) targets from the same source, with reactive callbacks lowering to region-allocated closures and JavaScript closures respectively.
+9. **FnPtr scope**: `FnPtr` SHALL be confined to C FFI interop; it SHALL NOT appear in the reactive API surface.
+
+## References
+
+- Solid contributors. *SolidJS — fine-grained reactivity.* https://www.solidjs.com
+- TanStack. *Store — framework-agnostic reactive store.* https://tanstack.com/store
+- Haaser, G., et al. *FSharp.Data.Adaptive* (`cval`/`aval`). https://github.com/fsprojects/FSharp.Data.Adaptive
+- [Observable Computation](observable-computation.md), [Incremental Computation](incremental-computation.md), [Closure Representation](closure-representation.md).

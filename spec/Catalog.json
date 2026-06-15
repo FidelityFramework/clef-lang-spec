@@ -47,8 +47,7 @@
         "special-attributes-and-types",
         "error-handling",
         "interactive-development",
-        "ntu-conversion-model",
-        "intrinsics-convert",
+        "width-inference",
         "intrinsics-crypto-bits",
         "reactive-signals"
     ]

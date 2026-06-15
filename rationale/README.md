@@ -24,7 +24,6 @@ For accessible explanations of Clef design decisions, the following articles are
 |--------------|------------|-------------|
 | [native-type-universe.md](../spec/native-type-universe.md) | [From IL to NTU](https://clef-lang.com/docs/design/il-to-ntu/) | Native type universe architecture, departure from BCL |
 | [types-and-type-constraints.md](../spec/types-and-type-constraints.md) | [Traits Versus SRTP](https://clef-lang.com/docs/design/traits-versus-srtp/) | SRTP design philosophy, comparison with Rust traits |
-| [ntu-conversion-model.md](../spec/ntu-conversion-model.md) | *(pending)* | Conversion semantics, SRTP resolution |
 
 ### Memory Model
 

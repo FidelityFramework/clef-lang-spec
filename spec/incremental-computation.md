@@ -5,6 +5,8 @@ weight: 200
 
 > **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in Clef compilation.**
 
+> **Acknowledgment**: The design of `Incremental<'T>` takes direct inspiration from the elegant adaptive-computation model of **FSharp.Data.Adaptive** (the `aval`/`cval`/`aset` families and their change-propagation and cutoff semantics), as well as from Jane Street's `Incremental`. Clef adopts that model — demand-driven recomputation, automatic cutoff, and dependency tracking expressed through computation expressions — while relocating it from a runtime-resident dependency graph into a compile-time intrinsic the Program Semantic Graph preserves through lowering. The credit is to the model's design; the departure is only in where it lives.
+
 ## 1. Overview
 
 Clef implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Firefly to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
@@ -496,7 +498,7 @@ Dimensional types on `Incremental<float<meters/seconds>>` constrain the cutoff f
 
 ### 11.3 Incremental + Observable (Rx)
 
-An `Observable<'T>` feeding into an `Incremental<'T>` is a common pattern: an event source drives a cached derived computation. Because both are intrinsic, the compiler fuses the observable subscription directly into the incremental node's invalidation trigger, eliminating the intermediate allocation and callback indirection that a library-level bridge would require.
+An `Observable<'T>` feeding into an `Incremental<'T>` is a common pattern: an event source drives a cached derived computation. Because both are intrinsic, the compiler fuses the observable subscription directly into the incremental node's invalidation trigger, eliminating the intermediate allocation and callback indirection that a library-level bridge would require. The `Memo<'T>` of the Reactive Signals surface API (see [Reactive Signals](reactive-signals.md)) desugars to an `Incremental<'T>` node in exactly this way.
 
 ### 11.4 Incremental + Cold (Frosty)
 
@@ -623,6 +625,7 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 - Acar, U. A., Blelloch, G. E., & Harper, R. (2002). Adaptive Functional Programming. *POPL '02*.
 - Hammer, M. A., Phang, K. Y., Hicks, M., & Foster, J. S. (2014). Adapton: Composable, Demand-Driven Incremental Computation. *PLDI '14*.
 - Jane Street. *Incremental*. https://github.com/janestreet/incremental
+- Haaser, G., et al. *FSharp.Data.Adaptive* — adaptive functional dependency graphs (`aval`/`cval`/`aset`). https://github.com/fsprojects/FSharp.Data.Adaptive
 - Hunhoff, E., et al. (2025). Efficiency, Expressivity, and Extensibility in a Close-to-Metal NPU Programming Interface. *IEEE FCCM 2025*.
 - Tofte, M., & Talpin, J.-P. (1997). Region-Based Memory Management. *Information and Computation*.
 - Lafont, Y. (1990). Interaction Nets. *POPL '90*.
