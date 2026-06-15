@@ -226,8 +226,9 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 45 | **Error Handling** | `error-handling.md` | **New** |
 | 46 | **Interactive Development** | `interactive-development.md` | **New** |
 | 47 | **Width Inference** | `width-inference.md` | **New** |
-| 48 | **Intrinsics: Crypto/Bits** | `intrinsics-crypto-bits.md` | **New** |
-| 49 | **Reactive Signals** | `reactive-signals.md` | Revised |
+| 48 | **Numeric Selection** | `numeric-selection.md` | **New** |
+| 49 | **Intrinsics: Crypto/Bits** | `intrinsics-crypto-bits.md` | **New** |
+| 50 | **Reactive Signals** | `reactive-signals.md` | Revised |
 
 ### Removed Chapters
 

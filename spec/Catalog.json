@@ -48,6 +48,7 @@
         "error-handling",
         "interactive-development",
         "width-inference",
+        "numeric-selection",
         "intrinsics-crypto-bits",
         "reactive-signals"
     ]
