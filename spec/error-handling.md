@@ -23,7 +23,7 @@ Clef takes a fundamentally different approach to error handling than managed F#:
 Clef error handling operates at two distinct levels:
 
 1. **Application Runtime**: How compiled Fidelity framework applications handle errors during execution
-2. **Tooling Integration**: How Clef Compiler Service (CCS) propagates errors through the Language Server Protocol to editors like Ionide
+2. **Tooling Integration**: How Clef Compiler Service (CCS) propagates errors through the Language Server Protocol to editors like Lattice
 
 These two domains have different requirements and constraints, but must remain coherent.
 
@@ -138,7 +138,7 @@ However, the semantics differ:
 - The exact semantics depend on the effect system specification (see [Effects](effects.md))
 - Code using `try`/`with` for exception handling must be migrated to Result-based patterns for native compilation
 
-> **Tooling Note**: Ionide and other editors will parse `try`/`with` expressions normally. CCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
+> **Tooling Note**: Lattice and other editors will parse `try`/`with` expressions normally. CCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
 
 ### Null-Freedom
 
@@ -197,9 +197,9 @@ CCS implements the Language Server Protocol for editor integration. Key consider
 2. **Code Actions**: Quick fixes (e.g., "Replace null with ValueNone") are provided via `textDocument/codeAction`
 3. **Hover Information**: Type information displays native types
 
-### Ionide Integration Model
+### Lattice Integration Model
 
-Ionide currently supports multiple F# compilation targets:
+The multi-target editor model is well established in the F# ecosystem: Ionide routes a single editing experience across several F# compilation backends.
 
 | Target | Integration Point |
 |--------|-------------------|
@@ -207,18 +207,18 @@ Ionide currently supports multiple F# compilation targets:
 | Fable | Fable.Compiler (JavaScript output) |
 | WebSharper | WebSharper.Compiler |
 
-Clef follows this model:
+Lattice, the Clef editor tooling, follows this model:
 
 ```
-Ionide ←→ LSP ←→ CCS ←→ Firefly Compiler ←→ MLIR/LLVM
+Lattice ←→ LSP ←→ CCS ←→ Firefly Compiler ←→ MLIR/LLVM
 ```
 
 #### Extension Points
 
-CCS provides extension points for Ionide integration:
+CCS provides extension points for Lattice integration:
 
 1. **Project Recognition**: `.fidproj` files identify Clef projects
-2. **Target Selection**: Ionide can route to CCS when native compilation is detected
+2. **Target Selection**: Lattice can route to CCS when native compilation is detected
 3. **Shared Parsing**: Syntax parsing uses standard F# lexer/parser for compatibility
 4. **Semantic Divergence**: Type checking and code generation use native semantics
 
@@ -323,7 +323,7 @@ The following areas require additional design work:
 3. **Interop Boundaries**: Error translation at FFI boundaries with C libraries
 4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
 5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
-6. **Tooling PR Strategy**: Concrete changes needed for Ionide/FSAC to support CCS
+6. **Tooling PR Strategy**: Concrete changes needed for Lattice/FSAC to support CCS
 
 ## See Also
 

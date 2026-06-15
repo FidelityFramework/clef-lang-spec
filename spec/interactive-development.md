@@ -426,7 +426,7 @@ my-project/
     └── Domain.fs
 ```
 
-IDE integration (Ionide) routes to the appropriate language server based on project type:
+IDE integration (Lattice) routes to the appropriate language server based on project type:
 
 - `.fsproj` → FSAC (managed F# or Fable)
 - `.fidproj` → FSNAC (Clef)
@@ -513,7 +513,7 @@ clefx connects to the Clef Language Server (FSNAC) for:
 
 ### Editor Integration
 
-Editors supporting Clef (via Ionide or similar) provide:
+Editors supporting Clef (via Lattice or similar) provide:
 
 - Syntax highlighting for `.clefx` files
 - Inline evaluation (evaluate selection in clefx)
