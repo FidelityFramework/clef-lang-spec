@@ -8,7 +8,7 @@ weight: 290
 
 ## Informative References
 
-> **Commentary**: For accessible explanation of the two-layer model and why certain constructs require backend-specific dialects, see [Why F# Is A Natural Fit for MLIR](https://speakez.com/blog/why-fsharp-is-a-natural-fit-for-mlir/) on the SpeakEZ blog.
+> **Commentary**: For accessible explanation of the two-layer model and why certain constructs require backend-specific dialects, see [Why F# Is A Natural Fit for MLIR](https://speakez.tech/blog/why-fsharp-is-a-natural-fit-for-mlir/) on the SpeakEZ blog.
 >
 > **For .NET Developers**: Guidance on transitioning from CLR concepts to native compilation is available in the rationale documentation.
 
