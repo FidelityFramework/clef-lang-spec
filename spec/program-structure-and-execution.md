@@ -118,26 +118,21 @@ Given an initial environment `env0`, an implementation file is checked as follow
 
 The result of checking an implementation file is a set of elaborated namespace declaration groups.
 
-## Signature Files
+## Inline Module Signatures
 
-Signature files specify the functionality that is implemented by a corresponding implementation file.
-Each signature file contains a sequence of `namespace-decl-group-signature` elements. The inclusion
-of a signature file in compilation implicitly applies that signature type to the contents of a
-corresponding implementation file.
+Clef has no separate signature files (see [§](namespace-and-module-signatures.md)). A module's public
+surface, when constrained, is given by an inline `signature ... end` block placed immediately before
+the `module` declaration it describes. The block belongs to the same implementation file and is
+checked together with that file; its grammar is given in
+[§](namespace-and-module-signatures.md#signature-elements).
 
-_Anonymous signature files_ do not have either a leading `module` or `namespace` declaration. Anonymous
-signature files contain `module-elems` that are implicitly placed in a module. The name of the module
-is generated from the name of the source file by capitalizing the first letter and removing the
-filename extension. If the filename contains characters that are not valid in an F# identifier, the
-resulting module name is unusable and a warning occurs.
-
-Given an initial environment `env` , a signature file is checked as follows:
-
-- Create a new constraint solving context.
-- Check each `namespace-decl-group-signaturei` in `envi-1` and add the result to that environment to
-    create a new environment `envi`.
-
-The result of checking a signature file is a set of elaborated namespace declaration group types.
+When a compilation unit contains an inline signature for a module, the implementation is checked
+against it by _Signature Conformance_
+([§](namespace-and-module-signatures.md#signature-conformance)): the resulting signature of the module
+is the declared signature when one is present, and otherwise the signature inferred from the
+implementation. A type exposed by name only in the signature is abstract to other modules; a type
+exposed with its representation reveals that representation (see
+[§](namespace-and-module-signatures.md#abstract-type-signatures)).
 
 ## Script Files
 
