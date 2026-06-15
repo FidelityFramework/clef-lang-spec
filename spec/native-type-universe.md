@@ -19,16 +19,6 @@ This document specifies the native type universe for Clef, the F# native compile
 4. **Leverage Existing F# Machinery**: Reuse FSharp.Core where possible
 5. **Spec Before Scaffold**: Document before implementing
 
-### Relationship to Other Documents
-
-- **[ccs-specification.md](ccs-specification.md)**: Defines Clef Compiler Service, including:
-  - SRTP resolution against native witness hierarchy (Part 3)
-  - Platform bindings convention (Part 6)
-  - Memory region enforcement rules (Parts 9-10)
-  - Native-specific diagnostics (Appendix D)
-- **beyond-fslang-spec.md**: Extensions beyond standard F# semantics
-- **fsharp-features-in-fidelity.md**: Feature coverage matrix
-
 ---
 
 ## Part 1: Foundational Principles
@@ -61,7 +51,7 @@ Everything else is derived from these primitives.
 
 ## Part 2: Primitive Types
 
-> **CCS Resolution**: See [`ccs-specification.md` Part 1.1](ccs-specification.md#11-primitive-type-mapping) for how CCS resolves these types at compile-time.
+> **CCS Resolution**: See the CCS specification for how CCS resolves these types at compile-time.
 >
 > **OCaml Provenance**: Primitives follow OCaml's value-oriented representation (unboxed by default) while eliminating GC-oriented overhead. See [Appendix E](#appendix-e-ocaml-provenance-and-fidelity-extensions) for detailed provenance analysis.
 
@@ -527,7 +517,7 @@ switch (shape.tag) {
 
 > **Principle**: Reference types use fat pointers (pointer + length). No null pointers - empty is represented by length 0.
 >
-> **CCS Resolution**: See [`ccs-specification.md` Parts 1.2-1.4](ccs-specification.md#12-string-literals) for compiler-level type resolution.
+> **CCS Resolution**: See the CCS specification for compiler-level type resolution.
 
 ### 4.1 String
 
@@ -669,7 +659,7 @@ Span<'T>
 
 > **Principle**: Parameterized types follow familiar F# syntax. CCS resolves native semantics at compile-time.
 >
-> **CCS Resolution**: See [`ccs-specification.md` Part 1.3](ccs-specification.md#13-option-types) for option type resolution and null-free guarantees.
+> **CCS Resolution**: See the CCS specification for option type resolution and null-free guarantees.
 
 ### 5.1 Option
 
@@ -1023,7 +1013,7 @@ c.Value <- c.Value + 1
 >
 > **Erasure at Last Lowering**: These types ARE erased - but at the **last possible lowering stage**, after Fidelity has made all memory layout decisions. By the time code reaches LLVM, "the type information that guided every transformation has done its job and compiled away to nothing." This is the entire point of "Fidelity" - preserving type fidelity through compilation so the F# compiler controls memory layout.
 >
-> **CCS Enforcement**: See [`ccs-specification.md` Parts 9-10](ccs-specification.md#part-9-memory-region-types-and-semantics) for region constraint enforcement and diagnostic codes.
+> **CCS Enforcement**: See the CCS specification for region constraint enforcement and diagnostic codes.
 
 ### 8.1 Memory Regions
 
