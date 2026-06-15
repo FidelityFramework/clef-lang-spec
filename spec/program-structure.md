@@ -7,8 +7,8 @@ weight: 20
 
 The inputs to the Clef Compiler Service (CCS) and the `clef` driver consist of:
 
-- **Implementation files**, with extension `.fs`. These conform to grammar element `implementation-file` in [§](program-structure-and-execution.md#implementation-files).
-- **Interactive files**, with extension `.clefi`. These are used by the Clef Interactive REPL (`clefi`) and conform to grammar element `script-file` in [§](program-structure-and-execution.md#script-files). The `.clefi` extension denotes *interactive*; Clef has no separate interface-file concept.
+- **Implementation files**, with extension `.clef`. These conform to grammar element `implementation-file` in [§](program-structure-and-execution.md#implementation-files).
+- **Interactive files**, with extension `.clefx`. These are used by the Clef Interactive REPL (`clefx`) and conform to grammar element `script-file` in [§](program-structure-and-execution.md#script-files). The `.clefx` extension marks Clef made *executable* in a REPL/script workflow — the `x` parallels F#'s `.fsx` in role while departing from its runtime-bound model (no reflection, no managed runtime). Clef has no separate interface-file concept, so no `.clefi`-style extension is reserved.
 - **Script fragments** for the Clef Interactive environment, conforming to grammar element `script-fragment` and separated by `;;` tokens at the prompt.
 - **Library dependencies** specified in the project file (`.fidproj`) and resolved at compile time from source packages or pre-compiled native libraries.
 - **Compiler directives** such as `#nowarn`.

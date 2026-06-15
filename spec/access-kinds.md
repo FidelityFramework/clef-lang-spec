@@ -130,9 +130,9 @@ ptr-type := Ptr < type , region-type , access-kind >
 
 | Code | Message |
 |------|---------|
-| FS8020 | Cannot write to ReadOnly pointer |
-| FS8021 | Cannot read from WriteOnly pointer |
-| FS8022 | Access kind mismatch in assignment |
+| CCS8020 | Cannot write to ReadOnly pointer |
+| CCS8021 | Cannot read from WriteOnly pointer |
+| CCS8022 | Access kind mismatch in assignment |
 
 ## See Also
 

@@ -373,10 +373,10 @@ CCS intrinsics have restrictions:
 
 | Code | Message |
 |------|---------|
-| FS8030 | Platform intrinsic not available for target |
-| FS8031 | Invalid intrinsic signature |
-| FS8032 | Intrinsic requires primitive types |
-| FS8033 | Intrinsic called with partial application |
+| CCS8030 | Platform intrinsic not available for target |
+| CCS8031 | Invalid intrinsic signature |
+| CCS8032 | Intrinsic requires primitive types |
+| CCS8033 | Intrinsic called with partial application |
 
 ---
 

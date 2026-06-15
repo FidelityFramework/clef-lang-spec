@@ -455,7 +455,7 @@ do expr
 
 The expression `expr` is checked with an arbitrary initial type `ty`. After checking `expr`, `ty` is asserted to
 be equal to `unit`. If the assertion fails, a warning rather than an error is reported. This warning is
-suppressed for plain expressions without `do` in interactive (`.clefi`) files.
+suppressed for plain expressions without `do` in interactive (`.clefx`) files.
 
 A `do` statement may have attributes:
 

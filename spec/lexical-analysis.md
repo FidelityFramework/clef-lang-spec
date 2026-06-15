@@ -513,5 +513,5 @@ The following table lists identifiers that are automatically replaced by express
 | Identifier | Replacement |
 | --- | --- |
 | `__SOURCE_DIRECTORY__` | A literal verbatim string that specifies the name of the directory that contains the <br> current file. For example:<br>`C:\source`<br>The name of the current file is derived from the most recent line directive in the file. If no line directive has appeared, the name is derived from the name that was specificed to the command-line compiler in combination with<br> `System.IO.Path.GetFullPath`.<br> In F# Interactive, the name `stdin` is used. When F# Interactive is used from tools such as Visual Studio, a line directive is implicitly added before the interactive execution of each script fragment. |
-| `__SOURCE_FILE__` | A literal verbatim string that contains the name of the current file. For example:<br>`file.fs` |
+| `__SOURCE_FILE__` | A literal verbatim string that contains the name of the current file. For example:<br>`file.clef` |
 | `__LINE__`| A literal string that specifies the line number in the source file, after taking into account adjustments from line directives. |

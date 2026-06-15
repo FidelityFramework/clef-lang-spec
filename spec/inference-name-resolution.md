@@ -434,13 +434,13 @@ The resolution proceeds based on the cardinality of `R_candidates`:
 
 | Cardinality | Result |
 |-------------|--------|
-| 0 | Error FS8704: "No single record type contains all specified fields" |
+| 0 | Error CCS8704: "No single record type contains all specified fields" |
 | 1 | Success: The unique record type `R` is identified |
-| > 1 | Error FS8702: "Ambiguous record type. Could be: {types}. Use type annotation to disambiguate." |
+| > 1 | Error CCS8702: "Ambiguous record type. Could be: {types}. Use type annotation to disambiguate." |
 
 #### Step 3: Completeness Verification
 
-For the resolved record type `R`, verify that every field defined in `R` has exactly one corresponding `field-label_i` in the expression. Missing fields result in error FS8705.
+For the resolved record type `R`, verify that every field defined in `R` has exactly one corresponding `field-label_i` in the expression. Missing fields result in error CCS8705.
 
 #### Step 4: Layout Computation (Clef Extension)
 
@@ -471,9 +471,9 @@ Return the resolved record type `R` with:
 
 | Code | Condition |
 |------|-----------|
-| FS8701 | Field name not found in any record type in scope |
-| FS8702 | Multiple record types contain all specified fields (ambiguity) |
-| FS8703 | Record type lookup failed (internal error) |
-| FS8704 | No single record type contains all specified fields |
-| FS8705 | Record expression is incomplete (missing required fields) |
+| CCS8701 | Field name not found in any record type in scope |
+| CCS8702 | Multiple record types contain all specified fields (ambiguity) |
+| CCS8703 | Record type lookup failed (internal error) |
+| CCS8704 | No single record type contains all specified fields |
+| CCS8705 | Record expression is incomplete (missing required fields) |
 

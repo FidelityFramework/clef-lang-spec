@@ -312,7 +312,7 @@ ensure the reporting of useful error messages.
 typar : null    -- NOT SUPPORTED in Clef
 ```
 
-The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (FS8010) indicating that null is not permitted in Clef code.
+The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (CCS8010) indicating that null is not permitted in Clef code.
 
 Code that requires optional values MUST use `option<'T>` (which compiles to stack-allocated `voption<'T>` semantics):
 
@@ -734,7 +734,7 @@ in `Constraint Solving` (see [§](inference-constraint-solving.md#constraint-sol
 
 This null-freedom is enforced at multiple levels:
 
-1. **Syntax**: The `null` keyword is not permitted in Clef source code (error FS8010).
+1. **Syntax**: The `null` keyword is not permitted in Clef source code (error CCS8010).
 2. **Type system**: No type satisfies the nullness constraint; the constraint itself is not supported.
 3. **Runtime**: All values have valid, non-null representations.
 

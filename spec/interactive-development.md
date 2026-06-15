@@ -3,51 +3,51 @@ title: "Interactive Development"
 weight: 350
 ---
 
-This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefi), script execution, and integration with development tooling.
+This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefx), script execution, and integration with development tooling.
 
 ## Overview
 
 Clef provides an interactive development experience comparable to F# Interactive (FSI) in managed F#. The goal is to give Clef developers the same exploratory, REPL-driven workflow that .NET developers expect, while respecting the constraints of native compilation.
 
-| Aspect | F# Interactive (FSI) | Clef Interactive (clefi) |
+| Aspect | F# Interactive (FSI) | Clef Interactive (clefx) |
 |--------|---------------------|------------------------------|
-| Execution | CLR JIT | Native interpretation or AOT |
+| Execution | CLR JIT | Native (LLVM JIT / AOT) |
 | Memory | GC-managed | Deterministic (arena-based) |
-| Script extension | `.fsx` | `.clefi` |
-| Entry command | `dotnet fsi` | `clefi` |
+| Script extension | `.fsx` | `.clefx` |
+| Entry command | `dotnet fsi` | `clefx` |
 | Directive prefix | `#r`, `#load` | `#require`, `#load` |
 
 ## Design Principles
 
-1. **Familiar Experience**: Developers moving from managed F# should find clefi familiar
+1. **Familiar Experience**: Developers moving from managed F# should find clefx familiar
 2. **Native Semantics**: Interactive execution follows native memory and type semantics
-3. **Tooling Integration**: clefi integrates with the same LSP infrastructure as the compiler
+3. **Tooling Integration**: clefx integrates with the same LSP infrastructure as the compiler
 4. **Exploratory Development**: Support rapid prototyping and experimentation
 5. **Seamless Transition**: Code developed interactively should compile without modification
 
-## Clef Interactive (clefi)
+## Clef Interactive (clefx)
 
 ### Invocation
 
-The Clef Interactive environment is invoked via the `clefi` command:
+The Clef Interactive environment is invoked via the `clefx` command:
 
 ```bash
 # Start interactive session
-clefi
+clefx
 
 # Execute a script file
-clefi script.clefi
+clefx script.clefx
 
 # Evaluate an expression
-clefi --eval "1 + 1"
+clefx --eval "1 + 1"
 
 # With specific platform target
-clefi --target linux-x64
+clefx --target linux-x64
 ```
 
 ### Session Model
 
-An clefi session maintains:
+An clefx session maintains:
 
 - A global environment of bound values and types
 - An arena for interactive allocations
@@ -55,7 +55,7 @@ An clefi session maintains:
 - Loaded modules and dependencies
 
 ```
-Clef Interactive (clefi) v1.0
+Clef Interactive (clefx) v1.0
 Target: linux-x64
 Arena: 64MB (expandable)
 
@@ -71,7 +71,7 @@ val it : string = "Hello, World!"
 
 ### Execution Model
 
-clefi supports multiple execution strategies:
+clefx supports multiple execution strategies:
 
 #### Interpretation Mode (Default)
 
@@ -126,26 +126,51 @@ val x : int = 2
 val factorial : int -> int
 ```
 
+#### Self-Hosted Execution (target architecture)
+
+> **Forward-looking**: This subsection describes the intended model once Clef is self-hosted; it is
+> not yet normative.
+
+When Clef is self-hosted, `clefx` runs as an **actor within the CLI tool environment** rather than as
+a separate runtime process. The actor performs all compilation work on the CPU — lexing, dependency
+analysis, type checking, and lowering — and drives an **LLVM JIT** that emits native machine code
+into executable memory. Entered expressions and definitions are *exercised* by invoking that
+JIT-resident code directly and reporting results back to the prompt. There is no managed runtime, no
+reflection, and no bytecode interpreter on this path: the same compilation pipeline that produces
+ahead-of-time binaries produces the JIT-resident code, so interactive behavior matches compiled
+behavior by construction. This is the operational meaning of the `x` in `clefx` — Clef made directly
+executable — and the substantive break from F# Interactive, whose evaluation bounced off the managed
+runtime via JIT and reflection.
+
 ## Script Files
 
 ### File Extension
 
-Clef interactive files use the `.clefi` extension:
+Clef interactive files use the `.clefx` extension:
 
 ```
-script.clefi     -- Clef interactive (REPL/script) file
-module.fs        -- Clef implementation file
+script.clefx     -- Clef interactive (REPL/script) file
+module.clef      -- Clef implementation file
 ```
 
-> **Rationale**: The `.clefi` extension marks the file as Clef interactive content (the "i" denotes *interactive*), distinct from F# scripts (`.fsx`). Clef has no separate signature-file extension; module signatures are declared inline within `.fs` files (see [Namespace and Module Signatures](namespace-and-module-signatures.md)).
+> **Rationale**: The `.clefx` extension — shared with the `clefx` command — marks the file as Clef
+> made *executable* in a REPL/script workflow. The `x` is a deliberate point of departure from F#'s
+> `fsi`/`.fsx`: F# Interactive bounced expressions off the managed runtime, relying on JIT and
+> reflection against the CLR. `clefx` has no managed runtime and no reflection; interactive code is
+> compiled to native machine code and executed directly (see [§](#execution-model)). The `x`
+> denotes that native-executable character, paralleling `.fsx` in role while breaking with its
+> runtime model. Clef deliberately avoids a `.clefi`-style name: there is no Clef interface file, and
+> an `i` suffix would invite exactly that misreading. Module signatures are declared inline within
+> implementation files (see [Namespace and Module Signatures](namespace-and-module-signatures.md));
+> there is no separate signature-file extension.
 
 ### Script Structure
 
 A script file contains a sequence of declarations and expressions:
 
 ```fsharp
-// script.clefi
-#load "helpers.fs"
+// script.clefx
+#load "helpers.clef"
 
 open Console
 
@@ -160,8 +185,8 @@ writeln $"Sum: {sum}"
 | Directive | Description |
 |-----------|-------------|
 | `#require "name"` | Load a package dependency |
-| `#load "file.fs"` | Load and compile an F# source file |
-| `#load "file.clefi"` | Load and execute another script |
+| `#load "file.clef"` | Load and compile a Clef source file |
+| `#load "file.clefx"` | Load and execute another script |
 | `#time "on"` \| `"off"` | Toggle timing display |
 | `#mode interpret` \| `compile` \| `hybrid` | Set execution mode |
 | `#arena size` | Set arena size (e.g., `#arena 128MB`) |
@@ -174,16 +199,16 @@ writeln $"Sum: {sum}"
 Script files may include a shebang for direct execution:
 
 ```fsharp
-#!/usr/bin/env clefi
-// script.clefi
+#!/usr/bin/env clefx
+// script.clefx
 
 open Console
 writeln "Hello from Clef!"
 ```
 
 ```bash
-chmod +x script.clefi
-./script.clefi
+chmod +x script.clefx
+./script.clefx
 ```
 
 ## Memory Model in Interactive Mode
@@ -235,7 +260,7 @@ val it : Config = { ... }
 
 ### Target Selection
 
-clefi can target different platforms:
+clefx can target different platforms:
 
 ```
 > #target linux-x64;;
@@ -272,7 +297,7 @@ Emitted: add.o (linux-arm64)
 
 ## Value Display Without Runtime Reflection
 
-A fundamental difference between clefi and managed F# Interactive (FSI) is how values are formatted for display.
+A fundamental difference between clefx and managed F# Interactive (FSI) is how values are formatted for display.
 
 ### The Managed F# Approach
 
@@ -294,7 +319,7 @@ This approach is not available in Clef because:
 Clef uses statically resolved type parameters (SRTP) to generate formatters at compile time:
 
 ```fsharp
-// clefi generates specific formatters via SRTP
+// clefx generates specific formatters via SRTP
 type Displayable = Displayable
     with static member inline ($) (Displayable, x: int) = 
              Text.Format.intToString x
@@ -308,7 +333,7 @@ type Displayable = Displayable
 let inline display x = Displayable $ x
 ```
 
-When you enter an expression in clefi:
+When you enter an expression in clefx:
 
 ```
 > [1; 2; 3];;
@@ -369,8 +394,8 @@ Clef uses a parallel toolchain rather than extending managed F# tooling:
 | Package Manager | NuGet | Fargo (fpm) |
 | Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
 | Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
-| Interactive | FSI | clefi |
-| Script Files | `.fsx` | `.clefi` |
+| Interactive | FSI | clefx |
+| Script Files | `.fsx` | `.clefx` |
 
 ### Why Parallel Rather Than Plugin
 
@@ -395,7 +420,7 @@ my-project/
 │   └── Components.fs
 ├── native-backend/         # Clef → Native binary
 │   ├── Server.fidproj     # ← FSNAC handles this
-│   └── Api.fs
+│   └── Api.clef
 └── shared/                 # Pure F# domain types
     ├── Shared.fsproj      # ← Both can consume (with constraints)
     └── Domain.fs
@@ -426,7 +451,7 @@ Shared code should be restricted to pure domain modeling without IO or string ma
 
 ### Fargo Integration
 
-clefi integrates with Fargo for package management:
+clefx integrates with Fargo for package management:
 
 ```
 > #require "robot-controller";;\n-- Resolving robot-controller from frgo.dev...\n-- Downloaded: robot-controller-1.2.0.fidpkg\n-- Source files: 12\n-- Compiling for current session...\nLoaded: RobotController (3 modules)
@@ -472,7 +497,7 @@ Reloaded: MyLocalPackage
 
 ### LSP Integration
 
-clefi connects to the Clef Language Server (FSNAC) for:
+clefx connects to the Clef Language Server (FSNAC) for:
 
 - Autocompletion in the REPL
 - Type information on hover
@@ -490,15 +515,15 @@ clefi connects to the Clef Language Server (FSNAC) for:
 
 Editors supporting Clef (via Ionide or similar) provide:
 
-- Syntax highlighting for `.clefi` files
-- Inline evaluation (evaluate selection in clefi)
+- Syntax highlighting for `.clefx` files
+- Inline evaluation (evaluate selection in clefx)
 - Hover types
 - Error underlining
 - Send-to-REPL functionality
 
 ### Notebook Support
 
-clefi supports notebook interfaces (Jupyter, Polyglot Notebooks):
+clefx supports notebook interfaces (Jupyter, Polyglot Notebooks):
 
 ```json
 {
@@ -545,7 +570,7 @@ The web playground operates with restrictions:
 
 ### Loading Compiled Modules
 
-clefi can load pre-compiled Clef modules:
+clefx can load pre-compiled Clef modules:
 
 ```
 > #load-native "mylib.fno";;
@@ -575,12 +600,12 @@ val it : int = 14
 
 | Code | Severity | Message |
 |------|----------|---------|
-| FS8500 | Error | Cannot execute cross-compiled code on host platform |
-| FS8501 | Warning | Value invalidated by arena reset |
-| FS8502 | Error | Arena size exceeded; use `#arena reset` or increase size |
-| FS8503 | Warning | Interpretation mode may not reflect exact native behavior |
-| FS8504 | Info | Expression compiled to native code |
-| FS8505 | Error | Freestanding target has limited library support |
+| CCS8500 | Error | Cannot execute cross-compiled code on host platform |
+| CCS8501 | Warning | Value invalidated by arena reset |
+| CCS8502 | Error | Arena size exceeded; use `#arena reset` or increase size |
+| CCS8503 | Warning | Interpretation mode may not reflect exact native behavior |
+| CCS8504 | Info | Expression compiled to native code |
+| CCS8505 | Error | Freestanding target has limited library support |
 
 ## Grammar
 
@@ -619,12 +644,12 @@ on-off :=
 
 ## Comparison with Other Native REPLs
 
-| Feature | clefi | utop (OCaml) | evcxr (Rust) | Swift REPL |
+| Feature | clefx | utop (OCaml) | evcxr (Rust) | Swift REPL |
 |---------|------|--------------|--------------|------------|
 | Official | Yes | Community | Community | Yes |
 | Execution | Hybrid | Bytecode | Compile | JIT |
 | Memory model | Arena | GC | Ownership | ARC |
-| Script files | `.clefi` | `.ml` | N/A | `.swift` |
+| Script files | `.clefx` | `.ml` | N/A | `.swift` |
 | Notebooks | Yes | Yes | Yes | Yes (Playgrounds) |
 | Cross-compile | Yes | Limited | No | No |
 
@@ -633,7 +658,7 @@ on-off :=
 1. **Interpretation semantics**: Exact behavior of interpreter vs compiled code
 2. **Arena lifecycle**: Interaction between multiple scripts and arena management
 3. **Debugging**: Breakpoints and stepping in interactive mode
-4. **Profiling**: Performance analysis tools in clefi
+4. **Profiling**: Performance analysis tools in clefx
 5. **Package management**: Integration with a native package manager
 6. **Caching**: Compilation caching for faster repeated execution
 7. **State serialization**: Saving and restoring session state

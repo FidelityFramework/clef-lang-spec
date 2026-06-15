@@ -174,20 +174,20 @@ filepath(line,col)-(line,col): severity code: message
 For example:
 
 ```
-src/Main.fs(12,5)-(12,15): error FS8100: Cannot use 'null' in Clef; use 'ValueNone' for optional values
+src/Main.clef(12,5)-(12,15): error CCS8100: Cannot use 'null' in Clef; use 'ValueNone' for optional values
 ```
 
 #### Error Codes
 
-CCS uses error codes in the FS8xxx range to distinguish native-specific diagnostics:
+CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnostics:
 
 | Range | Category |
 |-------|----------|
-| FS8000-FS8099 | Type system (null-freedom, access kinds) |
-| FS8100-FS8199 | Memory management (regions, lifetimes) |
-| FS8200-FS8299 | Platform bindings |
-| FS8300-FS8399 | Effect system |
-| FS8400-FS8499 | Code generation |
+| CCS8000-CCS8099 | Type system (null-freedom, access kinds) |
+| CCS8100-CCS8199 | Memory management (regions, lifetimes) |
+| CCS8200-CCS8299 | Platform bindings |
+| CCS8300-CCS8399 | Effect system |
+| CCS8400-CCS8499 | Code generation |
 
 #### LSP Compatibility
 
@@ -308,11 +308,11 @@ result-return := return expr
 
 | Code | Severity | Message |
 |------|----------|---------|
-| FS8100 | Error | Cannot use 'null' in Clef; use 'ValueNone' for optional values |
-| FS8101 | Error | Cannot use 'null' in Clef; all values must be initialized |
-| FS8102 | Warning | Exception-style error handling detected; consider Result-based pattern |
-| FS8103 | Error | Type does not support 'null' in Clef |
-| FS8104 | Warning | Unchecked.defaultof<'T> produces undefined behavior for reference types |
+| CCS8100 | Error | Cannot use 'null' in Clef; use 'ValueNone' for optional values |
+| CCS8101 | Error | Cannot use 'null' in Clef; all values must be initialized |
+| CCS8102 | Warning | Exception-style error handling detected; consider Result-based pattern |
+| CCS8103 | Error | Type does not support 'null' in Clef |
+| CCS8104 | Warning | Unchecked.defaultof<'T> produces undefined behavior for reference types |
 
 ## Areas Requiring Further Specification
 

@@ -5,7 +5,7 @@ weight: 150
 
 > **Clef Note**: Clef programs do not use CLI assemblies. Programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
 
-A Clef program comprises a set of implementation files (`.fs`), library dependencies specified in the project file (`.fidproj`), and optionally interactive files (`.clefi`) for the Clef Interactive REPL. Implementation files MAY be presented to the compiler in any order; CCS computes the compilation order from a syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). There are no separate signature files; module signatures, when present, are declared inline (see [§](namespace-and-module-signatures.md)).
+A Clef program comprises a set of implementation files (`.clef`), library dependencies specified in the project file (`.fidproj`), and optionally interactive files (`.clefx`) for the Clef Interactive REPL. Implementation files MAY be presented to the compiler in any order; CCS computes the compilation order from a syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). There are no separate signature files; module signatures, when present, are declared inline (see [§](namespace-and-module-signatures.md)).
 
 ```fsgrammar
 implementation-file :=
@@ -13,7 +13,7 @@ implementation-file :=
     named-module
     anonymous-module
 
-script-file := implementation-file       -- interactive (.clefi) file, additional directives allowed
+script-file := implementation-file       -- interactive (.clefx) file, additional directives allowed
 
 named-module :=
     module long-ident module-elems
@@ -136,7 +136,7 @@ exposed with its representation reveals that representation (see
 
 ## Script Files
 
-Script files have the `.clefi` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
+Script files have the `.clefx` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.clef`) organized via a `.fidproj` project file.
 
 Script files have the following characteristics:
 
@@ -160,13 +160,13 @@ The following directives are valid in all files:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#nowarn` | `#nowarn "54"` | For implementation (`.fs`) files, turns off warnings within this lexical scope. For interactive (`.clefi`) files, turns off warnings globally. |
+| `#nowarn` | `#nowarn "54"` | For implementation (`.clef`) files, turns off warnings within this lexical scope. For interactive (`.clefx`) files, turns off warnings globally. |
 
 > **Clef Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following directives are supported only in the Clef Interactive REPL, not in native compilation:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#load` | `#load "core.fs"` | Loads one or more implementation files into the interactive execution engine. |
+| `#load` | `#load "core.clef"` | Loads one or more implementation files into the interactive execution engine. |
 | `#time` | `#time "on"` | Enables or disables the display of performance information. |
 | `#help` | `#help` | Asks the script execution environment for help. |
 | `#quit` | `#quit` | Requests the script execution environment to halt execution and exit. |
