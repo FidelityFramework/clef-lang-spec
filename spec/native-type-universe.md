@@ -1191,7 +1191,7 @@ TBD - `ResourceCoeffect` type integration
 
 ---
 
-## Part 10: Interactive Development (fsni)
+## Part 10: Interactive Development (clefi)
 
 > **Spec Reference**: See [`interactive-development.md`](../../spec/interactive-development.md) for full specification.
 
@@ -1199,7 +1199,7 @@ The type universe must account for interactive development scenarios where types
 
 ### 10.1 Interactive Session Types
 
-In fsni (Clef Interactive), types are resolved in an evolving environment:
+In clefi (Clef Interactive), types are resolved in an evolving environment:
 
 ```fsharp
 > type Point = { x: int; y: int };;
@@ -1251,10 +1251,10 @@ val fib : int -> int  // Same type in all modes
 
 ### 10.4 Script File Type Semantics
 
-Script files (`.fsnx`) follow the same type semantics as compiled modules:
+Script files (`.clefi`) follow the same type semantics as compiled modules:
 
 ```fsharp
-// script.fsnx
+// script.clefi
 let greeting : string = "Hello"  // string with native UTF-8 fat pointer semantics
 let maybe : int option = Some 42  // voption<int>, non-null
 ```

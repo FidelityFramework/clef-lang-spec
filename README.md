@@ -194,7 +194,7 @@ The specification lives in the `spec/` directory. Chapter ordering is defined in
 | 13 | Type Definitions | `type-definitions.md` | Revised |
 | 14 | Units of Measure | `units-of-measure.md` | **Needs revision** |
 | 15 | Namespaces and Modules | `namespaces-and-modules.md` | Revised |
-| 16 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | Revised |
+| 16 | Namespace and Module Signatures | `namespace-and-module-signatures.md` | **Needs revision** |
 | 17 | Program Structure and Execution | `program-structure-and-execution.md` | Revised |
 | 18 | **Program Semantic Graph** | `program-semantic-graph.md` | **New** |
 | 19 | **Memory Regions** | `memory-regions.md` | **New** |

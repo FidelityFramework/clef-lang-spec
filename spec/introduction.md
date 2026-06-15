@@ -117,7 +117,7 @@ let computeDerivative f x =
     (p2 - p1) / 0.1
 ```
 
-The use of lightweight syntax is the default for all F# code in files with the extension `.fs`, `.fsx`, `.fsi`, or `.fsscript`.
+The use of lightweight syntax is the default for all Clef code in files with the extension `.fs` or `.clefi`.
 
 ### Making Data Simple
 

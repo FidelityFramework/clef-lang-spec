@@ -3,51 +3,51 @@ title: "Interactive Development"
 weight: 350
 ---
 
-This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (fsni), script execution, and integration with development tooling.
+This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefi), script execution, and integration with development tooling.
 
 ## Overview
 
 Clef provides an interactive development experience comparable to F# Interactive (FSI) in managed F#. The goal is to give Clef developers the same exploratory, REPL-driven workflow that .NET developers expect, while respecting the constraints of native compilation.
 
-| Aspect | F# Interactive (FSI) | Clef Interactive (fsni) |
+| Aspect | F# Interactive (FSI) | Clef Interactive (clefi) |
 |--------|---------------------|------------------------------|
 | Execution | CLR JIT | Native interpretation or AOT |
 | Memory | GC-managed | Deterministic (arena-based) |
-| Script extension | `.fsx` | `.fsnx` |
-| Entry command | `dotnet fsi` | `fsni` |
+| Script extension | `.fsx` | `.clefi` |
+| Entry command | `dotnet fsi` | `clefi` |
 | Directive prefix | `#r`, `#load` | `#require`, `#load` |
 
 ## Design Principles
 
-1. **Familiar Experience**: Developers moving from managed F# should find fsni familiar
+1. **Familiar Experience**: Developers moving from managed F# should find clefi familiar
 2. **Native Semantics**: Interactive execution follows native memory and type semantics
-3. **Tooling Integration**: fsni integrates with the same LSP infrastructure as the compiler
+3. **Tooling Integration**: clefi integrates with the same LSP infrastructure as the compiler
 4. **Exploratory Development**: Support rapid prototyping and experimentation
 5. **Seamless Transition**: Code developed interactively should compile without modification
 
-## Clef Interactive (fsni)
+## Clef Interactive (clefi)
 
 ### Invocation
 
-The Clef Interactive environment is invoked via the `fsni` command:
+The Clef Interactive environment is invoked via the `clefi` command:
 
 ```bash
 # Start interactive session
-fsni
+clefi
 
 # Execute a script file
-fsni script.fsnx
+clefi script.clefi
 
 # Evaluate an expression
-fsni --eval "1 + 1"
+clefi --eval "1 + 1"
 
 # With specific platform target
-fsni --target linux-x64
+clefi --target linux-x64
 ```
 
 ### Session Model
 
-An fsni session maintains:
+An clefi session maintains:
 
 - A global environment of bound values and types
 - An arena for interactive allocations
@@ -55,7 +55,7 @@ An fsni session maintains:
 - Loaded modules and dependencies
 
 ```
-Clef Interactive (fsni) v1.0
+Clef Interactive (clefi) v1.0
 Target: linux-x64
 Arena: 64MB (expandable)
 
@@ -71,7 +71,7 @@ val it : string = "Hello, World!"
 
 ### Execution Model
 
-fsni supports multiple execution strategies:
+clefi supports multiple execution strategies:
 
 #### Interpretation Mode (Default)
 
@@ -130,22 +130,21 @@ val factorial : int -> int
 
 ### File Extension
 
-Clef script files use the `.fsnx` extension:
+Clef interactive files use the `.clefi` extension:
 
 ```
-script.fsnx      -- Clef script
+script.clefi     -- Clef interactive (REPL/script) file
 module.fs        -- Clef implementation file
-signature.fsi    -- Clef signature file
 ```
 
-> **Rationale**: Using a distinct extension (`.fsnx` rather than `.fsx`) clearly identifies scripts intended for native execution and avoids confusion with managed F# scripts.
+> **Rationale**: The `.clefi` extension marks the file as Clef interactive content (the "i" denotes *interactive*), distinct from F# scripts (`.fsx`). Clef has no separate signature-file extension; module signatures are declared inline within `.fs` files (see [Namespace and Module Signatures](namespace-and-module-signatures.md)).
 
 ### Script Structure
 
 A script file contains a sequence of declarations and expressions:
 
 ```fsharp
-// script.fsnx
+// script.clefi
 #load "helpers.fs"
 
 open Console
@@ -162,7 +161,7 @@ writeln $"Sum: {sum}"
 |-----------|-------------|
 | `#require "name"` | Load a package dependency |
 | `#load "file.fs"` | Load and compile an F# source file |
-| `#load "file.fsnx"` | Load and execute another script |
+| `#load "file.clefi"` | Load and execute another script |
 | `#time "on"` \| `"off"` | Toggle timing display |
 | `#mode interpret` \| `compile` \| `hybrid` | Set execution mode |
 | `#arena size` | Set arena size (e.g., `#arena 128MB`) |
@@ -175,16 +174,16 @@ writeln $"Sum: {sum}"
 Script files may include a shebang for direct execution:
 
 ```fsharp
-#!/usr/bin/env fsni
-// script.fsnx
+#!/usr/bin/env clefi
+// script.clefi
 
 open Console
 writeln "Hello from Clef!"
 ```
 
 ```bash
-chmod +x script.fsnx
-./script.fsnx
+chmod +x script.clefi
+./script.clefi
 ```
 
 ## Memory Model in Interactive Mode
@@ -236,7 +235,7 @@ val it : Config = { ... }
 
 ### Target Selection
 
-fsni can target different platforms:
+clefi can target different platforms:
 
 ```
 > #target linux-x64;;
@@ -273,7 +272,7 @@ Emitted: add.o (linux-arm64)
 
 ## Value Display Without Runtime Reflection
 
-A fundamental difference between fsni and managed F# Interactive (FSI) is how values are formatted for display.
+A fundamental difference between clefi and managed F# Interactive (FSI) is how values are formatted for display.
 
 ### The Managed F# Approach
 
@@ -295,7 +294,7 @@ This approach is not available in Clef because:
 Clef uses statically resolved type parameters (SRTP) to generate formatters at compile time:
 
 ```fsharp
-// fsni generates specific formatters via SRTP
+// clefi generates specific formatters via SRTP
 type Displayable = Displayable
     with static member inline ($) (Displayable, x: int) = 
              Text.Format.intToString x
@@ -309,7 +308,7 @@ type Displayable = Displayable
 let inline display x = Displayable $ x
 ```
 
-When you enter an expression in fsni:
+When you enter an expression in clefi:
 
 ```
 > [1; 2; 3];;
@@ -370,8 +369,8 @@ Clef uses a parallel toolchain rather than extending managed F# tooling:
 | Package Manager | NuGet | Fargo (fpm) |
 | Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
 | Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
-| Interactive | FSI | fsni |
-| Script Files | `.fsx` | `.fsnx` |
+| Interactive | FSI | clefi |
+| Script Files | `.fsx` | `.clefi` |
 
 ### Why Parallel Rather Than Plugin
 
@@ -427,7 +426,7 @@ Shared code should be restricted to pure domain modeling without IO or string ma
 
 ### Fargo Integration
 
-fsni integrates with Fargo for package management:
+clefi integrates with Fargo for package management:
 
 ```
 > #require "robot-controller";;\n-- Resolving robot-controller from frgo.dev...\n-- Downloaded: robot-controller-1.2.0.fidpkg\n-- Source files: 12\n-- Compiling for current session...\nLoaded: RobotController (3 modules)
@@ -473,7 +472,7 @@ Reloaded: MyLocalPackage
 
 ### LSP Integration
 
-fsni connects to the Clef Language Server (FSNAC) for:
+clefi connects to the Clef Language Server (FSNAC) for:
 
 - Autocompletion in the REPL
 - Type information on hover
@@ -491,15 +490,15 @@ fsni connects to the Clef Language Server (FSNAC) for:
 
 Editors supporting Clef (via Ionide or similar) provide:
 
-- Syntax highlighting for `.fsnx` files
-- Inline evaluation (evaluate selection in fsni)
+- Syntax highlighting for `.clefi` files
+- Inline evaluation (evaluate selection in clefi)
 - Hover types
 - Error underlining
 - Send-to-REPL functionality
 
 ### Notebook Support
 
-fsni supports notebook interfaces (Jupyter, Polyglot Notebooks):
+clefi supports notebook interfaces (Jupyter, Polyglot Notebooks):
 
 ```json
 {
@@ -546,7 +545,7 @@ The web playground operates with restrictions:
 
 ### Loading Compiled Modules
 
-fsni can load pre-compiled Clef modules:
+clefi can load pre-compiled Clef modules:
 
 ```
 > #load-native "mylib.fno";;
@@ -620,12 +619,12 @@ on-off :=
 
 ## Comparison with Other Native REPLs
 
-| Feature | fsni | utop (OCaml) | evcxr (Rust) | Swift REPL |
+| Feature | clefi | utop (OCaml) | evcxr (Rust) | Swift REPL |
 |---------|------|--------------|--------------|------------|
 | Official | Yes | Community | Community | Yes |
 | Execution | Hybrid | Bytecode | Compile | JIT |
 | Memory model | Arena | GC | Ownership | ARC |
-| Script files | `.fsnx` | `.ml` | N/A | `.swift` |
+| Script files | `.clefi` | `.ml` | N/A | `.swift` |
 | Notebooks | Yes | Yes | Yes | Yes (Playgrounds) |
 | Cross-compile | Yes | Limited | No | No |
 
@@ -634,7 +633,7 @@ on-off :=
 1. **Interpretation semantics**: Exact behavior of interpreter vs compiled code
 2. **Arena lifecycle**: Interaction between multiple scripts and arena management
 3. **Debugging**: Breakpoints and stepping in interactive mode
-4. **Profiling**: Performance analysis tools in fsni
+4. **Profiling**: Performance analysis tools in clefi
 5. **Package management**: Integration with a native package manager
 6. **Caching**: Compilation caching for faster repeated execution
 7. **State serialization**: Saving and restoring session state

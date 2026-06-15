@@ -3,9 +3,17 @@ title: "Namespace and Module Signatures"
 weight: 140
 ---
 
-A signature file contains one or more namespace or module signatures, and specifies the
-functionality that is implemented by its corresponding implementation file. It also can hide
-functionality that the corresponding implementation file contains.
+A _module signature_ specifies the functionality exposed by a module: the public values, types, and
+nested modules. Signatures hide implementation details.
+
+> **NORMATIVE**: Clef does not have separate signature files. The `.fsi` extension is not
+> recognized by CCS. Module signatures, when present, are declared inline within the implementation
+> file using a `signature ... end` block placed before the `module` declaration it describes. This
+> consolidates the API surface and the implementation in a single source file.
+
+> **Note**: This chapter is being revised. The grammar in the following sections describes the
+> elements of a module signature; the wrapper syntax (currently described as a "signature file")
+> will be replaced with the inline `signature ... end` form in a subsequent revision.
 
 ```fsgrammar
 namespace-decl-group-signature :=
@@ -78,20 +86,20 @@ type-extension-elements-signature := with type-elements-signature end
 
 The `begin` and `end` tokens are optional when lightweight syntax is used.
 
-Like module declarations, signature declarations are processed sequentially rather than
-simultaneously, so that later signature declarations are not in scope when earlier ones are
-processed.
+Signature declarations, like module declarations, are processed in dependency order computed by CCS
+(see [§](program-structure.md#compilation-pipeline)). The following inline signature is well-formed
+regardless of the textual order of the two namespaces:
 
 ```fsharp
 namespace Utilities.Part1
 
-    module Module1 =
-        val x : Utilities.Part2.StorageCache // error (Part2 not yet declared)
+module Module1 =
+    val x : Utilities.Part2.StorageCache
 
 namespace Utilities.Part2
 
-    type StorageCache =
-        new : unit -> unit
+type StorageCache =
+    new : unit -> unit
 ```
 
 ## Signature Elements

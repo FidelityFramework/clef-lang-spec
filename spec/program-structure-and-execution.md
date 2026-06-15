@@ -3,22 +3,17 @@ title: "Program Structure and Execution"
 weight: 150
 ---
 
-> **Clef Note**: Clef programs do not use CLI assemblies. Instead, programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
+> **Clef Note**: Clef programs do not use CLI assemblies. Programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
 
-Clef programs are composed of an ordered sequence of signature (`.fsi`) files and implementation (`.fs`) files, plus any library dependencies specified in the project file (`.fidproj`). Script files (`.fsx`) are supported for development and tooling but are not part of native compilation.
+A Clef program comprises a set of implementation files (`.fs`), library dependencies specified in the project file (`.fidproj`), and optionally interactive files (`.clefi`) for the Clef Interactive REPL. Implementation files MAY be presented to the compiler in any order; CCS computes the compilation order from a syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). There are no separate signature files; module signatures, when present, are declared inline (see [§](namespace-and-module-signatures.md)).
 
 ```fsgrammar
 implementation-file :=
     namespace-decl-group ... namespace-decl-group
     named-module
-    anonynmous-module
+    anonymous-module
 
-script-file := implementation-file  -- script file, additional directives allowed
-
-signature-file :=
-    namespace-decl-group-signature ... namespace-decl-group-signature
-    anonynmous-module-signature
-    named-module-signature
+script-file := implementation-file       -- interactive (.clefi) file, additional directives allowed
 
 named-module :=
     module long-ident module-elems
@@ -26,53 +21,34 @@ named-module :=
 anonymous-module :=
     module-elems
 
-named-module-signature :=
-    module long-ident module-signature-elements
-
-anonymous-module-signature :=
-    module-signature-elements
-
 script-fragment :=
-    module-elems                    -- interactively entered code fragment
+    module-elems                          -- interactively entered code fragment
 ```
 
-A sequence of implementation and signature files is checked as follows.
+Module signatures may appear inline using the form:
 
-1. Form an initial environment `sig-env0` and `impl-env0` by adding all library dependencies to the environment in the order specified in the project file. This means the following procedure is applied for each dependency:
-    - Add the top-level types, modules, and namespaces to the environment.
-    - For each `AutoOpen` attribute in the library, find the types, modules, and namespaces that the attribute references and add these to the environment.
-    
-    > **Clef Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
+```fsgrammar
+signature-decl :=
+    signature long-ident? = module-signature-body
+    -- inline module signature (placed before the module it describes)
+```
 
-    The resulting environment becomes the active environment for the first file to be processed.
-2. For each file:
-    - If the `i`th file is a signature file `file.fsi`:
+The set of implementation files is checked as follows.
 
-        a. Check it against the current signature environment `sig-envi1`, which generates the
-        signature `Sigfile` for the current file.
+1. **Initial environment**. Form an initial environment `env0` by adding all library dependencies in the order specified in the project file. For each dependency, add the top-level types, modules, and namespaces to the environment.
 
-        b. Add `Sigfile` to `sig-envi-1` to produce `sig-envi` to make it available for use in later
-        signature files.
+   > **NORMATIVE**: Library imports SHALL be additive only. Clef does not honour the `[<AutoOpen>]` attribute on imported modules; library content becomes available in scope only via explicit `open` declarations in the consuming file.
 
-        The processing of the signature file has no effect on the implementation environment, so
-`impl-envi` is identical to `impl-envi-1`.
+   > **Clef Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
 
-    - If the file is an implementation file `file.fs`, check it against the environment `impl-envi-1`,
-    which gives elaborated namespace declaration groups `Implfile`.
+2. **Dependency analysis**. CCS computes the topological order of all implementation files by syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). The result is a sequence of compilation units, where each compilation unit is either a single file or a strongly-connected component (a set of files with mutually-recursive references, processed as a single dependency group).
 
-       a. If a corresponding signature `Sigfile` exists, check `Implfile` against `Sigfile` during this
-          process ([§](namespace-and-module-signatures.md#signature-conformance)). Then add `Sigfile` to `impl-envi-1` to produce `impl-envi`. This step makes
-          the signature-constrained view of the implementation file available for use in later
-          implementation files. The processing of the implementation file has no effect on the
-          signature environment, so `sig-envi` is identical to `sig-envi-1`.
+3. **Type checking**. For each compilation unit, in topological order:
+    - Check the unit against the current environment `env_{i-1}`, including any inline signatures, to produce the elaborated namespace declaration groups `Impl_unit` and inferred signature `Sig_unit`.
+    - If the unit declares an inline `signature ... end` block for a module, check the implementation against the signature ([§](namespace-and-module-signatures.md#signature-conformance)).
+    - Add `Impl_unit` (constrained by `Sig_unit` if present) to `env_{i-1}` to produce `env_i`, which becomes the environment for the next compilation unit.
 
-       b. If the implementation file has no signature file, add `Implfile` to both `sig-envi-1` and `impl-envi-1`,
-          to produce `sig-envi` and `impl-envi`. This makes the contents of the
-          implementation available for use in both later signature and implementation files.
-
-The signature file for a particular implementation must occur before the implementation file in the
-compilation order. For every signature file, a corresponding implementation file must occur after the
-file in the compilation order. Script files may not have signatures.
+> **NORMATIVE**: There is no concept of "compilation order" that the developer SHALL declare. CCS computes the order from the syntactic dependency graph. Mutually-recursive groups are processed as a single unit; CCS exposes the strongly-connected component structure for inspection and policy enforcement.
 
 ## Implementation Files
 
@@ -165,17 +141,15 @@ The result of checking a signature file is a set of elaborated namespace declara
 
 ## Script Files
 
-> **Clef Note**: Script files (`.fsx`, `.fsscript`) are primarily used for development tooling and F# Interactive. They are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
+Script files have the `.clefi` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.fs`) organized via a `.fidproj` project file.
 
-Script files have the `.fsx` or `.fsscript` filename extension. They are processed for development scenarios with the following characteristics:
+Script files have the following characteristics:
 
-- Side effects from scripts are executed immediately in the interactive environment.
-- Script files may add other signature, implementation, and script files to the list of sources by using the `#load` directive. Files are compiled in the same order that was passed to the compiler, except that each script is searched for `#load` directives and the loaded files are placed before the script, in the order they appear in the script. If a filename appears in more than one `#load` directive, the file is placed in the list only once, at the position it first appeared.
+- Side effects in the script are executed immediately in the interactive environment.
+- Script files may add other implementation files and script files to the list of sources by using the `#load` directive. Files are processed in the dependency order computed by CCS (see [§](program-structure.md#compilation-pipeline)); the textual position of `#load` directives does not determine compilation order. If a filename appears in more than one `#load` directive, the file is loaded only once.
 - Script files may have `#nowarn` directives, which disable a warning for the entire compilation.
 
 The Firefly compiler defines the `FIDELITY` compilation symbol for native compilation. The `COMPILED` symbol is also defined for compatibility.
-
-Script files may not have corresponding signature files.
 
 ## Compiler Directives
 
@@ -191,13 +165,13 @@ The following directives are valid in all files:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#nowarn` | `#nowarn "54"` | For signature (`.fsi`) files and implementation (`.fs`) files, turns off warnings within this lexical scope. For script (`.fsx` or `.fsscript`) files, turns off warnings globally. |
+| `#nowarn` | `#nowarn "54"` | For implementation (`.fs`) files, turns off warnings within this lexical scope. For interactive (`.clefi`) files, turns off warnings globally. |
 
-> **Clef Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following script directives are supported only in F# Interactive tooling, not in native compilation:
+> **Clef Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following directives are supported only in the Clef Interactive REPL, not in native compilation:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#load` | `#load "core.fsi" "core.fs"` | Loads a set of signature and implementation files into the script execution engine. |
+| `#load` | `#load "core.fs"` | Loads one or more implementation files into the interactive execution engine. |
 | `#time` | `#time "on"` | Enables or disables the display of performance information. |
 | `#help` | `#help` | Asks the script execution environment for help. |
 | `#quit` | `#quit` | Requests the script execution environment to halt execution and exit. |

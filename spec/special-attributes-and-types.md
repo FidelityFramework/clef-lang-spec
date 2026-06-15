@@ -11,7 +11,7 @@ This chapter describes attributes and types that have special significance to th
 
 The following custom attributes have special meanings recognized by the Clef compiler.
 
-### F# Language Attributes
+### Clef Language Attributes
 
 These attributes control F# language semantics and are fully supported:
 
@@ -19,7 +19,6 @@ These attributes control F# language semantics and are fully supported:
 | --- | --- |
 | `[<Obsolete(...)>]` | Indicates that the construct is obsolete and gives a warning or error depending on the settings in the attribute. |
 | `[<Conditional(...)>]` | Emits code to call the method only if the corresponding conditional compilation symbol is defined. Conditional compilation uses the `FIDELITY` symbol for native compilation. |
-| `[<AutoOpen>]` | When applied to a module, causes the module to be opened automatically when the enclosing namespace or module is opened. When applied with a string argument at the compilation unit level, causes the named namespace or module to be opened automatically. |
 | `[<CompiledName(...)>]` | Changes the compiled name of an F# language construct. |
 | `[<CompilationRepresentation(...)>]` | Adjusts the compiled representation of a type. |
 | `[<CustomComparison>]` | When applied to an F# structural type, indicates that the type has a user-specified comparison implementation. |
@@ -39,6 +38,12 @@ These attributes control F# language semantics and are fully supported:
 | `[<StructuralEquality>]` | When added to a record, union, or struct type, confirms the automatic generation of structural equality. |
 | `[<NoComparison>]` | When applied to a type, suppresses automatic generation of comparison operations. |
 | `[<NoEquality>]` | When applied to a type, suppresses automatic generation of equality operations. |
+
+> **NORMATIVE**: The F# `[<AutoOpen>]` attribute is rejected by CCS. Module re-exports SHALL be
+> explicit; an `open` declaration in the consuming file is required to bring module contents into
+> scope. This eliminates implicit-scope-injection behavior that complicates name resolution and
+> code review. Code that applies `[<AutoOpen>]` is not Clef-conformant; CCS reports a diagnostic
+> and rejects the input.
 
 ### Memory and Layout Attributes
 

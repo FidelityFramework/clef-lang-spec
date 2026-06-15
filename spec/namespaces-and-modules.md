@@ -3,15 +3,21 @@ title: "Namespaces and Modules"
 weight: 130
 ---
 
-F# is primarily an expression-based language. However, F# source code units are made up of
-_declarations_ , some of which can contain further declarations. Declarations are grouped using
-_namespace declaration groups_ , _type definitions_ , and _module definitions_. These also have
-corresponding forms in _signatures_. For example, a file may contain multiple namespace declaration
-groups, each of which defines types and modules, and the types and modules may contain member,
-function, and value definitions, which contain expressions.
+Clef is primarily an expression-based language. Source code units are made up of _declarations_,
+some of which can contain further declarations. Declarations are grouped using _namespace
+declaration groups_, _type definitions_, and _module definitions_. A file may contain multiple
+namespace declaration groups; types and modules may contain member, function, and value
+definitions, which contain expressions.
 
-Declaration elements are processed in the context of an _environment_. The definition of the elements
-of an environment is found in [§](inference-name-resolution.md#name-resolution).
+Declaration elements are processed in the context of an _environment_. The definition of the
+elements of an environment is found in [§](inference-name-resolution.md#name-resolution).
+
+> **NORMATIVE**: Modules and namespaces in Clef organize names, not compilation. Mutual references
+> between modules — and between types or values within modules — are resolved by CCS's syntactic
+> dependency analysis (see [§](program-structure.md#compilation-pipeline)), not by recursion
+> keywords. Clef has no `let rec`, no `and` for grouping mutual definitions, no `module rec`, and
+> no `namespace rec`. The `[<AutoOpen>]` attribute is not part of Clef; module re-exports are
+> explicit. See [§](special-attributes-and-types.md) for the attribute set.
 
 ```fsgrammar
 namespace-decl-group :=
@@ -36,7 +42,6 @@ module-elem :=
 module-function-or-value-defn :=
     attributesopt let function-defn
     attributesopt let value-defn
-    attributesopt let rec opt function-or-value-defns
     attributesopt do expr
 
 import-decl := open long-ident
@@ -119,44 +124,48 @@ type MyType() =
 let addOne x = x + 1
 ```
 
-When a namespace declaration group `N` is checked in an environment `env` , the individual
-declarations are checked in order and an overall _namespace declaration group signature_ `Nsig` is
-inferred for the module. An entry for `N` is then added to the _ModulesAndNamespaces_ table in the
-environment `env` (see [§](inference-name-resolution.md#opening-modules-and-namespace-declaration-groups)).
+When a namespace declaration group `N` is checked in an environment `env`, the individual
+declarations are checked and an overall _namespace declaration group signature_ `Nsig` is inferred.
+An entry for `N` is added to the _ModulesAndNamespaces_ table in the environment `env`
+(see [§](inference-name-resolution.md#opening-modules-and-namespace-declaration-groups)).
 
-Like module declarations, namespace declaration groups are processed sequentially rather than
-simultaneously, so that later namespace declaration groups are not in scope when earlier ones are
-processed. This prevents invalid recursive definitions.
+> **NORMATIVE**: Namespace declaration groups SHALL be processed in dependency order, computed by
+> CCS from the syntactic export map (see [§](program-structure.md#compilation-pipeline)). Mutual
+> references between namespace declaration groups are supported without ceremony.
 
-In the following example, the declaration of `x` in `Module1` generates an error because the
-`Utilities.Part2` namespace is not in scope:
+The following code is well-formed in Clef regardless of the textual order of the two namespaces:
 
 ```fsharp
 namespace Utilities.Part1
 
 module Module1 =
-    let x = Utilities.Part2.Module2.x + 1 // error (Part2 not yet declared)
+    let x = Utilities.Part2.Module2.x + 1
 
 namespace Utilities.Part2
 
-    module Module2 =
-        let x = Utilities.Part1.Module1.x + 2
+module Module2 =
+    let x = Utilities.Part1.Module1.x - 1
 ```
 
-Within a namespace declaration group, the namespace itself is implicitly opened if any preceding
-namespace declaration groups or referenced assemblies contribute to it. For example:
+CCS detects the mutual reference, elaborates the two namespaces as a single dependency group, and
+exposes the strongly-connected components of the file-level reference graph through its public API.
+A team policy or build configuration MAY require all cycles to be reviewed; the policy enforcement
+is a tool concern, not a language concern.
+
+All contributions to a namespace are in mutual scope. A `module Values2 =` in `namespace
+MyCompany.MyLibrary` may reference `Values1` declared in another `namespace MyCompany.MyLibrary`
+block — in the same file or a different file, in any source order:
 
 ```fsharp
 namespace MyCompany.MyLibrary
 
-    module Values1 =
-        let x = 1
+module Values1 =
+    let x = 1
 
 namespace MyCompany.MyLibrary
 
-    // Here, the implicit open of MyCompany.MyLibrary brings Values1 into scope
-    module Values2 =
-        let x = Values1.x
+module Values2 =
+    let x = Values1.x
 ```
 
 ## Module Definitions
@@ -179,13 +188,15 @@ checked in order and an overall _module signature_ `Msig` is inferred for the mo
 then added to the _ModulesAndNamespaces_ table to environment `env0` to form the new environment
 used for checking subsequent modules.
 
-Like namespace declaration groups, module definitions are processed sequentially rather than
-simultaneously, so that later modules are not in scope when earlier ones are processed.
+Module definitions, like namespace declaration groups, are processed in dependency order. Mutual
+references between modules are supported without recursion keywords.
+
+The following code is well-formed in Clef regardless of textual module order:
 
 ```fsharp
 module Part1 =
 
-    let x = Part2.StorageCache() // error (Part2 not yet declared)
+    let x = Part2.StorageCache()
 
 module Part2 =
 
@@ -243,16 +254,17 @@ dogCage |> Cage.getPet |> Dog.bark
 Function and value definitionsin modules introduce named values and functions.
 
 ```fsgrammar
-let rec~opt function-or-value-defn1 and ... and function-or-value-defnn
+let function-or-value-defn
 ```
 
-The following example defines value `x` and functions `id` and `fib`:
+The following example defines value `x` and functions `id` and `fib`. Recursion is implicit; CCS
+detects the self-reference in `fib` from its body:
 
 ```fsharp
 module M =
     let x = 1
     let id x = x
-    let rec fib x = if x <= 2 then 1 else fib (n - 1) + fib (n - 2)
+    let fib x = if x <= 2 then 1 else fib (x - 1) + fib (x - 2)
 ```
 
 Function and value definitions in modules may declare explicit type variables and type constraints:
@@ -443,7 +455,7 @@ do expr
 
 The expression `expr` is checked with an arbitrary initial type `ty`. After checking `expr`, `ty` is asserted to
 be equal to `unit`. If the assertion fails, a warning rather than an error is reported. This warning is
-suppressed for plain expressions without do in script files (that is, .fsx and .fsscript files).
+suppressed for plain expressions without `do` in interactive (`.clefi`) files.
 
 A `do` statement may have attributes:
 

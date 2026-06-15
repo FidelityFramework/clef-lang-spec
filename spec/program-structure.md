@@ -3,55 +3,37 @@ title: "Program Structure"
 weight: 20
 ---
 
-The inputs to the F# compiler or the F# Interactive dynamic compiler consist of:
+## Compilation Inputs
 
-- Source code files, with extensions `.fs`, `.fsi`, `.fsx`, or `.fsscript`.
-  - Files with extension `.fs` must conform to grammar element `implementation-file` in [§](program-structure-and-execution.md#implementation-files).
-  - Files with extension `.fsi` must conform to grammar element `signature-file` in [§](program-structure-and-execution.md#signature-files).
-  - Files with extension `.fsx` or `.fsscript` must conform to grammar element `script-file` in
-      [§](program-structure-and-execution.md#script-files).
-- Script fragments (for F# Interactive). These must conform to grammar element `script-fragment`.
-  Script fragments can be separated by `;;` tokens.
-- Assembly references that are specified by command line arguments or interactive directives.
-- Compilation parameters that are specified by command line arguments or interactive directives.
-- Compiler directives such as `#time`.
+The inputs to the Clef Compiler Service (CCS) and the `clef` driver consist of:
 
-The `COMPILED` compilation symbol is defined for input that the F# compiler has processed. The
-`INTERACTIVE` compilation symbol is defined for input that F# Interactive has processed.
+- **Implementation files**, with extension `.fs`. These conform to grammar element `implementation-file` in [§](program-structure-and-execution.md#implementation-files).
+- **Interactive files**, with extension `.clefi`. These are used by the Clef Interactive REPL (`clefi`) and conform to grammar element `script-file` in [§](program-structure-and-execution.md#script-files). The `.clefi` extension denotes *interactive*; Clef has no separate interface-file concept.
+- **Script fragments** for the Clef Interactive environment, conforming to grammar element `script-fragment` and separated by `;;` tokens at the prompt.
+- **Library dependencies** specified in the project file (`.fidproj`) and resolved at compile time from source packages or pre-compiled native libraries.
+- **Compiler directives** such as `#nowarn`.
 
-Processing the source code portions of these inputs consists of the following steps:
+> **NORMATIVE**: Clef does not recognize separate signature files. Module signatures, when present, are declared inline within the implementation file using `signature ... end` blocks (see [§](namespace-and-module-signatures.md)).
 
-1. **Decoding**. Each file and source code fragment is decoded into a stream of Unicode characters, as
-   described in the C# specification, sections 2.3 and 2.4. The command-line options may specify a
-   code page for this process.
-2. **Tokenization**. The stream of Unicode characters is broken into a token stream by the lexical
-   analysis described in [§](lexical-analysis.md#lexical-analysis)
-3. **Lexical Filtering**. The token stream is filtered by a state machine that implements the rules
-   described in [§](lexical-filtering.md#lexical-filtering) Those rules describe how additional (artificial) tokens are inserted into the
-   token stream and how some existing tokens are replaced with others to create an augmented
-   token stream.
-4. **Parsing**. The augmented token stream is parsed according to the grammar specification in this
-   document.
-5. **Importing**. The imported references are resolved to F# source packages or pre-compiled native libraries,
-   which are then imported. From the F# perspective, this results in the pre-definition of numerous
-   namespace declaration groups ([§](program-structure-and-execution.md#implementation-files)) and types. The namespace
-   declaration groups are then combined to form an initial name resolution environment ([§](inference-name-resolution.md#name-resolution)).
+The `FIDELITY` compilation symbol is defined for input that CCS has processed. The `INTERACTIVE` symbol is defined within the Clef Interactive environment.
 
-   > **Clef Note**: Clef does not use CLI assemblies. Dependencies are specified in the `.fidproj` project file and resolved from source packages or native libraries. Type providers are not available in native compilation.
-6. **Checking**. The results of parsing are checked one by one. Checking involves such procedures as
-   Name Resolution (§14.1), Constraint Solving (§14.5), and Generalization ([§](inference-constraint-solving.md#generalization)), as well as the
-   application of other rules described in this specification.
-   Type inference uses variables to represent unknowns in the type inference problem. The various
-   checking processes maintain tables of context information including a name resolution
-   environment and a set of current inference constraints. After the processing of a file or program
-   fragment is complete, all such variables have been either generalized or resolved and the type
-   inference environment is discarded.
-7. **Elaboration**. One result of checking is an elaborated program fragment that contains elaborated
-   declarations, expressions, and types. For most constructs, such as constants, control flow, and
-   data expressions, the elaborated form is simple. Elaborated forms are used for evaluation and
-   for the F# expression trees that are returned by quoted expressions ([§](expressions.md#quoted-expressions)).
+## Compilation Pipeline
+
+CCS processes source files through the following pipeline:
+
+1. **Decoding**. Each file is decoded into a stream of UTF-8 Unicode characters.
+2. **Tokenization**. The character stream is broken into a token stream by the lexical analysis described in [§](lexical-analysis.md#lexical-analysis).
+3. **Lexical Filtering**. The token stream is filtered by the offside-rule state machine described in [§](lexical-filtering.md#lexical-filtering). Indentation determines structure.
+4. **Parsing**. The augmented token stream is parsed according to the grammar specification in this document.
+5. **Dependency Analysis**. Before type checking, CCS performs a syntactic dependency-analysis pass over all parsed files: it builds an export map of declared names per file, resolves cross-file identifier references against that map, and computes strongly-connected components of the file-level reference graph. The result is a topological order of compilation units, where each unit is either a single file or a mutually-recursive group of files.
+
+   > **NORMATIVE**: CCS SHALL compute compilation order by syntactic dependency analysis. Source files MAY be presented to the compiler in any order; the developer SHALL NOT need to declare file order. This aligns Clef with established practice in mature ML-family ecosystems (Haskell's GHC, OCaml's `dune`-driven module system, Roc) and modern statically-typed languages where the compiler reconciles ordering and the developer expresses domain logic.
+
+6. **Importing**. Library dependencies are resolved from source packages or pre-compiled native libraries and added to the initial name resolution environment ([§](inference-name-resolution.md#name-resolution)).
+
+   > **Clef Note**: Clef does not use CLI assemblies. Type providers are not available in native compilation.
+7. **Checking**. The dependency-ordered compilation units are type-checked. Checking involves Name Resolution, Constraint Solving ([§](inference-constraint-solving.md#generalization)), and Generalization, as well as the application of other rules described in this specification. After processing of all compilation units is complete, all type-inference variables have been either generalized or resolved.
+8. **Elaboration**. One result of checking is an elaborated program graph that contains elaborated declarations, expressions, and types. The elaborated graph is the Program Semantic Graph (PSG, [§](program-semantic-graph.md)) handed to downstream stages of the Composer pipeline for native code generation.
 
    > **Clef Note**: Clef does not support runtime reflection. Elaborated forms are used for native code generation, not CLI metadata emission.
-8. **Execution**. Elaborated program fragments that are successfully checked are added to a
-   collection of available program fragments. Each fragment has a static initializer. Static initializers
-   are executed as described in ([§](program-structure-and-execution.md#program-execution)).
+9. **Execution**. Elaborated program fragments produce a native binary whose static initializers run at startup in topological dependency order ([§](program-structure-and-execution.md#program-execution)).
