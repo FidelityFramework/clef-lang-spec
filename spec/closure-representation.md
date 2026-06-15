@@ -8,7 +8,7 @@ weight: 180
 
 ## Informative References
 
-> **Commentary**: For accessible explanation of the design rationale, including comparison with other closure representations and the MLKit heritage, see [Gaining Closure](https://speakez.tech/blog/gaining-closure/) on the SpeakEZ blog.
+> **Commentary**: For accessible explanation of the design rationale, including comparison with other closure representations and the MLKit heritage, see [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) in the Clef design documentation.
 >
 > **Academic Foundation**: This representation follows MLKit-style flat closures. Key references:
 > - Shao, Z., & Appel, A. W. (1994). *Space-Efficient Closure Representations*. LFP '94.

@@ -13,38 +13,38 @@ For accessible explanations of Clef design decisions, the following articles are
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [closure-representation.md](../spec/closure-representation.md) | [Gaining Closure](https://clef-lang.com/docs/design/gaining-closure/) | MLKit-style flat closures, capture semantics, space safety |
-| [lazy-representation.md](../spec/lazy-representation.md) | [Why Lazy Is Hard](https://clef-lang.com/docs/design/why-lazy-is-hard/) | Thunk representation, memoization, comparison with Haskell/Scala |
-| [seq-representation.md](../spec/seq-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/design/seqing-simplicity/) | State machine closures, yield semantics |
-| [seq-operations-representation.md](../spec/seq-operations-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/design/seqing-simplicity/) | Wrapper structures for Seq.map/filter/etc. |
+| [closure-representation.md](../spec/closure-representation.md) | [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) | MLKit-style flat closures, capture semantics, space safety |
+| [lazy-representation.md](../spec/lazy-representation.md) | [Why Lazy Is Hard](https://clef-lang.com/docs/design/compilation/why-lazy-is-hard/) | Thunk representation, memoization, comparison with Haskell/Scala |
+| [seq-representation.md](../spec/seq-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/internals/concepts/seqing-simplicity/) | State machine closures, yield semantics |
+| [seq-operations-representation.md](../spec/seq-operations-representation.md) | [Seq'ing Simplicity](https://clef-lang.com/docs/internals/concepts/seqing-simplicity/) | Wrapper structures for Seq.map/filter/etc. |
 
 ### Type System
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [native-type-universe.md](../spec/native-type-universe.md) | [From IL to NTU](https://clef-lang.com/docs/design/il-to-ntu/) | Native type universe architecture, departure from BCL |
-| [types-and-type-constraints.md](../spec/types-and-type-constraints.md) | [Traits Versus SRTP](https://clef-lang.com/docs/design/traits-versus-srtp/) | SRTP design philosophy, comparison with Rust traits |
+| [native-type-universe.md](../spec/native-type-universe.md) | [From IL to NTU](https://clef-lang.com/docs/design/types/il-to-ntu/) | Native type universe architecture, departure from BCL |
+| [types-and-type-constraints.md](../spec/types-and-type-constraints.md) | [Traits Versus SRTP](https://clef-lang.com/docs/design/types/traits-versus-srtp/) | SRTP design philosophy, comparison with Rust traits |
 
 ### Memory Model
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [memory-regions.md](../spec/memory-regions.md) | [Inferring Memory Lifetimes](https://clef-lang.com/docs/design/inferring-memory-lifetimes/) | Region-based memory, lifetime analysis |
-| [memory-regions.md](../spec/memory-regions.md) | [Memory Management By Choice](https://clef-lang.com/docs/design/memory-management-by-choice/) | Memory model philosophy |
+| [memory-regions.md](../spec/memory-regions.md) | [Inferring Memory Lifetimes](https://clef-lang.com/docs/design/memory/inferring-memory-lifetimes/) | Region-based memory, lifetime analysis |
+| [memory-regions.md](../spec/memory-regions.md) | [Memory Management By Choice](https://clef-lang.com/docs/design/memory/memory-management-by-choice/) | Memory model philosophy |
 
 ### Compilation Architecture
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| [backend-lowering-architecture.md](../spec/backend-lowering-architecture.md) | [Why Clef Is A Natural Fit for MLIR](https://clef-lang.com/docs/design/why-clef-fits-mlir/) | Two-layer model, dialect mixing |
-| *(general)* | [Absorbing Alloy](https://clef-lang.com/docs/design/absorbing-alloy/) | Types as intrinsics, not library |
+| [backend-lowering-architecture.md](../spec/backend-lowering-architecture.md) | [Why Clef Is A Natural Fit for MLIR](https://clef-lang.com/docs/design/compilation/why-clef-fits-mlir/) | Two-layer model, dialect mixing |
+| *(general)* | [Absorbing Alloy](https://clef-lang.com/docs/design/language/absorbing-alloy/) | Types as intrinsics, not library |
 
 ### Concurrency & Effects
 
 | Spec Chapter | Commentary | Description |
 |--------------|------------|-------------|
-| *(async/effects)* | [Coeffects and Codata in Composer](https://clef-lang.com/docs/design/coeffects-and-codata/) | Coeffect system, observable effects |
-| *(continuations)* | [Delimited Continuations: Fidelity's Turning Point](https://clef-lang.com/docs/design/delimited-continuations/) | DCont architecture |
+| *(async/effects)* | [Coeffects and Codata in Composer](https://clef-lang.com/docs/internals/concepts/coeffects-and-codata/) | Coeffect system, observable effects |
+| *(continuations)* | [Delimited Continuations: Fidelity's Turning Point](https://clef-lang.com/docs/design/concurrency/delimited-continuations/) | DCont architecture |
 
 ---
 
