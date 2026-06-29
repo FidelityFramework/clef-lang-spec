@@ -1,6 +1,6 @@
 ---
 title: "Program Structure and Execution"
-weight: 150
+weight: 500
 ---
 
 > **Clef Note**: Clef programs do not use CLI assemblies. Programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.

@@ -1,6 +1,6 @@
 ---
 title: "Lexical Filtering"
-weight: 320
+weight: 50
 ---
 
 ## Lightweight Syntax

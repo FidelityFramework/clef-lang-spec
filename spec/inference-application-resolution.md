@@ -1,6 +1,6 @@
 ---
 title: "Application Resolution"
-weight: 9040
+weight: 620
 draft: true
 ---
 

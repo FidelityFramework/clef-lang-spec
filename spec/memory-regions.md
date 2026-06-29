@@ -1,6 +1,6 @@
 ---
 title: "Memory Regions"
-weight: 170
+weight: 460
 ---
 
 Memory region types define where memory lives and how it behaves. They are intrinsic to Clef and guide code generation throughout the compilation pipeline.

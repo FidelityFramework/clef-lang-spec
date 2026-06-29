@@ -1,6 +1,6 @@
 ---
 title: "Interactive Development"
-weight: 350
+weight: 680
 ---
 
 This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefx), script execution, and integration with development tooling.

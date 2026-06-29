@@ -1,6 +1,6 @@
 ---
 title: "List Operations Representation in Clef"
-weight: 230
+weight: 360
 ---
 
 > **Status**: Normative

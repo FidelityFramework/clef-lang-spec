@@ -1,6 +1,6 @@
 ---
 title: "NTU Dimensional Type Architecture"
-weight: 9080
+weight: 150
 draft: true
 ---
 

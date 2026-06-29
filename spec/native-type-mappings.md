@@ -1,6 +1,6 @@
 ---
 title: "Native Type Mappings"
-weight: 70
+weight: 130
 ---
 
 This chapter defines how F# types map to native representations in Clef compilation.

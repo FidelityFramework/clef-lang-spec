@@ -1,6 +1,6 @@
 ---
 title: "ClefExpr: CCS Typed Expression Representation"
-weight: 310
+weight: 600
 ---
 
 > **Status**: Draft

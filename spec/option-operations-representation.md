@@ -1,6 +1,6 @@
 ---
 title: "Option Operations Representation in Clef"
-weight: 260
+weight: 390
 ---
 
 > **Status**: Normative

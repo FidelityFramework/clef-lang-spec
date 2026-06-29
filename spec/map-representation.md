@@ -1,6 +1,6 @@
 ---
 title: "Map Representation in Clef"
-weight: 240
+weight: 370
 ---
 
 > **Status**: Normative

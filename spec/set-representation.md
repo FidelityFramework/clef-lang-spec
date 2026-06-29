@@ -1,6 +1,6 @@
 ---
 title: "Set Representation in Clef"
-weight: 250
+weight: 380
 ---
 
 > **Status**: Normative

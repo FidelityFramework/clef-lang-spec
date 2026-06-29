@@ -1,6 +1,6 @@
 ---
 title: "Numeric Selection"
-weight: 365
+weight: 440
 ---
 
 > **Normative specification for compile-time selection of the numeric *representation* of real-valued quantities — posit, IEEE-754, or fixed-point — from a value's dimensional range, via the same coeffect machinery and Program Semantic Graph carriage that width inference uses for integers.**
@@ -25,9 +25,7 @@ This chapter distinguishes requirements that follow directly from prior art and 
 
 For a real value with range `[a, b]` on target `T` offering representation set `R(T)`:
 
-```
-r* = argmin (over r in R_cov(T, [a, b]))  max (over x in [a, b])  err_r(x)
-```
+\[r^* = \operatorname*{arg\,min}_{r \,\in\, R_{\mathrm{cov}}(T,\, [a, b])} \; \max_{x \,\in\, [a, b]} \; \mathrm{err}_r(x)\]
 
 Three properties are load-bearing:
 
@@ -47,9 +45,7 @@ The bare argmin as written above is **ill-posed without two side-conditions**, s
 
 **[Design decision.]** A candidate whose dynamic range does not cover `[a, b]` is *not* excluded by the raw argmin. For `x` beyond `r`'s maximum representable magnitude, `round_r(x)` saturates and the relative-error term approaches a finite value near `1.0` — so a non-covering representation produces a *bounded* score and can pathologically *win* when every candidate scores near `1.0`. A diagnostic bolted on after selection does not protect the objective. The candidate set is therefore filtered *before* the argmin:
 
-```
-R_cov(T, [a, b]) = { r in R(T) : dynrange(r) ⊇ [a, b] }
-```
+\[R_{\mathrm{cov}}(T, [a, b]) = \{\, r \in R(T) \;:\; \mathrm{dynrange}(r) \supseteq [a, b] \,\}\]
 
 with the explicit rule: **if `R_cov = ∅`, that is a hard error** ("no available representation on this target covers `[a, b]`; widen the range source, rescale dimensionally, or seal a representation and accept saturation"). A non-covering format SHALL NOT be selected. The Tier-3 seal check (§5) is a special case of this coverage check applied to a singleton `R`, not a separate mechanism. The coverage constraint is part of the objective, not a post-hoc warning.
 
@@ -59,9 +55,7 @@ with the explicit rule: **if `R_cov = ∅`, that is a hard error** ("no availabl
 
 The error metric is therefore a **mixed absolute/relative form with an ULP floor**:
 
-```
-err_r(x) = |x − round_r(x)| / max(|x|, ulp_min(r))
-```
+\[\mathrm{err}_r(x) = \frac{|x - \mathrm{round}_r(x)|}{\max(|x|,\, \mathrm{ulp}_{\min}(r))}\]
 
 where `ulp_min(r)` is the magnitude of `r`'s smallest representable positive normal (IEEE) or smallest representable magnitude in the regime covering the range (posit / fixed-point). Below `ulp_min(r)` the metric becomes effectively absolute, which is the correct near-zero semantics: absolute spacing is what matters near zero, and the contest becomes "whose smallest representable magnitude best resolves the near-zero cluster." An equivalent formulation excludes an `[−δ, +δ]` neighborhood of zero from the relative-error worst-case and scores near-zero behavior by `ulp_min(r)` directly.
 

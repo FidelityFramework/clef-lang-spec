@@ -1,6 +1,6 @@
 ---
 title: "Inference Procedures"
-weight: 300
+weight: 610
 ---
 
 This chapter provides an overview of the inference procedures used during Clef type checking. The procedures are organized into focused sub-chapters for clarity.

@@ -1,6 +1,6 @@
 ---
 title: "Constraint Solving and Definition Checking"
-weight: 9050
+weight: 630
 draft: true
 ---
 

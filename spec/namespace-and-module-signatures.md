@@ -1,6 +1,6 @@
 ---
 title: "Namespace and Module Signatures"
-weight: 140
+weight: 230
 ---
 
 A _module signature_ specifies the functionality exposed by a module: the public values, types, and

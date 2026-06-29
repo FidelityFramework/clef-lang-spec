@@ -1,6 +1,6 @@
 ---
 title: "Reactive Signals"
-weight: 390
+weight: 420
 ---
 
 > **Status**: Revised

@@ -1,6 +1,6 @@
 ---
 title: "Clef Type Universe Specification"
-weight: 80
+weight: 120
 ---
 
 > **Status**: Draft

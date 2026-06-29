@@ -1,6 +1,6 @@
 ---
 title: "Crypto and Bits Intrinsic Modules Specification"
-weight: 380
+weight: 470
 ---
 
 > **Status**: Draft

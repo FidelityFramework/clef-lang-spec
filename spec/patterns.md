@@ -1,6 +1,6 @@
 ---
 title: "Patterns"
-weight: 100
+weight: 210
 ---
 
 Patterns are used to perform simultaneous case analysis and decomposition on values together with

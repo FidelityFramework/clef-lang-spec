@@ -1,6 +1,6 @@
 ---
 title: "Synchronous RPC and Wait Classification"
-weight: 9015
+weight: 520
 draft: true
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: "Sequence Expression Representation in Clef"
-weight: 210
+weight: 340
 ---
 
 > **Normative specification for seq expression memory layout and state machine semantics in Clef compilation.**

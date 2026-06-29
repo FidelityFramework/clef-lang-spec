@@ -1,6 +1,6 @@
 ---
 title: "Namespaces and Modules"
-weight: 130
+weight: 220
 ---
 
 Clef is primarily an expression-based language. Source code units are made up of _declarations_,

@@ -1,6 +1,6 @@
 ---
 title: "Type Definitions"
-weight: 110
+weight: 180
 ---
 
 Type definitions define new named types. The grammar of type definitions is shown below.

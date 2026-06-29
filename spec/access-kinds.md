@@ -1,6 +1,6 @@
 ---
 title: "Access Kinds"
-weight: 270
+weight: 465
 ---
 
 Access kinds define the permitted operations on pointers and memory regions. They are enforced at compile time and affect code generation.

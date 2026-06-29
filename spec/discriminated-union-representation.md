@@ -1,6 +1,6 @@
 ---
 title: "Discriminated Union Representation in Clef"
-weight: 9020
+weight: 330
 draft: true
 ---
 

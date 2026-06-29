@@ -1,6 +1,6 @@
 ---
 title: "Atomic Operations and Memory Ordering"
-weight: 9010
+weight: 510
 draft: true
 ---
 

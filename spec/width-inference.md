@@ -1,6 +1,6 @@
 ---
 title: "Width Inference"
-weight: 360
+weight: 430
 ---
 
 > **Normative specification for value-range analysis, minimal-width derivation, and representation selection in Clef compilation. Supersedes the former polymorphic numeric-conversion model.**
@@ -26,12 +26,9 @@ For example, in a working FPGA design a wave-chase counter is free-running `mod 
 
 ## 3. Width Derivation (Integers)
 
-From a range `[a, b]`, the minimal integer width is derived directly:
+From a range \([a, b]\), the minimal integer width is derived directly:
 
-```
-width([a, b]) =     ceil(log2(b + 1))          -- unsigned, a >= 0
-width([a, b]) = 1 + ceil(log2(max(|a|, b + 1)))-- signed, a < 0
-```
+\[\mathrm{width}([a, b]) = \begin{cases} \lceil \log_2(b + 1) \rceil & a \ge 0 \quad (\text{unsigned}) \\ 1 + \lceil \log_2(\max(|a|,\, b + 1)) \rceil & a < 0 \quad (\text{signed}) \end{cases}\]
 
 A value uses exactly the bits its range requires — no more. The following are inferred widths from a working FPGA design (Arty A7-100T):
 
@@ -48,11 +45,9 @@ Each register uses exactly the bits it needs; on the FPGA each `seq.compreg` fli
 
 For real-valued quantities, the analyzed range selects a *representation*, not merely a width. Following the dimensional-type model, representation selection is a deterministic compile-time function of the range and the target's available formats:
 
-```
-r* = argmin (over r in R(target))  max (over x in [a, b])  |x - round_r(x)| / |x|
-```
+\[r^* = \operatorname*{arg\,min}_{r \,\in\, R(\text{target})} \; \max_{x \,\in\, [a, b]} \; \frac{|x - \mathrm{round}_r(x)|}{|x|}\]
 
-— the representation minimizing worst-case relative error over the range. IEEE-754 distributes precision uniformly (≈ 2⁻ᵖ); posits taper precision toward 1.0; fixed-point fixes a scale. The choice is per target (e.g. IEEE-754 on CPU, posit on FPGA, fixed-point on a neuromorphic core) and is surfaced at design time. See [NTU Dimensional Architecture](ntu-dimensional-architecture.md) and [Units of Measure](units-of-measure.md); the dimensional range of a value is the primary input to this function.
+— the representation minimizing worst-case relative error over the range. IEEE-754 distributes precision uniformly (≈ \(2^{-p}\)); posits taper precision toward 1.0; fixed-point fixes a scale. The choice is per target (e.g. IEEE-754 on CPU, posit on FPGA, fixed-point on a neuromorphic core) and is surfaced at design time. See [NTU Dimensional Architecture](ntu-dimensional-architecture.md) and [Units of Measure](units-of-measure.md); the dimensional range of a value is the primary input to this function.
 
 ## 5. Width and Representation as a Coeffect
 

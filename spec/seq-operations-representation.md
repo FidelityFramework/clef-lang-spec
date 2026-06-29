@@ -1,6 +1,6 @@
 ---
 title: "Sequence Operations Representation in Clef"
-weight: 220
+weight: 350
 ---
 
 > **Status**: Normative

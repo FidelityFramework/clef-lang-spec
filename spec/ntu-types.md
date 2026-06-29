@@ -1,6 +1,6 @@
 ---
 title: "NTU Type Nomenclature Specification"
-weight: 9090
+weight: 140
 draft: true
 ---
 

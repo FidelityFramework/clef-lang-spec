@@ -1,6 +1,6 @@
 ---
 title: "Incremental Computation"
-weight: 200
+weight: 400
 ---
 
 > **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in Clef compilation.**

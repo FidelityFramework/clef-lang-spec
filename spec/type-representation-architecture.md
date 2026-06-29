@@ -1,6 +1,6 @@
 ---
 title: "Type Representation Architecture"
-weight: 60
+weight: 110
 ---
 
 > **Status**: Normative
