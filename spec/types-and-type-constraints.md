@@ -111,7 +111,7 @@ _simplified_ and _eliminated_ based on these equations through _constraint solvi
 
 ### Unified Type Representation
 
-CCS uses a unified type representation throughout type checking and inference. [Type constructors from the Native Type Universe (NTU) are recognized](native-type-universe.md) during construction, producing `NativeType` values directly with type variables preserved.
+CCS uses a unified type representation throughout type checking and inference. Type constructors from the [Native Type Universe (NTU)](native-type-universe.md) are recognized during construction, producing `NativeType` values directly with type variables preserved.
 
 When CCS encounters a type expression such as `nativeptr<'T>`:
 

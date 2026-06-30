@@ -403,7 +403,7 @@ SeqStateMachine {
 
 ### 12.5 Sequence Expression Saturation
 
-[For `seq { }` expressions, saturation produces explicit state machine structure:](seq-representation.md)
+For `seq { }` expressions, saturation produces explicit [state machine structure](seq-representation.md):
 
 **Input (pre-saturation)**:
 ```fsharp

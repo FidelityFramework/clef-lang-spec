@@ -1121,7 +1121,7 @@ whether references are circular.
 ## Struct Type Definitions
 
 A _struct type definition_ is a type definition whose instances are stored inline inside the stack frame or
-object of which they are a part. The type is [represented as a value type with deterministic memory layout](type-representation-architecture.md).
+object of which they are a part. The type is represented as a value type with [deterministic memory layout](type-representation-architecture.md).
 For example:
 
 ```fsharp
