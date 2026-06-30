@@ -296,7 +296,7 @@ The choice is made via `.fidproj` configuration and flows through platform quota
 crypto_implementation = "inline"  # or "platform"
 ```
 
-The witness queries this setting via platform context during MLIR generation.
+The witness queries this setting via [platform context](platform-bindings.md) during MLIR generation.
 
 ## 8. Nanopass and Witness Flow
 

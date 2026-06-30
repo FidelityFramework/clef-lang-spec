@@ -69,7 +69,7 @@ Operations that commit to a specific representation require backend-specific dia
 
 ## 4. Flat Closure Pattern and Backend Dialects
 
-Clef implements closures, lazy values, and sequences using flat closures that store function pointers in structs. This pattern requires backend-specific code.
+Clef implements [closures](closure-representation.md), [lazy values](lazy-representation.md), and [sequences](seq-representation.md) using flat closures that store function pointers in structs. This pattern requires backend-specific code.
 
 ### 4.1 Why Backend-Specific
 

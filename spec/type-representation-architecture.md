@@ -156,7 +156,7 @@ Field TYPES are not in TypeConRef because:
 
 ### 5.1 TypeDef Nodes
 
-Type definitions are stored as SemanticGraph nodes:
+Type definitions are stored as [SemanticGraph](program-semantic-graph.md) nodes:
 
 ```fsharp
 type TypeDefKind =

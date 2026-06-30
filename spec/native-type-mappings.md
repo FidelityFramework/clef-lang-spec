@@ -126,7 +126,7 @@ let gpioDescriptor: Expr<PeripheralDescriptor> = <@
 @>
 ```
 
-The compiler extracts semantic information from quotations during PSG construction. No runtime reflection is needed - the information is available at compile time and can guide code generation (e.g., emitting volatile loads for peripheral access).
+The compiler extracts semantic information from quotations during [PSG construction](program-semantic-graph.md). No runtime reflection is needed - the information is available at compile time and can guide code generation (e.g., emitting volatile loads for peripheral access).
 
 ### Active Patterns for Structural Recognition
 
@@ -498,7 +498,7 @@ let makeAdder n = fun x -> x + n
 
 ## Why IL Infrastructure Is Removed from CCS
 
-Clef Compiler Service (CCS) targets native compilation via MLIR (Multi-Level Intermediate Representation), not CLR bytecode. While CCS originated from the F# Compiler Services (FCS) codebase, its type universe, compilation passes, and concurrency primitives are independently defined. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
+Clef Compiler Service (CCS) targets [native compilation via MLIR](backend-lowering-architecture.md) (Multi-Level Intermediate Representation), not CLR bytecode. While CCS originated from the F# Compiler Services (FCS) codebase, its type universe, compilation passes, and concurrency primitives are independently defined. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
 
 ### The Architecture Boundary
 

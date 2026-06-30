@@ -96,7 +96,7 @@ let wo : Ptr<int, Stack, WriteOnly> = Ptr.asWriteOnly rw // OK
 
 ## Hardware Register Patterns
 
-Access kinds enable type-safe hardware register access:
+Access kinds enable type-safe [hardware register access](special-attributes-and-types.md):
 
 ```fsharp
 [<PeripheralDescriptor("GPIO", 0x48000000UL)>]
