@@ -1,6 +1,8 @@
 ---
 title: "Types and Type Constraints"
 weight: 100
+category: Language
+status: normative
 ---
 
 The notion of _type_ is central to the static checking of Clef programs. The word is used with three distinct but related meanings:

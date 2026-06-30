@@ -1,6 +1,8 @@
 ---
 title: "NTU Dimensional Type Architecture"
 weight: 150
+category: Language
+status: normative
 ---
 
 > **Status**: Design: Active

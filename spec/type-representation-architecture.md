@@ -1,6 +1,8 @@
 ---
 title: "Type Representation Architecture"
 weight: 110
+category: Language
+status: normative
 ---
 
 > **Status**: Normative

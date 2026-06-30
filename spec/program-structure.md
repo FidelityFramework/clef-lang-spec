@@ -1,6 +1,8 @@
 ---
 title: "Program Structure"
 weight: 20
+category: Language
+status: normative
 ---
 
 ## Compilation Inputs

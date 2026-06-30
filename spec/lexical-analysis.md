@@ -1,6 +1,8 @@
 ---
 title: "Lexical Analysis"
 weight: 30
+category: Language
+status: normative
 ---
 
 Lexical analysis converts an input stream of Unicode characters into a stream of tokens by iteratively

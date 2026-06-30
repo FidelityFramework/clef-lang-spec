@@ -1,6 +1,8 @@
 ---
-title: "Crypto and Bits Intrinsic Modules Specification"
+title: "Cryptography and Bits Intrinsic Modules Specification"
 weight: 470
+category: Platform
+status: normative
 ---
 
 > **Status**: Draft
@@ -11,24 +13,33 @@ weight: 470
 
 This chapter specifies two new intrinsic modules for CCS (Clef Compiler Service):
 
-1. **Crypto** - Cryptographic operations (SHA-1, Base64 encoding/decoding)
+1. **Cryptography** - Cryptographic operations (SHA-1, Base64 encoding/decoding)
 2. **Bits** - Bit manipulation and byte order operations
 
 These intrinsics support the WREN stack's WebSocket communication layer, which requires:
 - SHA-1 hashing for WebSocket handshake (RFC 6455)
 - Base64 encoding for WebSocket accept key generation
 - Byte order conversion for network protocol handling
-- Bit casting for binary serialization (BAREWire)
 
-## 2. Crypto Module
+> **Note on binary serialization.** Reinterpreting a typed value as raw bits — the
+> C `reinterpret_cast` / "bit cast" idiom for reaching the IEEE-754 representation of
+> a float — is **deliberately absent** from these modules. It is a category error in
+> an ML-family language: it discards the value's type, its dimension, and the
+> representation provenance the [numeric selection](numeric-selection.md) discipline
+> depends on, and it makes the bit layout a property of the source code rather than a
+> property the compiler controls. Binary serialization (the BAREWire use case) is
+> handled by the **structured, deterministic-layout** path of [BAREWire](ffi-boundary.md),
+> not by bit-punning a typed value into an integer. See §3.3.
+
+## 2. Cryptography Module
 
 ### 2.1 Module Definition
 
 ```fsharp
-module Crypto
+module Cryptography
 ```
 
-The Crypto module provides cryptographic primitives. All operations are pure functions with no side effects.
+The Cryptography module provides cryptographic primitives. All operations are pure functions with no side effects.
 
 ### 2.2 SHA-1 Hash
 
@@ -43,13 +54,13 @@ val sha1 : byte[] -> byte[]
 - Output array is always exactly 20 bytes
 
 **Alex Witness Implementation:**
-- IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Crypto, "sha1")`
+- IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Cryptography, "sha1")`
 - Witness generates inline LLVM IR for SHA-1 algorithm
-- Alternatively, witness emits external function declaration for platform crypto
+- Alternatively, witness emits external function declaration for platform cryptography
 
 **Example:**
 ```fsharp
-let hash = Crypto.sha1 data  // hash.Length = 20
+let hash = Cryptography.sha1 data  // hash.Length = 20
 ```
 
 ### 2.3 Base64 Encoding
@@ -69,7 +80,7 @@ val base64Encode : byte[] -> string
 
 **Example:**
 ```fsharp
-let encoded = Crypto.base64Encode [| 72uy; 101uy; 108uy; 108uy; 111uy |]
+let encoded = Cryptography.base64Encode [| 72uy; 101uy; 108uy; 108uy; 111uy |]
 // encoded = "SGVsbG8="
 ```
 
@@ -90,7 +101,7 @@ val base64Decode : string -> byte[]
 
 **Example:**
 ```fsharp
-let decoded = Crypto.base64Decode "SGVsbG8="
+let decoded = Cryptography.base64Decode "SGVsbG8="
 // decoded = [| 72uy; 101uy; 108uy; 108uy; 111uy |]
 ```
 
@@ -102,7 +113,7 @@ let decoded = Crypto.base64Decode "SGVsbG8="
 module Bits
 ```
 
-The Bits module provides bit manipulation and byte order operations. All operations are pure and map directly to LLVM intrinsics or inline operations.
+The Bits module provides byte order operations for network protocol handling. All operations are pure and map directly to LLVM intrinsics or inline operations.
 
 ### 3.2 Byte Order Conversion
 
@@ -160,58 +171,41 @@ val ntohl : uint32 -> uint32
 - Converts 32-bit value from network byte order to host byte order
 - Symmetric with `htonl`
 
-### 3.3 Bit Casting (Reinterpret)
+### 3.3 No Bit Casting (Reinterpret) — Use BAREWire Instead
 
-Bit casting reinterprets the bit pattern of a value as a different type. No conversion occurs; the bits are preserved exactly.
+**[Design decision.]** This specification **does not** provide a bit-cast /
+reinterpret-cast facility (no `floatToIntBits`, no `intBitsToFloat`, no
+type-punning of a typed value into its raw representation). The C and C++ idiom of
+reinterpreting an IEEE-754 float as an integer to inspect or transmit its bit
+pattern is a deliberate **non-feature** in Clef, for three reasons:
 
-#### 3.3.1 Float32 to Int32
+1. **It discards the type.** A `float<newtons>` reinterpreted as `int32` has lost its
+   dimension, its unit, and its place in the dimensional algebra. Nothing downstream
+   can recover that the integer "was" a force. The whole point of the type system is
+   that this information is carried, not punned away.
+2. **It discards the representation provenance.** [Numeric selection](numeric-selection.md)
+   chooses a real value's representation (posit / IEEE / fixed-point) from its
+   analyzed range, per target. A bit cast assumes the bits *are* IEEE-754, hard-coding
+   a representation the compiler was supposed to choose — and silently producing
+   garbage on a target where the value was lowered to a posit or a fixed-point format.
+3. **It moves the bit layout into the source.** Bit-punning makes the byte layout a
+   fact about the program text rather than a property the compiler controls and can
+   re-check through lowering. That is the opposite of the framework's
+   information-preservation discipline.
 
-```fsharp
-val float32ToInt32Bits : float32 -> int32
-```
+The legitimate need that motivates bit casting in C — **binary serialization**, e.g.
+writing a value onto the wire for [BAREWire](ffi-boundary.md) — is handled by
+BAREWire's **structured, deterministic-layout** path, not by reinterpreting a typed
+value as an integer. BAREWire serializes a value *as the typed value it is*, with the
+byte layout determined by the contract both endpoints were built to read; the layout
+is the compiler's to fix and the contract's to enforce, and the dimensional and
+representation metadata travel with it. A value crosses the wire as itself, and the
+type is checked at the fabric — never reconstructed from a guessed bit pattern.
 
-**Semantics:**
-- Reinterprets 32-bit float as 32-bit signed integer
-- IEEE 754 representation preserved
-- Example: `1.0f` -> `0x3F800000` (1065353216)
-
-**Alex Witness Implementation:**
-- IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Bits, "float32ToInt32Bits")`
-- Witness emits LLVM bitcast instruction
-
-```mlir
-%result = llvm.bitcast %value : f32 to i32
-```
-
-#### 3.3.2 Int32 to Float32
-
-```fsharp
-val int32BitsToFloat32 : int32 -> float32
-```
-
-**Semantics:**
-- Reinterprets 32-bit signed integer as 32-bit float
-- Inverse of `float32ToInt32Bits`
-
-#### 3.3.3 Float64 to Int64
-
-```fsharp
-val float64ToInt64Bits : float -> int64
-```
-
-**Semantics:**
-- Reinterprets 64-bit float as 64-bit signed integer
-- IEEE 754 representation preserved
-
-#### 3.3.4 Int64 to Float64
-
-```fsharp
-val int64BitsToFloat64 : int64 -> float
-```
-
-**Semantics:**
-- Reinterprets 64-bit signed integer as 64-bit float
-- Inverse of `float64ToInt64Bits`
+Where a developer genuinely needs an explicit representation change (e.g. a lossy
+narrowing conversion), that is the *explicit, fidelity-recorded conversion* discipline
+of [Rounding §6](rounding.md) and [Numeric Selection §5](numeric-selection.md), which
+is a typed, witnessed conversion — not an untyped bit reinterpretation.
 
 ## 4. IntrinsicModule Enumeration
 
@@ -220,25 +214,21 @@ Add the following variants to `IntrinsicModule`:
 ```fsharp
 type IntrinsicModule =
     // ... existing variants ...
-    | Crypto        // Cryptographic operations
-    | Bits          // Bit manipulation and byte order
+    | Cryptography  // Cryptographic operations
+    | Bits          // Byte order operations
 ```
 
 ## 5. IntrinsicCategory Classification
 
 | Intrinsic | Category |
 |-----------|----------|
-| `Crypto.sha1` | `Pure` |
-| `Crypto.base64Encode` | `Pure` |
-| `Crypto.base64Decode` | `Pure` |
+| `Cryptography.sha1` | `Pure` |
+| `Cryptography.base64Encode` | `Pure` |
+| `Cryptography.base64Decode` | `Pure` |
 | `Bits.htons` | `Pure` |
 | `Bits.ntohs` | `Pure` |
 | `Bits.htonl` | `Pure` |
 | `Bits.ntohl` | `Pure` |
-| `Bits.float32ToInt32Bits` | `Pure` |
-| `Bits.int32BitsToFloat32` | `Pure` |
-| `Bits.float64ToInt64Bits` | `Pure` |
-| `Bits.int64BitsToFloat64` | `Pure` |
 
 All operations are `Pure` category - no side effects, deterministic output.
 
@@ -246,17 +236,13 @@ All operations are `Pure` category - no side effects, deterministic output.
 
 | Intrinsic | Type Signature |
 |-----------|----------------|
-| `Crypto.sha1` | `byte[] -> byte[]` |
-| `Crypto.base64Encode` | `byte[] -> string` |
-| `Crypto.base64Decode` | `string -> byte[]` |
+| `Cryptography.sha1` | `byte[] -> byte[]` |
+| `Cryptography.base64Encode` | `byte[] -> string` |
+| `Cryptography.base64Decode` | `string -> byte[]` |
 | `Bits.htons` | `uint16 -> uint16` |
 | `Bits.ntohs` | `uint16 -> uint16` |
 | `Bits.htonl` | `uint32 -> uint32` |
 | `Bits.ntohl` | `uint32 -> uint32` |
-| `Bits.float32ToInt32Bits` | `float32 -> int32` |
-| `Bits.int32BitsToFloat32` | `int32 -> float32` |
-| `Bits.float64ToInt64Bits` | `float -> int64` |
-| `Bits.int64BitsToFloat64` | `int64 -> float` |
 
 ## 7. Platform Considerations
 
@@ -273,9 +259,9 @@ Alex generates appropriate code based on the platform:
 - Little-endian: emit bswap instruction
 - Big-endian: emit passthrough
 
-### 7.2 Crypto Witness Implementation Options
+### 7.2 Cryptography Witness Implementation Options
 
-The IntrinsicWitness for Crypto operations has two implementation strategies:
+The IntrinsicWitness for Cryptography operations has two implementation strategies:
 
 1. **Inline witness** (preferred for freestanding):
    - Witness generates pure LLVM IR implementing SHA-1/Base64 algorithms
@@ -284,7 +270,7 @@ The IntrinsicWitness for Crypto operations has two implementation strategies:
    - Complete self-containment
 
 2. **External witness** (optional for console/desktop):
-   - Witness emits `llvm.func` declaration for platform crypto
+   - Witness emits `llvm.func` declaration for platform cryptography
    - Links against libcrypto (OpenSSL) or platform equivalent
    - Smaller binary
    - External dependency
@@ -293,22 +279,22 @@ The choice is made via `.fidproj` configuration and flows through platform quota
 
 ```toml
 [compilation]
-crypto_implementation = "inline"  # or "platform"
+cryptography_implementation = "inline"  # or "platform"
 ```
 
 The witness queries this setting via [platform context](platform-bindings.md) during MLIR generation.
 
 ## 8. Nanopass and Witness Flow
 
-The pipeline for Crypto and Bits intrinsics follows the standard CCS→Alex flow:
+The pipeline for Cryptography and Bits intrinsics follows the standard CCS→Alex flow:
 
 ```
-F# Source: Crypto.sha1 data
+Clef Source: Cryptography.sha1 data
     ↓
 CCS Type Checking (Expressions/Intrinsics.fs, Expressions/Coordinator.fs)
     - Coordinator dispatches to Intrinsics module for intrinsic resolution
-    - Recognizes "Crypto.sha1" pattern
-    - Creates IntrinsicInfo { Module=Crypto, Operation="sha1", Category=Pure }
+    - Recognizes "Cryptography.sha1" pattern
+    - Creates IntrinsicInfo { Module=Cryptography, Operation="sha1", Category=Pure }
     - Assigns type: byte[] -> byte[]
     - Creates PSG node with SemanticKind.Intrinsic(info)
     ↓
@@ -323,7 +309,7 @@ Alex/Zipper Traversal
     - XParsec pattern matches SemanticKind.Intrinsic
     ↓
 IntrinsicWitness
-    - Pattern matches on IntrinsicModule (Crypto, Bits)
+    - Pattern matches on IntrinsicModule (Cryptography, Bits)
     - Pattern matches on operation name
     - Generates appropriate MLIR based on platform context
     ↓
@@ -336,7 +322,7 @@ LLVM → Native Binary
 1. CCS handles type checking and IntrinsicInfo creation
 2. [The PSG carries](program-semantic-graph.md) the intrinsic metadata through nanopasses
 3. Alex witnesses consume the enriched PSG - no string matching on names
-4. Platform decisions (byte order, crypto impl) flow via quotations
+4. Platform decisions (byte order, cryptography impl) flow via quotations
 
 ## 9. Relationship to Existing Intrinsics
 
@@ -344,10 +330,14 @@ These new modules complement existing intrinsics:
 
 | Module | Purpose | Relationship |
 |--------|---------|--------------|
-| `Crypto` | Hash/encoding | Uses `byte[]` from `Array` module |
-| `Bits` | Bit operations | Extends `Convert` module patterns |
-| `NativePtr` | Memory access | `Crypto` may use for buffer access |
-| `String` | String handling | `Crypto.base64Encode` produces strings |
+| `Cryptography` | Hash/encoding | Uses `byte[]` from `Array` module |
+| `Bits` | Byte order | Network protocol byte order conversion |
+| `NativePtr` | Memory access | `Cryptography` may use for buffer access |
+| `String` | String handling | `Cryptography.base64Encode` produces strings |
+
+Binary serialization is **not** in this set — it is handled by the structured
+[BAREWire](ffi-boundary.md) path (see §3.3), which carries the value's type and layout
+rather than reinterpreting its bits.
 
 ## 10. Error Handling
 
@@ -359,8 +349,10 @@ All intrinsics in these modules follow the CCS error handling model:
 
 ## 11. Normative Requirements
 
-1. **CCS SHALL** add `Crypto` and `Bits` to `IntrinsicModule` enumeration
+1. **CCS SHALL** add `Cryptography` and `Bits` to `IntrinsicModule` enumeration
 2. **CCS SHALL** type-check these intrinsics according to signatures in Section 6
 3. **Alex SHALL** generate correct MLIR for all intrinsics
 4. **Alex SHALL** respect platform byte order for `Bits.hton*`/`Bits.ntoh*`
-5. **Crypto intrinsics SHALL** produce RFC-compliant output (SHA-1: FIPS 180-4, Base64: RFC 4648)
+5. **Cryptography intrinsics SHALL** produce RFC-compliant output (SHA-1: FIPS 180-4, Base64: RFC 4648)
+6. **This specification SHALL NOT** provide a bit-cast / reinterpret-cast facility; binary serialization SHALL be handled by the structured [BAREWire](ffi-boundary.md) path (§3.3).
+```

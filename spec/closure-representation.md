@@ -1,6 +1,8 @@
 ---
 title: "Closure Representation"
 weight: 310
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

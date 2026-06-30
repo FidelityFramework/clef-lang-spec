@@ -1,6 +1,8 @@
 ---
 title: "Expressions"
 weight: 200
+category: Language
+status: normative
 ---
 
 The expression forms and related elements are as follows:

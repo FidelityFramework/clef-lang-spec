@@ -1,6 +1,8 @@
 ---
 title: "Inference Procedures"
 weight: 610
+category: Compiler
+status: normative
 ---
 
 This chapter provides an overview of the inference procedures used during Clef type checking. The procedures are organized into focused sub-chapters for clarity.

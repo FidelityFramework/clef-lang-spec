@@ -1,6 +1,8 @@
 ---
 title: "Platform Predicates Specification"
 weight: 540
+category: Platform
+status: normative
 ---
 
 > **Status**: Draft

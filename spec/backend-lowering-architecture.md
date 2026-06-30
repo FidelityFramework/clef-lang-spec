@@ -1,6 +1,8 @@
 ---
 title: "Backend Lowering Architecture"
 weight: 660
+category: Compiler
+status: normative
 ---
 
 > **Status**: Normative

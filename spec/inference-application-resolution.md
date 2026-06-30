@@ -1,6 +1,8 @@
 ---
 title: "Application Resolution"
 weight: 620
+category: Compiler
+status: normative
 ---
 
 This chapter describes how Clef resolves application expressions, including function and method applications. This is a component of the overall [Inference Procedures](inference-procedures.md).

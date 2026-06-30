@@ -1,6 +1,8 @@
 ---
 title: "Discriminated Union Representation"
 weight: 330
+category: Representation
+status: normative
 ---
 
 > **Status**: Draft

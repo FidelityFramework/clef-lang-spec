@@ -1,6 +1,8 @@
 ---
 title: "Sequence Operations Representation"
 weight: 350
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

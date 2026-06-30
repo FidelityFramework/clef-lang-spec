@@ -1,6 +1,8 @@
 ---
 title: "Lazy Value Representation"
 weight: 320
+category: Representation
+status: normative
 ---
 
 > **Normative specification for lazy value memory layout and thunk semantics in Clef compilation.**

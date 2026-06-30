@@ -1,6 +1,8 @@
 ---
 title: "Atomic Operations and Memory Ordering"
 weight: 510
+category: Semantics
+status: normative
 ---
 
 Clef provides atomic operations for concurrent programming. These operations map to hardware atomics with defined memory ordering semantics.

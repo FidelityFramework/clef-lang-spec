@@ -1,6 +1,8 @@
 ---
 title: "FFI Boundary Semantics"
 weight: 670
+category: Platform
+status: normative
 ---
 
 This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries. It establishes the null-safety contract, pointer type semantics, and the normative requirements for binding generation tools like Farscape.

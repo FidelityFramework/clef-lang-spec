@@ -1,6 +1,8 @@
 ---
 title: "Rounding and Directed Rounding"
 weight: 450
+category: Semantics
+status: normative
 ---
 
 > **Normative specification for how a rounding discipline is chosen, carried, and enforced once representation is not necessarily fixed by the platform. Rounding is the third panel of the numeric triptych: [Width Inference](width-inference.md) sizes an integer from its range, [Numeric Selection](numeric-selection.md) chooses a real's representation from its range, and this chapter specifies the rounding that representation applies — both when a value crosses a representation boundary and when an operation must commit a rounding direction for soundness.**

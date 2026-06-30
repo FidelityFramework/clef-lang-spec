@@ -1,6 +1,8 @@
 ---
 title: "Name Resolution"
 weight: 640
+category: Compiler
+status: normative
 ---
 
 This chapter describes how Clef resolves names in various contexts during type inference. This is a component of the overall [Inference Procedures](inference-procedures.md).

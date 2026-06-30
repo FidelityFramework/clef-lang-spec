@@ -1,6 +1,8 @@
 ---
 title: "NTU Type Nomenclature Specification"
 weight: 140
+category: Language
+status: normative
 ---
 
 > **Status**: Draft

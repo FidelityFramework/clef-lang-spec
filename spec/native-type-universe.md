@@ -1,6 +1,8 @@
 ---
 title: "Clef Type Universe Specification"
 weight: 120
+category: Language
+status: normative
 ---
 
 > **Status**: Draft

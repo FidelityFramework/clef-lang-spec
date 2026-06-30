@@ -1,6 +1,8 @@
 ---
 title: "Introduction"
 weight: 10
+category: Process
+status: informative
 ---
 
 Clef is a concurrent, natively compiled language in the ML family. It produces standalone executables for CPUs, GPUs, NPUs, FPGAs, and other accelerators without runtime dependencies. Clef uses ML-family syntax rooted in F# and shares common constructs with [OCaml](https://ocaml.org/), while incorporating influences from F\* (proof-carrying compilation), Scheme (nanopass compilation architecture), and hardware-oriented concurrency models.

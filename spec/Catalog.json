@@ -1,6 +1,11 @@
 {
     "FrontMatter": "front-matter",
-    "RfcStatus": "rfc-status",
+    "ChangeProcessManagement": "change-process-management",
+    "Scope": "scope",
+    "NormativeReferences": "normative-references",
+    "TermsAndDefinitions": "terms-and-definitions",
+    "Conformance": "conformance",
+    "BehaviorClassification": "behavior-classification",
     "MainBody": [
         "introduction",
         "program-structure",
@@ -39,7 +44,7 @@
         "rounding",
         "memory-regions",
         "access-kinds",
-        "intrinsics-crypto-bits",
+        "intrinsics-cryptography-bits",
         "program-structure-and-execution",
         "atomic-operations",
         "synchronous-rpc-liveness",

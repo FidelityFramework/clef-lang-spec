@@ -1,6 +1,8 @@
 ---
 title: "Interactive Development"
 weight: 680
+category: Compiler
+status: normative
 ---
 
 This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefx), script execution, and integration with development tooling.
@@ -466,7 +468,7 @@ val it : PIDController = { Kp = 1.0; Ki = 0.1; Kd = 0.05 }
 Unlike NuGet which loads pre-compiled binaries, Fargo loads source:
 
 ```
-> #require "crypto-algorithms";;\n-- Source package: crypto-algorithms-2.0.0\n-- Compiling with current target optimizations...\n-- Inlining enabled across package boundary\nLoaded: CryptoAlgorithms
+> #require "cryptography-algorithms";;\n-- Source package: cryptography-algorithms-2.0.0\n-- Compiling with current target optimizations...\n-- Inlining enabled across package boundary\nLoaded: CryptographyAlgorithms
 ```
 
 This enables:

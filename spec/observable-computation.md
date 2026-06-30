@@ -1,6 +1,8 @@
 ---
 title: "Observable Computation"
 weight: 410
+category: Semantics
+status: normative
 ---
 
 > **Normative specification for the `Observable<'T>` intrinsic type, push-based reactive observation, and its fusion into demand-driven computation in Clef compilation.**

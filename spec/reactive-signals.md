@@ -1,6 +1,8 @@
 ---
 title: "Reactive Signals"
 weight: 420
+category: Semantics
+status: normative
 ---
 
 > **Status**: Revised

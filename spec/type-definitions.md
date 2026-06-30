@@ -1,6 +1,8 @@
 ---
 title: "Type Definitions"
 weight: 180
+category: Language
+status: normative
 ---
 
 Type definitions define new named types. The grammar of type definitions is shown below.

@@ -1,6 +1,8 @@
 ---
 title: "Patterns"
 weight: 210
+category: Language
+status: normative
 ---
 
 Patterns are used to perform simultaneous case analysis and decomposition on values together with

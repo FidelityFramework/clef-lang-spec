@@ -1,6 +1,8 @@
 ---
 title: "Front Matter"
 weight: 1
+category: Process
+status: informative
 ---
 
 This is the normative language specification for **Clef**, a concurrent, natively compiled language.

@@ -1,6 +1,8 @@
 ---
 title: "Width Inference"
 weight: 430
+category: Semantics
+status: normative
 ---
 
 > **Normative specification for value-range analysis, minimal-width derivation, and representation selection in Clef compilation. Supersedes the former polymorphic numeric-conversion model.**

@@ -1,6 +1,8 @@
 ---
 title: "List Operations Representation"
 weight: 360
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

@@ -1,6 +1,8 @@
 ---
 title: "Program Semantic Graph"
 weight: 300
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

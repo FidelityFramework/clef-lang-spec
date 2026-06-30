@@ -1,6 +1,8 @@
 ---
 title: "Supplementary Inference Procedures"
 weight: 650
+category: Compiler
+status: normative
 ---
 
 This chapter covers additional inference procedures including dispatch slot inference, byref safety analysis, and arity inference. This is a component of the overall [Inference Procedures](inference-procedures.md).

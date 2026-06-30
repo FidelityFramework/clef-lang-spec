@@ -1,6 +1,8 @@
 ---
 title: "Basic Grammar Elements"
 weight: 40
+category: Language
+status: normative
 ---
 
 This section defines grammar elements that are used repeatedly in later sections.

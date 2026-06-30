@@ -1,6 +1,8 @@
 ---
 title: "Set Representation"
 weight: 380
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

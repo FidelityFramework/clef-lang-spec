@@ -1,6 +1,8 @@
 ---
 title: "ClefExpr: CCS Typed Expression Representation"
 weight: 600
+category: Compiler
+status: normative
 ---
 
 > **Status**: Draft

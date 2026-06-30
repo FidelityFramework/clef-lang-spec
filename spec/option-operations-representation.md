@@ -1,6 +1,8 @@
 ---
 title: "Option Operations Representation"
 weight: 390
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

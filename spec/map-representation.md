@@ -1,6 +1,8 @@
 ---
 title: "Map Representation"
 weight: 370
+category: Representation
+status: normative
 ---
 
 > **Status**: Normative

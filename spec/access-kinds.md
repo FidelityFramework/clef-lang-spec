@@ -1,6 +1,8 @@
 ---
 title: "Access Kinds"
 weight: 465
+category: Representation
+status: normative
 ---
 
 Access kinds define the permitted operations on pointers and [memory regions](memory-regions.md). They are enforced at compile time and affect code generation.

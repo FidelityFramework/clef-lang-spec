@@ -1,6 +1,8 @@
 ---
 title: "Lexical Filtering"
 weight: 50
+category: Language
+status: normative
 ---
 
 ## Lightweight Syntax
