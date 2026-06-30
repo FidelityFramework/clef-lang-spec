@@ -1,5 +1,5 @@
 ---
-title: "Closure Representation in Clef"
+title: "Closure Representation"
 weight: 310
 ---
 

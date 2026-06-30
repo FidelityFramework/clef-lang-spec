@@ -1,5 +1,5 @@
 ---
-title: "Lazy Value Representation in Clef"
+title: "Lazy Value Representation"
 weight: 320
 ---
 

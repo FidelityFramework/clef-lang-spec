@@ -1,5 +1,5 @@
 ---
-title: "Sequence Expression Representation in Clef"
+title: "Sequence Expression Representation"
 weight: 340
 ---
 

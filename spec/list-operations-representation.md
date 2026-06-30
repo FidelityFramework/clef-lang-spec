@@ -1,5 +1,5 @@
 ---
-title: "List Operations Representation in Clef"
+title: "List Operations Representation"
 weight: 360
 ---
 

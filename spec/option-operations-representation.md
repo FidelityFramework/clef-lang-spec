@@ -1,5 +1,5 @@
 ---
-title: "Option Operations Representation in Clef"
+title: "Option Operations Representation"
 weight: 390
 ---
 

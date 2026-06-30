@@ -1,5 +1,5 @@
 ---
-title: "Map Representation in Clef"
+title: "Map Representation"
 weight: 370
 ---
 

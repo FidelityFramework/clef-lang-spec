@@ -1,5 +1,5 @@
 ---
-title: "Set Representation in Clef"
+title: "Set Representation"
 weight: 380
 ---
 

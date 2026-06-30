@@ -1,5 +1,5 @@
 ---
-title: "Sequence Operations Representation in Clef"
+title: "Sequence Operations Representation"
 weight: 350
 ---
 
