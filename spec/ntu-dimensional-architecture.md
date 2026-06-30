@@ -1,7 +1,6 @@
 ---
 title: "NTU Dimensional Type Architecture"
 weight: 150
-draft: true
 ---
 
 > **Status**: Design: Active

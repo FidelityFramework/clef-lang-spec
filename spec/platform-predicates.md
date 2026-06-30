@@ -1,7 +1,6 @@
 ---
 title: "Platform Predicates Specification"
 weight: 540
-draft: true
 ---
 
 > **Status**: Draft

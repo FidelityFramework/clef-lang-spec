@@ -1,7 +1,6 @@
 ---
 title: "Synchronous RPC and Wait Classification"
 weight: 520
-draft: true
 ---
 
 Clef classifies every synchronous request-and-reply call between actors by its contribution to the program's wait-for graph. The classification is computed at compile time, governs whether deadlock freedom is statically guaranteed for that call, and is surfaced to the developer through diagnostics and an opt-in annotation. The design rationale and its relationship to the session-types literature are developed in the [Deadlock Freedom design note](https://clef-lang.com/docs/design/deadlock-freedom/); this section specifies the normative behavior.

@@ -1,7 +1,6 @@
 ---
 title: "Discriminated Union Representation"
 weight: 330
-draft: true
 ---
 
 > **Status**: Draft

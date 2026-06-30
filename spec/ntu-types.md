@@ -1,7 +1,6 @@
 ---
 title: "NTU Type Nomenclature Specification"
 weight: 140
-draft: true
 ---
 
 > **Status**: Draft
