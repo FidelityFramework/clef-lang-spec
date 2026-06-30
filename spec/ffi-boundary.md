@@ -246,6 +246,8 @@ Types NOT wrapped in `Option` are passed directly without marshalling:
 
 This section defines normative requirements for Farscape and other binding generation tools.
 
+> *Informative.* The [C++ Binding via Farscape](https://clef-lang.com/docs/internals/farscape/binding-cpp-to-clef-in-farscape/) guide describes how these requirements are applied in practice.
+
 ### 5.1 C Nullability Annotation Mapping
 
 Farscape MUST interpret C nullability annotations as follows:
