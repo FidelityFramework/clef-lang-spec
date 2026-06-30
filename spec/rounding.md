@@ -46,7 +46,7 @@ so that an `Interval<r>` SHALL NOT be well-formed over a representation that can
 
 ### 3.2 Lossy-conversion rounding is a coeffect discipline
 
-When a wrong rounding produces only an *inaccuracy* — the representation-boundary case — the rounding discipline SHALL be carried as a **coeffect on the Program Semantic Graph**, codata beside the representation, dimension, grade, and escape class, in the same frame [Numeric Selection §9–§10](numeric-selection.md) uses for representation itself. The discipline is recorded at the conversion site, preserved through lowering without recomputation (certified passes preserve it by construction; uncertified passes receive a per-edge re-check), and surfaced at design time as part of the conversion's fidelity (§6). A lossy conversion whose discipline is unspecified is the open-syntax item of §6, not a silent default.
+When a wrong rounding produces only an *inaccuracy* — the representation-boundary case — the rounding discipline SHALL be carried as a **[coeffect on the Program Semantic Graph](program-semantic-graph.md)**, codata beside the representation, dimension, grade, and escape class, in the same frame [Numeric Selection §9–§10](numeric-selection.md) uses for representation itself. The discipline is recorded at the conversion site, preserved through lowering without recomputation (certified passes preserve it by construction; uncertified passes receive a per-edge re-check), and surfaced at design time as part of the conversion's fidelity (§6). A lossy conversion whose discipline is unspecified is the open-syntax item of §6, not a silent default.
 
 ### 3.3 The seam is the chapter's organizing principle
 

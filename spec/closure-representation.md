@@ -18,7 +18,7 @@ weight: 310
 
 ## 1. Overview
 
-Clef uses **flat closures** for function values that capture variables from their enclosing scope. This chapter specifies the memory representation, capture semantics, and calling conventions.
+Clef uses **[flat closures](backend-lowering-architecture.md)** for function values that capture variables from their enclosing scope. This chapter specifies the memory representation, capture semantics, and calling conventions.
 
 ## 2. Memory Layout Specification
 
@@ -59,7 +59,7 @@ Captures are classified by the mutability of the source binding:
 
 Closures are allocated:
 
-1. **On Stack**: When lifetime is bounded to enclosing scope
+1. **[On Stack](memory-regions.md)**: When lifetime is bounded to enclosing scope
 2. **In Region**: When escaping scope but within region lifetime
 3. **Never Heap**: No GC-managed heap allocation
 
@@ -163,7 +163,7 @@ Clef distinguishes two categories of functions that capture variables.
 
 ### 6.1 Escaping Closures (Closure Struct Model)
 
-Anonymous lambdas and function values that may escape their defining scope use the flat closure struct:
+[Anonymous lambdas and function values](expressions.md) that may escape their defining scope use the flat closure struct:
 
 ```fsharp
 let makeAdder n =
@@ -215,7 +215,7 @@ A Lambda SHALL be classified as a nested named function if and only if:
 
 ### 7.1 CCS Phase
 
-CCS constructs the PSG with complete lambda information:
+CCS constructs the [PSG](program-semantic-graph.md) with complete lambda information:
 - `SemanticKind.Lambda(parameters, body, captures)`
 - Captures computed during scope analysis
 - Mutability tracked in `CaptureInfo.IsMutable`

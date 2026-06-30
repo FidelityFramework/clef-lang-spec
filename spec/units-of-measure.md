@@ -162,7 +162,7 @@ Two measures are indistinguishable if they can be made equivalent by repeated ap
 - _Inverses_. `measure-int / measure-int` is equivalent to `1`.
 - _Abbreviation_. `long-ident` is equivalent to `measure` if a measure abbreviation of the form `[<Measure>] type long-ident = measure` is currently in scope.
 
-Note that these are the laws of Abelian groups together with expansion of abbreviations.
+Note that these are the [laws of Abelian groups](https://arxiv.org/abs/2603.16437) together with expansion of abbreviations.
 
 For example, `kg m / s^2` is the same as `m kg / s^2`.
 

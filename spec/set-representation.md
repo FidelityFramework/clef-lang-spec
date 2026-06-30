@@ -255,7 +255,7 @@ Set.isEmpty : Set<'T> -> bool
 5. **Structural Sharing**: Unchanged subtrees SHALL be shared between versions
 6. **Empty Set**: `Set.empty` SHALL be represented as null pointer
 7. **Comparison**: Element comparison SHALL use `compare` function from `'T : comparison` constraint
-8. **Arena Allocation**: Set nodes SHALL be allocated in arenas, not GC heap
+8. **[Arena Allocation](memory-regions.md)**: Set nodes SHALL be allocated in arenas, not GC heap
 
 ## 7. SSA Cost Formulas
 

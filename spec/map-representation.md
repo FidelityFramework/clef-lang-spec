@@ -220,7 +220,7 @@ Map.keys : Map<'K, 'V> -> seq<'K>
 Map.values : Map<'K, 'V> -> seq<'V>
 ```
 
-**Decomposition**: Lazy in-order traversal yielding only key or value component.
+**Decomposition**: [Lazy in-order traversal](seq-representation.md) yielding only key or value component.
 
 ### 5.6 Map.fold
 
@@ -285,7 +285,7 @@ Original:           After add "d" 4:
 4. **Structural Sharing**: Unchanged subtrees SHALL be shared between versions
 5. **Empty Map**: `Map.empty` SHALL be represented as null pointer
 6. **Comparison**: Key comparison SHALL use `compare` function from `'K : comparison` constraint
-7. **Arena Allocation**: Map nodes SHALL be allocated in arenas, not GC heap
+7. **[Arena Allocation](memory-regions.md)**: Map nodes SHALL be allocated in arenas, not GC heap
 
 ## 8. SSA Cost Formulas
 

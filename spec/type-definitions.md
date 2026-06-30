@@ -549,7 +549,7 @@ with the previous `record-field`.
 
 ## Union Type Definitions
 
-A _union type definition_ is a type definition that includes one or more _union cases_. For example:
+A [_union type definition_](discriminated-union-representation.md) is a type definition that includes one or more _union cases_. For example:
 
 ```fsharp
 type Message =
@@ -585,7 +585,7 @@ type Shape =
     | Prism of width: float * float * height: float
 ```
 
-The names are referenced when pattern matching on union values of this type. When using pattern
+The names are referenced when [pattern matching on union values](patterns.md) of this type. When using pattern
 matching with multiple fields, semicolons are used to delimit the named fields, e.g. `Prism(width=w; height=h).`
 
 The following declaration defines a type abbreviation if the named type `A` exists in the name
@@ -1121,7 +1121,7 @@ whether references are circular.
 ## Struct Type Definitions
 
 A _struct type definition_ is a type definition whose instances are stored inline inside the stack frame or
-object of which they are a part. The type is represented as a value type with deterministic memory layout.
+object of which they are a part. The type is [represented as a value type with deterministic memory layout](type-representation-architecture.md).
 For example:
 
 ```fsharp

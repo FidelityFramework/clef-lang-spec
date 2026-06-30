@@ -192,7 +192,7 @@ type SemanticKind =
     | LazyExpr of bodyNodeId: NodeId * captures: CaptureInfo list
 ```
 
-The PSG node contains:
+The [PSG node](program-semantic-graph.md) contains:
 - `bodyNodeId`: Reference to the thunk Lambda node
 - `captures`: Pre-computed capture list (same as thunk's captures)
 

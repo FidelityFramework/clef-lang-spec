@@ -111,7 +111,7 @@ _simplified_ and _eliminated_ based on these equations through _constraint solvi
 
 ### Unified Type Representation
 
-CCS uses a unified type representation throughout type checking and inference. Type constructors from the Native Type Universe (NTU) are recognized during construction, producing `NativeType` values directly with type variables preserved.
+CCS uses a unified type representation throughout type checking and inference. [Type constructors from the Native Type Universe (NTU) are recognized](native-type-universe.md) during construction, producing `NativeType` values directly with type variables preserved.
 
 When CCS encounters a type expression such as `nativeptr<'T>`:
 
@@ -126,7 +126,7 @@ Type variables participate fully in:
 - Let-polymorphism (generalization at let-binding sites)
 - SRTP constraint collection and resolution
 
-Monomorphization, the instantiation of polymorphic types with concrete types, occurs during PSG saturation when code generation requires concrete representations. This timing preserves optimization opportunities and maintains principal types throughout type inference.
+Monomorphization, the instantiation of polymorphic types with concrete types, [occurs during PSG saturation](program-semantic-graph.md) when code generation requires concrete representations. This timing preserves optimization opportunities and maintains principal types throughout type inference.
 
 ### Named Types
 
@@ -403,7 +403,7 @@ During constraint solving (see [§](inference-constraint-solving.md#constraint-s
 - Class types
 - Interface types
 - Records (unless marked `[<Struct>]`)
-- Discriminated unions (unless marked `[<Struct>]` or single-case)
+- [Discriminated unions](discriminated-union-representation.md) (unless marked `[<Struct>]` or single-case)
 - Function types
 - List types
 

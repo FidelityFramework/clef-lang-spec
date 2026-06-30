@@ -5,7 +5,7 @@ weight: 400
 
 > **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in Clef compilation.**
 
-> **Acknowledgment**: The design of `Incremental<'T>` takes direct inspiration from the elegant adaptive-computation model of **FSharp.Data.Adaptive** (the `aval`/`cval`/`aset` families and their change-propagation and cutoff semantics), as well as from Jane Street's `Incremental`. Clef adopts that model — demand-driven recomputation, automatic cutoff, and dependency tracking expressed through computation expressions — while relocating it from a runtime-resident dependency graph into a compile-time intrinsic the Program Semantic Graph preserves through lowering. The credit is to the model's design; the departure is only in where it lives.
+> **Acknowledgment**: The design of `Incremental<'T>` takes direct inspiration from the elegant adaptive-computation model of **FSharp.Data.Adaptive** (the `aval`/`cval`/`aset` families and their change-propagation and cutoff semantics), as well as from Jane Street's `Incremental`. Clef adopts that model — demand-driven recomputation, automatic cutoff, and dependency tracking expressed through computation expressions — while relocating it from a runtime-resident dependency graph into a compile-time intrinsic the [Program Semantic Graph](program-semantic-graph.md) preserves through lowering. The credit is to the model's design; the departure is only in where it lives.
 
 ## 1. Overview
 

@@ -9,7 +9,7 @@ weight: 600
 
 ## Overview
 
-`ClefExpr` is the CCS (Clef Compiler Service) native typed expression representation. It provides an **expression-centric view** over the SemanticGraph, the core intermediate representation used by Clef compilation.
+`ClefExpr` is the CCS (Clef Compiler Service) native typed expression representation. It provides an **expression-centric view** over [the SemanticGraph](program-semantic-graph.md), the core intermediate representation used by Clef compilation.
 
 ### Why ClefExpr Exists
 
@@ -312,7 +312,7 @@ This invariant means:
 - No need to "peel" nested lambdas during code generation
 - Function types directly match parameter lists
 
-**Pattern Lambda Desugaring**: Lambdas with patterns (not just variable names) elaborate to pattern matching:
+**Pattern Lambda Desugaring**: Lambdas with patterns (not just variable names) elaborate to [pattern matching](patterns.md):
 
 ```fsharp
 // Source

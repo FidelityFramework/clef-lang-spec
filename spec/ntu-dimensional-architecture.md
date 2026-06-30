@@ -24,7 +24,7 @@ provide the abstract dimensional substrate that makes cross-target type reasonin
 
 This document specifies the architectural direction for the NTU as a multi-dimensional
 type substrate, not merely "integers with variable width" but a type system where
-multiple dimensions survive compilation, flow through the Program Semantic Graph, and
+multiple dimensions survive compilation, [flow through the Program Semantic Graph](program-semantic-graph.md), and
 inform code generation for any target.
 
 ### 1.1 Design Provenance
@@ -59,7 +59,7 @@ The insight chain that motivates this architecture:
 
 ### 1.2 Core Principle
 
-**The NTU is a multi-dimensional type substrate.** Types carry dimensional metadata
+**The NTU is a [multi-dimensional type substrate](https://arxiv.org/abs/2603.16437).** Types carry dimensional metadata
 that survives compilation and informs target-specific code generation. When a section
 of the program graph takes a platform definition, that section becomes concretely typed
 for its target, but the NTU machinery is not to enumerate those concrete types.

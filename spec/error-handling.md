@@ -31,7 +31,7 @@ These two domains have different requirements and constraints, but must remain c
 
 ### The Result Type
 
-The `Result<'T, 'E>` type is the primary mechanism for representing operations that may fail:
+The [`Result<'T, 'E>` type](discriminated-union-representation.md) is the primary mechanism for representing operations that may fail:
 
 ```fsharp
 type Result<'T, 'E> =
@@ -135,14 +135,14 @@ with
 However, the semantics differ:
 
 - In Clef, `try`/`with` may be used for effect handling (delimited continuations) rather than exception catching
-- The exact semantics depend on the effect system specification (see [Effects](effects.md))
+- The exact semantics depend on the effect system specification
 - Code using `try`/`with` for exception handling must be migrated to Result-based patterns for native compilation
 
 > **Tooling Note**: Lattice and other editors will parse `try`/`with` expressions normally. CCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
 
 ### Null-Freedom
 
-Clef is null-free by construction. The following are compile-time errors:
+[Clef is null-free by construction](special-attributes-and-types.md). The following are compile-time errors:
 
 ```fsharp
 let x : string = null           // ERROR: null literal not available
@@ -183,7 +183,7 @@ CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnos
 
 | Range | Category |
 |-------|----------|
-| CCS8000-CCS8099 | Type system (null-freedom, access kinds) |
+| CCS8000-CCS8099 | Type system (null-freedom, [access kinds](access-kinds.md)) |
 | CCS8100-CCS8199 | Memory management (regions, lifetimes) |
 | CCS8200-CCS8299 | Platform bindings |
 | CCS8300-CCS8399 | Effect system |
@@ -320,7 +320,7 @@ The following areas require additional design work:
 
 1. **Effect System Integration**: How Result interacts with algebraic effects and delimited continuations
 2. **Async/Concurrent Errors**: Error propagation in concurrent and asynchronous contexts
-3. **Interop Boundaries**: Error translation at FFI boundaries with C libraries
+3. **Interop Boundaries**: Error translation at [FFI boundaries](ffi-boundary.md) with C libraries
 4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
 5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
 6. **Tooling PR Strategy**: Concrete changes needed for Lattice/FSAC to support CCS

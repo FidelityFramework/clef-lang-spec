@@ -150,7 +150,7 @@ endianness = "little"
 
 This configuration flows through:
 1. `Fidelity.Platform` selects the appropriate `PlatformDescriptor`
-2. CCS uses platform info for type layouts and intrinsic typing
+2. CCS uses platform info for [type layouts](type-representation-architecture.md) and intrinsic typing
 3. Alex selects appropriate backend dialect usage
 4. Backend receives correctly-lowered IR
 
@@ -158,6 +158,6 @@ This configuration flows through:
 
 1. **Portable Operations SHALL use portable dialects**: Control flow, arithmetic, and directly-called functions use `func`, `cf`, `scf`, `arith` dialects
 2. **Address-taken functions SHALL use backend dialects**: Functions whose address is taken use the backend's function definition (e.g., `llvm.func`)
-3. **Struct operations SHALL use backend dialects**: Record, union, and closure struct manipulation uses backend-specific operations
+3. **Struct operations SHALL use backend dialects**: Record, [union](discriminated-union-representation.md), and closure struct manipulation uses backend-specific operations
 4. **`llvm.call` target restriction**: `llvm.call` SHALL only call functions defined as `llvm.func`; to call a `func.func` from `llvm.func`, use `func.call`
 5. **Platform configuration flow**: `fidproj` platform settings SHALL inform all lowering decisions

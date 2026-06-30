@@ -7,7 +7,7 @@ weight: 410
 
 ## 1. Overview
 
-Clef implements `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Unlike a library reactive framework layered on a managed runtime (such as .NET's `IObservable<'T>`/`IObserver<'T>` with `Subject` plumbing), `Observable<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling the compiler to place observer state in arena memory and to fuse an observable directly into the demand-driven computation it feeds.
+Clef implements `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Unlike a library reactive framework layered on a managed runtime (such as .NET's `IObservable<'T>`/`IObserver<'T>` with `Subject` plumbing), `Observable<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the [Program Semantic Graph](program-semantic-graph.md) preserves through lowering, enabling the compiler to place observer state in arena memory and to fuse an observable directly into the demand-driven computation it feeds.
 
 `Observable<'T>` occupies the push pole of the spectrum of evaluation strategies that the compiler understands natively (the same spectrum specified in [Incremental Computation §1](incremental-computation.md)):
 

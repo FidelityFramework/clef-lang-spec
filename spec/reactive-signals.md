@@ -20,7 +20,7 @@ Signals are a **thin surface layer**, not a separate reactive engine. Each const
 Two consequences follow from being a surface over the intrinsics, and they are the substance of this revision:
 
 1. **Reactive callbacks are flat closures, not function pointers.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). The set of signals it reads is its capture set, and the capture set *is* its dependency-edge set. This restores the closure ergonomics SolidJS depends on and removes the top-level-function restriction of the earlier formulation.
-2. **The dependency graph is the Program Semantic Graph, not a runtime signal table.** Dependency tracking is the compile-time capture analysis already used by `Incremental<'T>`; there is no runtime slot table, no `CurrentTracking` global, and no manual subscription bookkeeping.
+2. **The dependency graph is the [Program Semantic Graph](program-semantic-graph.md), not a runtime signal table.** Dependency tracking is the compile-time capture analysis already used by `Incremental<'T>`; there is no runtime slot table, no `CurrentTracking` global, and no manual subscription bookkeeping.
 
 `FnPtr` (function pointers) is retained only as a **C FFI interop primitive** for platform callbacks (event loops, Wayland/GTK listeners); it is **not** the reactive callback mechanism. See [§9](#9-function-pointers-are-for-ffi-not-reactivity).
 

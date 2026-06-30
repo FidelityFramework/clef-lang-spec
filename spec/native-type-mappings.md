@@ -240,7 +240,7 @@ type Point = { X: float; Y: float }
 
 ### Discriminated Unions
 
-Discriminated unions use tagged representation:
+[Discriminated unions use tagged representation](discriminated-union-representation.md):
 
 ```fsharp
 type Option<'T> = None | Some of 'T
@@ -411,7 +411,7 @@ Strings use UTF-8 fat pointer representation:
 
 ### Option
 
-Option types use `voption` (value option) semantics:
+[Option types](option-operations-representation.md) use `voption` (value option) semantics:
 
 ```fsharp
 let maybe : int option = Some 42
@@ -464,7 +464,7 @@ add 1 2  // Direct call, no closure
 
 ### Closures
 
-Functions capturing environment use closure representation:
+Functions capturing environment use [closure representation](closure-representation.md):
 
 ```fsharp
 let makeAdder n = fun x -> x + n

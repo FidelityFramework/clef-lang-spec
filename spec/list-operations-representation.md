@@ -11,7 +11,7 @@ weight: 360
 
 Clef implements list operations (`List.map`, `List.filter`, `List.fold`, `List.rev`, etc.) as **Baker-decomposed algorithms** that expand to primitive list operations at compile time. Unlike Seq operations (which create wrapper structures), List operations produce eager results via recursive traversal.
 
-**Key Insight**: List HOFs are decomposed by Baker into compositions of primitive operations (`cons`, `head`, `tail`, `isEmpty`, `empty`). The decomposition happens at compile time, producing a PSG that Alex witnesses directly.
+**Key Insight**: List HOFs are decomposed by Baker into compositions of primitive operations (`cons`, `head`, `tail`, `isEmpty`, `empty`). The decomposition happens at compile time, producing [a PSG](program-semantic-graph.md) that Alex witnesses directly.
 
 ## 2. Relationship to Prior Chapters
 

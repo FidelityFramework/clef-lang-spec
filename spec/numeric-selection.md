@@ -3,7 +3,7 @@ title: "Numeric Selection"
 weight: 440
 ---
 
-> **Normative specification for compile-time selection of the numeric *representation* of real-valued quantities — posit, IEEE-754, or fixed-point — from a value's dimensional range, via the same coeffect machinery and Program Semantic Graph carriage that width inference uses for integers.**
+> **Normative specification for compile-time selection of the numeric *representation* of real-valued quantities — posit, IEEE-754, or fixed-point — from a value's dimensional range, via the same coeffect machinery and [Program Semantic Graph](program-semantic-graph.md) carriage that width inference uses for integers.**
 
 ## 1. Overview
 

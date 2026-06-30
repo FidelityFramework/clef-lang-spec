@@ -334,7 +334,7 @@ LLVM → Native Binary
 
 **Key Architectural Points:**
 1. CCS handles type checking and IntrinsicInfo creation
-2. The PSG carries the intrinsic metadata through nanopasses
+2. [The PSG carries](program-semantic-graph.md) the intrinsic metadata through nanopasses
 3. Alex witnesses consume the enriched PSG - no string matching on names
 4. Platform decisions (byte order, crypto impl) flow via quotations
 

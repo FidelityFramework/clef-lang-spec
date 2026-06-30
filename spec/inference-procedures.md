@@ -10,7 +10,7 @@ This chapter provides an overview of the inference procedures used during Clef t
 Type inference in Clef follows standard Hindley-Milner inference extended with:
 - Overload resolution for methods and functions
 - Statically Resolved Type Parameters (SRTP)
-- Member constraints
+- [Member constraints](types-and-type-constraints.md)
 - Constraint propagation
 
 The inference process involves:

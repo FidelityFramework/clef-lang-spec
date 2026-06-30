@@ -2743,7 +2743,7 @@ The initial type of the overall expression is `ty`. Expression `expr` is checked
 
 ### Dynamic Type-Test Expressions
 
-> **Clef Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
+> **Clef Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on [discriminated unions](discriminated-union-representation.md) instead. This section describes managed F# behavior.
 
 A dynamic type-test expression has the following form:
 

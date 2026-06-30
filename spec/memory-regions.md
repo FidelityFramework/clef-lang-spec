@@ -131,7 +131,7 @@ let lookupTable : Ptr<int, Flash, ReadOnly> = ...
 
 ## Region-Typed Pointers
 
-Pointers carry region and access information in their type:
+Pointers carry region and [access information](access-kinds.md) in their type:
 
 ```fsharp
 type Ptr<'T, 'Region, 'Access>

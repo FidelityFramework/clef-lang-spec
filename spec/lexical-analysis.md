@@ -503,7 +503,7 @@ present, the first line of a file is numbered 1.
 
 ## Hidden Tokens
 
-Some hidden tokens are inserted by lexical filtering (§ 15 ) or are used to replace existing tokens. See
+Some hidden tokens are inserted by [lexical filtering](lexical-filtering.md) (§ 15 ) or are used to replace existing tokens. See
 § 15 for a full specification and for the augmented grammar rules that take these into account.
 
 ## Identifier Replacements

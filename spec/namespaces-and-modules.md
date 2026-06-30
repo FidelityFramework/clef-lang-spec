@@ -5,7 +5,7 @@ weight: 220
 
 Clef is primarily an expression-based language. Source code units are made up of _declarations_,
 some of which can contain further declarations. Declarations are grouped using _namespace
-declaration groups_, _type definitions_, and _module definitions_. A file may contain multiple
+declaration groups_, [_type definitions_](type-definitions.md), and _module definitions_. A file may contain multiple
 namespace declaration groups; types and modules may contain member, function, and value
 definitions, which contain expressions.
 
@@ -289,7 +289,7 @@ let oneTwoPair = ( 1 , 2 )
 let pear v = (v, v)
 ```
 
-By the use of pattern matching, a value definition can define more than one value. In such cases,
+By the use of [pattern matching](patterns.md), a value definition can define more than one value. In such cases,
 the attributes apply to each value.
 
 ```fsharp

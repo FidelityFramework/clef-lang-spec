@@ -274,7 +274,7 @@ pushed at the following times:
 - Immediately after an infix token is encountered.
 - Immediately after a -> token is encountered in a _MatchClauses_ context.
 - Immediately after an `interface`, `class`, or `struct` token is encountered in a type declaration.
-- Immediately after an `=` token is encountered in a record expression when the subsequent token
+- Immediately after an `=` token is encountered in a [record expression](expressions.md) when the subsequent token
     either (a) occurs on the next line or (b) is one of _try_ , _match_ , _if_ , _let_ , _for_ , _while_ or _use_.
 - Immediately after a `<-` token is encoutered when the subsequent token either (a) does not occur
     on the same line or (b) is one of _try_ , _match_ , _if_ , _let_ , _for_ , _while_ or _use_.

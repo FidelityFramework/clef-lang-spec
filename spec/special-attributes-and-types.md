@@ -233,7 +233,7 @@ Stack overflow can occur with deeply recursive functions. Clef provides:
 - Compile-time analysis to warn about potentially unbounded recursion
 - Platform-specific stack size configuration
 
-> **Clef Note**: The absence of `NullReferenceException`, `InvalidCastException`, and similar runtime type errors is a fundamental property of Clef's null-free, statically verified type system.
+> **Clef Note**: The absence of `NullReferenceException`, `InvalidCastException`, and similar runtime type errors is a fundamental property of Clef's null-free, [statically verified type system](types-and-type-constraints.md).
 
 ## Platform-Specific Types
 

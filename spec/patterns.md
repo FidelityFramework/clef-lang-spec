@@ -138,7 +138,7 @@ sections.
 
 ### Union Case Patterns
 
-If `long-ident` from [§](patterns.md#named-patterns) resolves to a union case, the pattern is a union case pattern. If `long-ident`
+If `long-ident` from [§](patterns.md#named-patterns) resolves to a union case, [the pattern is a union case pattern](discriminated-union-representation.md). If `long-ident`
 resolves to a union case `Case` , then `long-ident` and `long-ident pat` are patterns that match pattern
 inputs that have union case label `Case`. The `long-ident` form is used if the corresponding case takes
 no arguments, and the `long-ident pat` form is used if it takes arguments.

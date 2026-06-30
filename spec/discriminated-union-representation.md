@@ -171,7 +171,7 @@ This is the "no runtime" guarantee: the compiler has complete layout knowledge, 
 
 ### 3.1 DU Value Representation
 
-A DU value is represented as a **pointer to a region-allocated block**:
+A DU value is represented as a **pointer to a [region-allocated block](memory-regions.md)**:
 
 ```
 DU Value (at runtime)
@@ -503,7 +503,7 @@ let expr = Add(Const 1, Add(Const 2, Const 3))
 
 ### 9.1 Closure Payloads
 
-When a DU case contains a function/closure:
+When a DU case contains a function/[closure](closure-representation.md):
 
 ```fsharp
 type Lazy<'T> =

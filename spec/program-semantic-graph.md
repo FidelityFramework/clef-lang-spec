@@ -8,7 +8,7 @@ weight: 300
 
 ## 1. Overview
 
-The Program Semantic Graph (PSG) is the unified intermediate representation produced by CCS (Clef Compiler Service). It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
+The [Program Semantic Graph (PSG)](https://arxiv.org/abs/2603.17627) is the unified intermediate representation produced by CCS (Clef Compiler Service). It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
 
 ### 1.1 Architectural Heritage
 
@@ -403,7 +403,7 @@ SeqStateMachine {
 
 ### 12.5 Sequence Expression Saturation
 
-For `seq { }` expressions, saturation produces explicit state machine structure:
+[For `seq { }` expressions, saturation produces explicit state machine structure:](seq-representation.md)
 
 **Input (pre-saturation)**:
 ```fsharp

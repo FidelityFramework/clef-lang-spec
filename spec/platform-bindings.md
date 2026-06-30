@@ -73,7 +73,7 @@ CCS recognizes intrinsics by module path pattern during type checking. When code
 1. Matches the module path `Sys`
 2. Matches the member name `write`
 3. Returns the intrinsic's native type signature
-4. Marks the call as `SemanticKind.Intrinsic` in the SemanticGraph
+4. Marks the call as `SemanticKind.Intrinsic` in the [SemanticGraph](program-semantic-graph.md)
 
 The compiler (Alex) then provides platform-specific implementations during code generation.
 

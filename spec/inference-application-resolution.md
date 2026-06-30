@@ -145,7 +145,7 @@ _Item-Qualified Lookup_ proceeds as follows:
           field was accessed in the case where this is a field in a generic type.
         - Apply _Expression-Qualified Lookup_ to `fty` and `projs`.
 
-    - If `item` is a union case tag, exception tag, or active pattern result element tag
+    - If `item` is a [union case tag](discriminated-union-representation.md), exception tag, or active pattern result element tag
         - Check the tag for accessibility and attributes.
         - If `projs` begins with `expr`, use `expr` as the expression argument.
         - Otherwise, use no expression argument or type arguments. In this case, build a
@@ -244,7 +244,7 @@ Application Resolution_ does the following:
     - Process `projs` using _Expression-Qualified Lookup_ against `ty2`.
 3. If the assertion fails, and `expr` has the form `{ computation-expr }`:
 
-    - Check the expression as the computation expression form `f { computation-expr }`, giving result type `ty1`.
+    - Check the expression as the [computation expression](expressions.md) form `f { computation-expr }`, giving result type `ty1`.
     - Process `projs` using Expression-Qualified Lookup against `ty1`.
 
 ## Method Application Resolution

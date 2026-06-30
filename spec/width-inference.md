@@ -11,7 +11,7 @@ Clef does not fix numeric representations by declaration and then coerce between
 
 This chapter replaces the earlier polymorphic, silently-lossy conversion model (`int : 'T -> int`, truncation with undefined overflow). That model was a C-inherited convenience at odds with the rest of the framework: a representation chosen by the *target type name* rather than the *value's range*, with precision loss invisible at the call site. The discipline here is the opposite — representation follows from analyzed range, precision loss is explicit and tracked, and an unanalyzable range is a reported error, never a silent default.
 
-> **Lineage.** Width inference derives from F\*'s refinement-typed machine integers, where an integer carries its range as a refinement and operations are proven in-bounds. Clef takes the further step of *inferring* the range — and therefore the width — by interval analysis over the Program Semantic Graph, rather than requiring the developer to declare it. The position aligns with Clash (Haskell→FPGA), which sizes hardware to inferred widths rather than to machine-word defaults.
+> **Lineage.** Width inference derives from F\*'s refinement-typed machine integers, where an integer carries its range as a refinement and operations are proven in-bounds. Clef takes the further step of *inferring* the range — and therefore the width — by interval analysis over the [Program Semantic Graph](program-semantic-graph.md), rather than requiring the developer to declare it. The position aligns with Clash (Haskell→FPGA), which sizes hardware to inferred widths rather than to machine-word defaults.
 
 ## 2. Value-Range Analysis
 
@@ -80,7 +80,7 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 ## 9. Relationship to Other Features
 
 - **Dimensional Type System** — the dimensional range of a value is the principal input to representation selection (§4); width inference is the value-level realization of the dimensional discipline.
-- **Native Type Universe** — inferred widths and representations are NTU representation choices carried through lowering.
+- **[Native Type Universe](native-type-universe.md)** — inferred widths and representations are NTU representation choices carried through lowering.
 - **Withdrawn conversion model** — width inference, together with explicit conversion (§7), fully supersedes the former `Convert` / `NTU Conversion` chapters. The polymorphic, silently-lossy model is withdrawn from the specification.
 
 ## 10. Normative Requirements

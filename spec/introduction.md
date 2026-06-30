@@ -5,11 +5,11 @@ weight: 10
 
 Clef is a concurrent, natively compiled language in the ML family. It produces standalone executables for CPUs, GPUs, NPUs, FPGAs, and other accelerators without runtime dependencies. Clef uses ML-family syntax rooted in F# and shares common constructs with [OCaml](https://ocaml.org/), while incorporating influences from F\* (proof-carrying compilation), Scheme (nanopass compilation architecture), and hardware-oriented concurrency models.
 
-Clef's type system resolves types to native representations at compile time rather than to .NET Base Class Library (BCL) types. Concurrency is a first-class language concern: the actor model, `Incremental<'T>`, delimited continuations, and interaction nets are foundational primitives. This specification defines those native and concurrent semantics.
+Clef's type system resolves types to native representations at compile time rather than to .NET Base Class Library (BCL) types. Concurrency is a first-class language concern: the actor model, `[Incremental<'T>](incremental-computation.md)`, delimited continuations, and interaction nets are foundational primitives. This specification defines those native and concurrent semantics.
 
 ## Clef Compiler Service (CCS)
 
-The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS originated from the F# Compiler Services (FCS) codebase but has diverged substantially, with native type semantics, a nanopass compilation architecture, and Program Semantic Graph (PSG) construction that has no FCS counterpart.
+The Clef Compiler Service (CCS) is the compiler frontend that implements this specification. CCS originated from the F# Compiler Services (FCS) codebase but has diverged substantially, with native type semantics, a nanopass compilation architecture, and [Program Semantic Graph](program-semantic-graph.md) (PSG) construction that has no FCS counterpart.
 
 ### What CCS Provides
 
@@ -212,7 +212,7 @@ let checkList alist =
 
 In this example, `alist` is compared with each potentially matching pattern of elements. When `alist` matches a pattern, the result expression is evaluated and is returned as the value of the match expression. Here, the `->` operator separates a pattern from the result that a match returns.
 
-Pattern matching can also be used as a control construct. In Clef, type-based dispatch uses discriminated unions rather than runtime type tests:
+Pattern matching can also be used as a control construct. In Clef, type-based dispatch uses [discriminated unions](discriminated-union-representation.md) rather than runtime type tests:
 
 ```fsharp
 type Value =
@@ -303,7 +303,7 @@ The preceding code sample shows multiple, parallel, CPU-bound computations.
 
 ### Strong Typing for Numerical Code
 
-F# applies type checking and type inference to numerically-intensive domains through *units of measure inference and checking*. This feature allows you to type-check programs that manipulate numerical values that represent physical and abstract quantities in a stronger way than other typed languages, without losing any performance in your compiled code. You can think of this feature as providing a type system for numerical code.
+F# applies type checking and type inference to numerically-intensive domains through *[units of measure](units-of-measure.md) inference and checking*. This feature allows you to type-check programs that manipulate numerical values that represent physical and abstract quantities in a stronger way than other typed languages, without losing any performance in your compiled code. You can think of this feature as providing a type system for numerical code.
 
 Consider the following example:
 

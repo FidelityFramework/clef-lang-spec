@@ -9,7 +9,7 @@ weight: 390
 
 ## 1. Overview
 
-Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **Baker-decomposed pattern matches**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
+Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **[Baker-decomposed pattern matches](program-semantic-graph.md)**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
 
 **Key Insight**: Option operations are structurally trivial: each is a single match expression with two branches (Some/None). Baker decomposes them to `isSome` checks and value extraction.
 
@@ -340,7 +340,7 @@ Option operations are extremely lightweight:
 
 ## 7. Relationship to Result
 
-Option and Result are both sum types with similar operation patterns:
+Option and [Result](error-handling.md) are both sum types with similar operation patterns:
 
 | Option | Result | Semantic Difference |
 |--------|--------|---------------------|

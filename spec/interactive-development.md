@@ -50,7 +50,7 @@ clefx --target linux-x64
 An clefx session maintains:
 
 - A global environment of bound values and types
-- An arena for interactive allocations
+- [An arena for interactive allocations](memory-regions.md)
 - A history of evaluated expressions
 - Loaded modules and dependencies
 
@@ -133,7 +133,7 @@ val factorial : int -> int
 
 When Clef is self-hosted, `clefx` runs as an **actor within the CLI tool environment** rather than as
 a separate runtime process. The actor performs all compilation work on the CPU — lexing, dependency
-analysis, type checking, and lowering — and drives an **LLVM JIT** that emits native machine code
+analysis, type checking, and [lowering](backend-lowering-architecture.md) — and drives an **LLVM JIT** that emits native machine code
 into executable memory. Entered expressions and definitions are *exercised* by invoking that
 JIT-resident code directly and reporting results back to the prompt. There is no managed runtime, no
 reflection, and no bytecode interpreter on this path: the same compilation pipeline that produces
@@ -582,7 +582,7 @@ val it : Result<Data, Error> = Ok { ... }
 
 ### FFI in Interactive Mode
 
-Foreign function interfaces work in compile mode:
+[Foreign function interfaces](ffi-boundary.md) work in compile mode:
 
 ```
 > #mode compile;;
