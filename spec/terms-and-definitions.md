@@ -67,7 +67,7 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **regime** — a classification of a value's range into a representation family (e.g. near-unity-taper, wide-dynamic), the categorical output of selection prior to a concrete representation.
 
-**posit**, **b-posit** — a tapered-precision real representation (Gustafson); b-posit is the bounded-regime variant. Precision is maximal near magnitude 1.0 and tapers toward the extremes. (Posits do **not** carry extra precision near zero; the value of the quire is exactness of accumulation, not near-zero precision.)
+**posit**, **b-posit** — a tapered-precision real representation (Gustafson); b-posit is the [bounded-regime variant](https://arxiv.org/abs/2603.01615). Precision is maximal near magnitude 1.0 and tapers toward the extremes. (Posits do **not** carry extra precision near zero; the value of the quire is exactness of accumulation, not near-zero precision.)
 
 **quire** — a wide fixed-point accumulator that holds a sum of products without per-step rounding, rounding once at final conversion; provides exact accumulation. Defined in [Numeric Selection §10.2](numeric-selection.md).
 
