@@ -361,4 +361,3 @@ All intrinsics in these modules follow the CCS error handling model:
 4. **Alex SHALL** respect platform byte order for `Bits.hton*`/`Bits.ntoh*`
 5. **Cryptography intrinsics SHALL** produce RFC-compliant output (SHA-1: FIPS 180-4, Base64: RFC 4648)
 6. **This specification SHALL NOT** provide a bit-cast / reinterpret-cast facility; binary serialization SHALL be handled by the structured [BAREWire](ffi-boundary.md) path (§3.3).
-```
