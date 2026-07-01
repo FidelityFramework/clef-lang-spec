@@ -423,9 +423,23 @@ match number with
 
 ## 7. BAREWire Integration
 
+### 7.0 The Contract Model: BAREWire and BARE
+
+BAREWire is the structured interchange contract at the runtime boundary. BARE is the external binary encoding BAREWire builds on; BAREWire is not that encoding but the typed contract layered over it. The two SHALL NOT be conflated: a discriminated union does not cross a boundary "through the BARE protocol," and BAREWire is not "a discriminated-union-aware memory layout." The native representation of §§1-6 is the in-memory layout; BAREWire is the boundary contract that transports a value described by that layout from one endpoint to another.
+
+Both endpoints of a boundary derive their read and write code from the same union type at compile time. Consequently:
+
+1. **The tag is a compile-time case index, not a runtime type discriminator.** The tag written on the wire (§7.1) is the same declaration-order case index (0..n-1) assigned in §2.2.1 and §3.3, serialized over an *already monomorphized* sum type. It is an interchange convention identifying which case was sent, not a token the receiver uses to recover type information it otherwise lacks. There is no runtime type discrimination, no reflection, and no self-describing type descriptor on the wire (consistent with §1.2 principle 5 and §2.5).
+
+2. **Conformance is by construction, and violations are caught at the message fabric.** Because both sides interpret the same contract, a message whose case set, payload type, or dimensional annotation does not conform to the agreed union contract is rejected at the boundary rather than admitted and failed downstream. The receiving endpoint reconstructs the same native, region-allocated discriminated union it would have held had the value never left the process.
+
+3. **The compiler is never in the runtime loop.** The Composer establishes the contract at compile time; the two runtime endpoints honor it using BAREWire alone. JSON or otherwise self-describing tagging is a legacy-interface accommodation only, never the canonical mechanism.
+
+> **Informative**: This contract model is what lets a discriminated union preserve its case structure, payload types, and dimensional annotations across an address-space, process, or hardware boundary "by construction." Downstream frameworks rely on exactly this property where the typed contract is treated as a structure-preserving map between endpoints; that reliance is on the by-construction contract of this section, not on the byte layout of §7.1 alone.
+
 ### 7.1 Serialization
 
-DU serialization follows BAREWire union conventions:
+DU serialization follows the BAREWire union contract of §7.0. The wire form is the tag (the compile-time case index) followed by the case-specific payload:
 1. Write tag as varint or fixed-width integer
 2. Write case-specific payload using case's serializer
 
@@ -683,7 +697,7 @@ Storage: { tag: i8, slot: i64 }
 
 7. **Monomorphization**: Generic DUs SHALL be fully monomorphized; no runtime type parameters.
 
-8. **BAREWire Compatibility**: DU serialization SHALL follow BAREWire union encoding conventions.
+8. **BAREWire Compatibility**: DU serialization SHALL follow the BAREWire union contract (§7.0). The wire tag SHALL be the compile-time case index, and endpoints SHALL derive read/write code from the same union type so that conformance holds by construction and non-conforming messages are rejected at the boundary. BAREWire SHALL NOT be conflated with the external BARE encoding it builds on.
 
 9. **Recursive Support**: DUs MAY contain cases with payloads of the same or other DU types.
 
