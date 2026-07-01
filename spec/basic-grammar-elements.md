@@ -308,6 +308,7 @@ expression can be pictured as follows:
    a + b * c
 // _________
 //     _____
+ 
 ```
 
 rather than
@@ -316,6 +317,7 @@ rather than
    a + b * c
 // _________
 // _____
+ 
 ```
 
 Likewise, given the tokens
@@ -329,6 +331,7 @@ the left associativity of `*` means we can picture the resolution of the ambigui
 ```fsharp
    a * b * c
 // _____
+ 
 ```
 
 In the preceding table, leading `.` characters are ignored when determining precedence for infix

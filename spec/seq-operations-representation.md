@@ -166,6 +166,7 @@ The wrapper creation **copies both `innerSeq` and `mapper` by value** into the w
 %s1 = llvm.insertvalue %mapMoveNext_ptr, %s0[2] : !map_seq_type   // code_ptr
 %s2 = llvm.insertvalue %inner_seq_VALUE, %s1[3] : !map_seq_type   // COPY inner
 %s3 = llvm.insertvalue %mapper_VALUE, %s2[4] : !map_seq_type      // COPY mapper
+ 
 ```
 
 ### 5.2 Why Copy Semantics?
@@ -186,6 +187,7 @@ for x in doubled do printfn "%d" x  // 2 4 6
 
 // Second iteration - independent, works correctly
 for x in doubled do printfn "%d" x  // 2 4 6 again
+ 
 ```
 
 Both iterations work because each `for` expression copies `doubled` into its own iteration state.
@@ -424,6 +426,7 @@ func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
 let scale factor xs = Seq.map (fun x -> x * factor) xs
 let scaled = scale 3 (seq { yield 1; yield 2; yield 3 })
 // Expected: 3 6 9
+ 
 ```
 
 **Validates**: Mapper closure captures `factor` correctly.
@@ -447,6 +450,7 @@ let pipeline =
 let doubled = Seq.map (fun x -> x * 2) source
 let iter1 = doubled |> Seq.take 3 |> Seq.toList  // [2; 4; 6]
 let iter2 = doubled |> Seq.take 3 |> Seq.toList  // [2; 4; 6] - same, independent
+ 
 ```
 
 **Validates**: Each pipeline copies `doubled`, maintaining independence.

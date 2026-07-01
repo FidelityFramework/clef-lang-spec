@@ -97,6 +97,7 @@ FnPtr<unit -> unit>                              // void (*)(void)
 FnPtr<int -> int>                                // int (*)(int)
 FnPtr<nativeptr<byte> -> int -> int>             // int (*)(char*, int)
 FnPtr<Option<nativeptr<int>> -> unit>            // void (*)(int*)  -- nullable param
+ 
 ```
 
 The type parameter `'F` MUST be a function type (`'a -> 'b`). Using a non-function type is a compile-time error.
@@ -179,6 +180,7 @@ let ptr = FnPtr.ofFunction (fun x -> x + 1)  // Compile error
 // ERROR - closure with captures
 let multiplier = 2
 let ptr = FnPtr.ofFunction (fun x -> x * multiplier)  // Compile error
+ 
 ```
 
 ### 3.5 Removed Intrinsics

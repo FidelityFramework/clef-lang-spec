@@ -294,6 +294,7 @@ When `Context = LazyThunk`:
 %v4 = llvm.insertvalue %b, %v3[4] : !llvm.struct<...>
 
 // %v4 is the complete lazy value
+ 
 ```
 
 ### 8.2 Force Operation
@@ -329,6 +330,7 @@ llvm.cond_br %computed, ^already_computed, ^need_compute
 
 ^done(%value: i64):
     // %value is the forced result
+ 
 ```
 
 ## 9. Memoization Strategy
@@ -344,6 +346,7 @@ The initial Clef implementation provides **pure thunk semantics**:
 let expensive = lazy (printfn "Computing..."; 42)
 Lazy.force expensive  // Prints, returns 42
 Lazy.force expensive  // Prints again, returns 42
+ 
 ```
 
 ### 9.2 Future: Memoizing Semantics

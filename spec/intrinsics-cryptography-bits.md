@@ -61,6 +61,7 @@ val sha1 : byte[] -> byte[]
 **Example:**
 ```fsharp
 let hash = Cryptography.sha1 data  // hash.Length = 20
+ 
 ```
 
 ### 2.3 Base64 Encoding
@@ -82,6 +83,7 @@ val base64Encode : byte[] -> string
 ```fsharp
 let encoded = Cryptography.base64Encode [| 72uy; 101uy; 108uy; 108uy; 111uy |]
 // encoded = "SGVsbG8="
+ 
 ```
 
 ### 2.4 Base64 Decoding
@@ -103,6 +105,7 @@ val base64Decode : string -> byte[]
 ```fsharp
 let decoded = Cryptography.base64Decode "SGVsbG8="
 // decoded = [| 72uy; 101uy; 108uy; 108uy; 111uy |]
+ 
 ```
 
 ## 3. Bits Module
@@ -140,6 +143,7 @@ val htons : uint16 -> uint16
 // Little-endian (x86_64, ARM64 LE):
 %swapped = llvm.intr.bswap(%value) : i16
 // Big-endian: passthrough
+ 
 ```
 
 #### 3.2.2 Network to Host (16-bit)
@@ -216,6 +220,7 @@ type IntrinsicModule =
     // ... existing variants ...
     | Cryptography  // Cryptographic operations
     | Bits          // Byte order operations
+ 
 ```
 
 ## 5. IntrinsicCategory Classification

@@ -75,6 +75,7 @@ type unit = ()
 ```fsharp
 let doSideEffect () : unit = Console.WriteLine "Hello"
 let ignoredResult = ignore 42  // : unit
+ 
 ```
 
 ### 2.2 Boolean
@@ -160,6 +161,7 @@ let wrapped = System.Int32.MaxValue + 1  // Wraps to MinValue
 
 // Checked: explicit overflow handling
 let checked = Checked.add System.Int32.MaxValue 1  // voption.None
+ 
 ```
 
 ### 2.4 Floating Point Family
@@ -182,6 +184,7 @@ let checked = Checked.add System.Int32.MaxValue 1  // voption.None
    let x : float = 42    // Error: expected float, got int
    let x : float = 42.0  // OK
    let x : float = float 42  // OK - explicit conversion
+ 
    ```
 
 **Alignment**:
@@ -198,6 +201,7 @@ let inf = infinity        // Positive infinity
 let ninf = -infinity      // Negative infinity
 let nan = nan             // Not a Number
 let isNan x = x <> x      // NaN property: NaN ≠ NaN
+ 
 ```
 
 ### 2.5 Character
@@ -238,6 +242,7 @@ let c = String.charAt 7 s  // voption.Some '世' (U+4E16)
 // Byte length vs character length
 String.byteLength s   // 15 bytes (UTF-8 encoded)
 String.charLength s   // 10 characters
+ 
 ```
 
 **Invalid Codepoints**: Surrogate codepoints (U+D800 to U+DFFF) are not valid `char` values. Attempting to construct such values results in a compile-time or runtime error.
@@ -394,6 +399,7 @@ type Shape =
     | Circle of radius: float
     | Rectangle of width: float * height: float
     | Point  // No payload
+ 
 ```
 
 **Memory Layout**:
@@ -430,6 +436,7 @@ type Color = Red | Green | Blue
 
 type Result<'T, 'E> = Ok of 'T | Error of 'E
 // Ok = 0, Error = 1
+ 
 ```
 
 **Variant-Specific Layouts**:
@@ -439,6 +446,7 @@ type Message =
     | Ping                              // Tag only: 1 byte + padding
     | Data of payload: array<byte>      // Tag + fat pointer: 1 + 7 + 16 = 24 bytes
     | Error of code: int * msg: string  // Tag + int + string: 1 + 7 + 8 + 16 = 32 bytes
+ 
 ```
 
 ```
@@ -555,6 +563,7 @@ string
 // Iterating over Unicode scalar values
 for c in String.chars s do
     printfn "%c" c  // c : char (UTF-32 codepoint, 4 bytes)
+ 
 ```
 
 **Zero-Copy Slicing**: The fat pointer representation (pointer + length) enables zero-copy string slicing - substrings reference the same underlying bytes with adjusted pointer/length.
@@ -601,6 +610,7 @@ array<'T>
 ```fsharp
 let arr = Array.create 10 0  // 10 elements, all 0
 // arr.Length is immutable - no resizing
+ 
 ```
 
 **API Changes (Null-Freedom Cascades)**:
@@ -700,6 +710,7 @@ let y : int option = None
 // - Stack allocated
 // - Tag-based discrimination
 // - No null anywhere
+ 
 ```
 
 **API (Null-Freedom Cascades)**:
@@ -892,6 +903,7 @@ When a function captures variables from its environment:
 ```fsharp
 let makeAdder n =
     fun x -> x + n  // Captures 'n'
+ 
 ```
 
 **Memory Layout**:
@@ -934,6 +946,7 @@ let inline (|>) x f = f x
 ```fsharp
 let add x y = x + y
 let add5 = add 5  // Partial application
+ 
 ```
 
 **Representation**: Creates a closure capturing applied arguments:
@@ -957,6 +970,7 @@ add5 = { fn_ptr: add_impl, env: { x = 5 } }
 let counter : int ref = ref 0
 counter := !counter + 1  // Mutation
 let value = !counter     // Dereference
+ 
 ```
 
 **Memory Layout**:
@@ -981,6 +995,7 @@ ref<'T>
 ```fsharp
 let mutable x = 0
 x <- x + 1  // Direct mutation
+ 
 ```
 
 | Property | Value |
@@ -1036,6 +1051,7 @@ type Arena      // Compiler-managed bulk allocation
 type Peripheral // Memory-mapped I/O (volatile semantics)
 type Sram       // General-purpose RAM
 type Flash      // Read-only storage
+ 
 ```
 
 **Why This Matters - The "Fidelity" in Fidelity Framework**:
@@ -1065,6 +1081,7 @@ Access kinds are also intrinsic - they determine what operations are legal AND a
 type ReadOnly   // Input registers, flash, const data
 type WriteOnly  // Output registers, write-only buffers
 type ReadWrite  // General mutable access
+ 
 ```
 
 ### 8.3 Region-Typed Pointers
@@ -1089,6 +1106,7 @@ let writeFlash (p: Ptr<byte, Flash, ReadOnly>) =
 // OK: Can read from readOnly
 let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
     Ptr.read p  // OK
+ 
 ```
 
 **Cache Behavior**: `Stack`, `Arena`, `Sram`, and `Flash` regions are cacheable with normal load/store semantics. `Peripheral` access bypasses cache and uses memory barriers - essential for hardware registers where timing and order matter.
@@ -1138,6 +1156,7 @@ let mutable arena = Arena.fromPointer (NativePtr.toNativeInt arenaMem) 4096
 let buffer = Arena.alloc &arena 256
 
 // Arena freed when stack frame exits
+ 
 ```
 
 **Byref Parameter**: Operations that mutate arena state (alloc, reset) take `Arena<'lifetime> byref` to enable in-place position updates without copying the 24-byte struct.
@@ -1223,6 +1242,7 @@ val data : int list  // Allocated in session arena
 
 > #arena reset;;
 // data is no longer valid - type checker knows this
+ 
 ```
 
 ### 10.3 Interpretation vs Compilation Type Semantics
@@ -1239,6 +1259,7 @@ All modes use identical type semantics. The difference is only in execution:
 > #mode compile;;
 > let rec fib n = if n < 2 then n else fib (n-1) + fib (n-2);;
 val fib : int -> int  // Same type in all modes
+ 
 ```
 
 ### 10.4 Script File Type Semantics
@@ -1249,6 +1270,7 @@ Script files (`.clefx`) follow the same type semantics as compiled modules:
 // script.clefx
 let greeting : string = "Hello"  // string with native UTF-8 fat pointer semantics
 let maybe : int option = Some 42  // voption<int>, non-null
+ 
 ```
 
 ### 10.5 Cross-Compilation Type Considerations
@@ -1261,6 +1283,7 @@ Target: linux-arm64 (cross-compiling from linux-x64)
 
 > sizeof<nativeint>;;
 val it : int = 8  // Reflects target, not host
+ 
 ```
 
 **Platform-Specific Types**:
@@ -1447,6 +1470,7 @@ let configureArena (profile: ActorProfile) =
     | size when size <= 256<KB> -> L2Optimized  // Fits in L2
     | size when size <= 8<MB> -> L3Optimized    // Fits in L3
     | _ -> StreamingMode                         // Bypass cache
+ 
 ```
 
 #### Processor-Specific Optimization

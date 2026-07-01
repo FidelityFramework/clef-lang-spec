@@ -681,6 +681,7 @@ If a function is not generalized, condensation is not applied. For example, cons
 let test1 =
     let ff = Seq.map id >> Seq.length
     (ff [1], ff [| 1 |]) // error here
+ 
 ```
 
 In this example, `ff` is not generalized, because it is not defined by using a generalizable expression.
@@ -705,6 +706,7 @@ the following:
 let test1 =
     let ff = Seq.map id >> Seq.length
     (ff [1], ff ["one"]) // error here
+ 
 ```
 
 Again, `ff` is not generalized, and its use with arguments of type `int list` and `string list` is not

@@ -183,6 +183,7 @@ module M =
                                 // and this contains no field or property "C"
     let test6 = C.Prop1         // error: the value C does not have a property Prop
     let test7 = M.E.Prop2       // resolves to M.E, and then a property lookup
+ 
 ```
 
 The following example shows the resolution behavior for type lookups that are ambiguous by
@@ -206,6 +207,7 @@ module M =
     let _ = M.C.P // gives an error
     let _ = M.C<_>.P // no error, resolves to C<'T>
     let _ = M.C<_,_>.P // no error, resolves to C<'T,'U>
+ 
 ```
 
 The following example shows how the resolution behavior differs slightly if one of the types has no generic arguments.
@@ -228,6 +230,7 @@ module M =
     let _ = M.C.P           // no error, resolves to C
 let _ = M.C< >.P            // no error, resolves to C
     let _ = M.C<_>.P        // no error, resolves to C<'T>
+ 
 ```
 
 In the following example, the procedure issues a warning for an incomplete type. In this case, the
@@ -240,6 +243,7 @@ module M =
         static member P = 1
 
     let _ = M.C.P // no error, resolves to C<'T>.P, warning given
+ 
 ```
 
 The effect of these rules is to prefer value names over module names for single identifiers. For
@@ -251,6 +255,7 @@ let Foo = 1
 module Foo =
     let ABC = 2
 let x1 = Foo // evaluates to 1
+ 
 ```
 
 The rules, however, prefer type names over value names for single identifiers, because type names
@@ -262,6 +267,7 @@ type Foo() =
     static member ABC = 2
 let x1 = Foo.ABC // evaluates to 2
 let x2 = Foo() // evaluates to a new Foo()
+ 
 ```
 
 ### Name Resolution for Members
@@ -302,6 +308,7 @@ type B() =
 let b = new B()
 b.Foo(1)        // resolves to method in A
 b.Foo("abc")    // resolves to method in B
+ 
 ```
 
 ### Name Resolution in Patterns

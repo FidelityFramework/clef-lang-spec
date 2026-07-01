@@ -309,6 +309,7 @@ In FSI, value display relies on `obj` and runtime reflection:
 // Managed FSI internals (simplified)
 let displayValue (value: obj) : string =
     sprintf "%A" value  // Uses reflection to inspect value
+ 
 ```
 
 This approach is not available in Clef because:

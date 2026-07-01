@@ -130,6 +130,7 @@ module Atomic.Relaxed =
         ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
     val fetchAdd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
     // ... other operations
+ 
 ```
 
 ### Atomic.Acquire / Atomic.Release
@@ -153,6 +154,7 @@ module Atomic.AcquireRelease =
         ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
     val fetchAdd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
     // ... other operations
+ 
 ```
 
 ## Memory Fences
@@ -219,6 +221,7 @@ Atomic.SeqCst.load<nativeint> ptr
 
 // Invalid (too large for hardware atomic)
 Atomic.SeqCst.load<LargeStruct> ptr  // Compile error
+ 
 ```
 
 ## Lock-Free Pattern Examples
@@ -257,6 +260,7 @@ let release (obj: nativeptr<RefCounted<'T>>) =
     if oldCount = 1 then
         Atomic.fenceAcquire ()
         // Deallocate obj
+ 
 ```
 
 ### Single-Producer Single-Consumer Queue

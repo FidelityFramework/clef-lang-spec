@@ -70,6 +70,7 @@ Alternatively, an implementation MAY optimize `Seq.empty` to immediately set `st
 
 ```fsharp
 seq<'T> { }  // Empty seq expression
+ 
 ```
 
 However, `Seq.empty` is a primitive that avoids state machine generation entirely. An implementation SHOULD recognize `seq { }` with no body and lower it to the same representation as `Seq.empty`.
@@ -127,6 +128,7 @@ let multiplesOf factor count = seq {
 }
 // Struct: {state, current, code_ptr, factor, count, i}
 //         [0]    [1]      [2]       [3]     [4]    [5]
+ 
 ```
 
 ### 3.3 State Values
@@ -194,6 +196,7 @@ while i <= count do
     sum <- sum + i    // pre-yield
     yield sum
     i <- i + 1        // post-yield
+ 
 ```
 
 **PSG Structure** (simplified):

@@ -135,6 +135,7 @@ An F# list is an immutable linked list, which is a type of data used extensively
 let vowels = ['e'; 'i'; 'o'; 'u']
 let withA = ['a'] @ vowels        // ['a'; 'e'; 'i'; 'o'; 'u']
 let withY = vowels @ ['y']        // ['e'; 'i'; 'o'; 'u'; 'y']
+ 
 ```
 
 F# supports several other highly effective techniques to simplify the process of modeling and manipulating data such as tuples, options, records, unions, and sequence expressions. A tuple is an ordered collection of values that is treated as an atomic unit. In many languages, if you want to pass around a group of related values as a single entity, you need to create a named type, such as a class or record, to store these values. A tuple allows you to keep things organized by grouping related values together, without introducing a new type.
@@ -145,6 +146,7 @@ To define a tuple, you separate the individual components with commas:
 let tuple = (1, false, "text")            // int * bool * string
 let getNumberInfo (x : int) = (x, x * x)  // int -> int * int
 let info = getNumberInfo 42               // (42, 1764)
+ 
 ```
 
 A key concept in F# is immutability. Tuples and lists are some of the many types in F# that are immutable, and indeed most things in F# are immutable by default. Immutability means that once a value is created and given a name, the value associated with the name cannot be changed. Immutability has several benefits. Most notably, it prevents many classes of bugs, and immutable data is inherently thread-safe, which makes the process of parallelizing code simpler.
@@ -167,6 +169,7 @@ Although F# can typically infer types on your behalf, occasionally you must prov
 
 ```fsharp
 let concat (x : string) y = x + y  // string -> string -> string
+ 
 ```
 
 Because `x` is stated to be of type `string`, and the only version of the `+` operator that accepts a left-hand argument of type `string` also takes a `string` as the right-hand argument, the F# compiler infers that the parameter `y` must also be a string. Thus, the result of `x + y` is the concatenation of the strings. Without the type annotation, the F# compiler would not have known which version of the `+` operator was intended and would have assumed `int` data by default.
@@ -177,6 +180,7 @@ The process of type inference also applies *automatic generalization* to declara
 let swap (x, y) = (y, x)       // 'a * 'b -> 'b * 'a
 let swapped1 = swap (1, 2)     // (2, 1)
 let swapped2 = swap ("you", true)  // (true, "you")
+ 
 ```
 
 Here the function `swap` is generic, and `'a` and `'b` represent type variables, which are placeholders for types in generic code. Type inference and automatic generalization greatly simplify the process of writing reusable code fragments.
@@ -194,6 +198,7 @@ Consider another example:
 ```fsharp
 let isEven = List.map (fun x -> x % 2 = 0) [1 .. 5]
 // [false; true; false; true; false]
+ 
 ```
 
 The code `(fun x -> x % 2 = 0)` defines an anonymous function, called a *function expression*, that takes a single parameter `x` and returns the result `x % 2 = 0`, which is a Boolean value that indicates whether `x` is even. The `->` symbol separates the argument list (`x`) from the function body (`x % 2 = 0`).
@@ -245,6 +250,7 @@ We can use the functions as values in a pipeline:
 
 ```fsharp
 let result = 32 |> square |> toStr |> reverse  // "4201"
+ 
 ```
 
 Pipelining demonstrates one way in which F# supports *compositionality*, a key concept in functional programming. The pipeline operator simplifies the process of writing compositional code where the result of one function is passed into the next.
@@ -262,6 +268,7 @@ The `Console.WriteLine` function is a simple and type-safe way to print text in 
 ```fsharp
 Console.WriteLine $"{5} * {0.75} = {5.0 * 0.75}"
 // 5 * 0.75 = 3.75
+ 
 ```
 
 String interpolation with `$"..."` syntax provides type-safe formatting. The `%A` format can be used to print arbitrary data types (including lists) in `sprintf` and similar functions.
@@ -279,6 +286,7 @@ module Sys =
     val write : int -> nativeptr<byte> -> int -> int  // syscall on Unix
     val read  : int -> nativeptr<byte> -> int -> int  // syscall on Unix
     val exit  : int -> 'T                             // never returns
+ 
 ```
 
 CCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
@@ -369,6 +377,7 @@ And use the object as follows:
 ```fsharp
 let encoded = "F# is fun!" |> encoder.Encode   // "F# vf sha!"
 let decoded = encoded |> encoder.Decode        // "F# is fun!"
+ 
 ```
 
 An interface type can encapsulate a family of object types:
@@ -429,6 +438,7 @@ let s: string = null         // Error: Cannot assign null
 
 // Use option for optional values
 let maybeValue: int option = None   // Stack-allocated, NOT null
+ 
 ```
 
 > **See**: [Native Type Mappings](native-type-mappings.md#option) for option type semantics.

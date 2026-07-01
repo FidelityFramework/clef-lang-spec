@@ -224,6 +224,7 @@ let sumBy f xs = fold (fun acc x -> acc + f x) 0 xs
 
 ```fsharp
 List.contains : 'a -> 'a list -> bool  // when 'a : equality
+ 
 ```
 
 **Decomposition**:
@@ -283,6 +284,7 @@ let rec forall2 f xs ys =
     | [], [] -> true
     | h1::t1, h2::t2 -> f h1 h2 && forall2 f t1 t2
     | _ -> false  // Length mismatch
+ 
 ```
 
 **Baker Recipe**: `foldLeft2 (fun h1 h2 -> f h1 h2) xs ys`

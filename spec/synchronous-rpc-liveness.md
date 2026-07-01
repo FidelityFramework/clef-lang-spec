@@ -50,6 +50,7 @@ and RoutingKind =
     | SelfReferencePassed     // Actor.self() sent for the callee to reply through
     | ContentRouted           // callee chosen by message content
     | DynamicHandle           // callee handle produced by runtime spawn
+ 
 ```
 
 ### AcyclicStatic
@@ -120,6 +121,7 @@ A flagged cycle in the statically resolvable fragment reports the wait-for path:
     diagnostic CCS8031 node.Span
         (sprintf "synchronous wait cycle: %s"
                  (renderWaitPath path))   // e.g. "A.handleFoo → B.query → A.handleBar"
+ 
 ```
 
 Alex lowers `AcyclicStatic` and `OrderedCyclic` calls to direct continuation suspend-and-resume against the callee's reply obligation. It lowers `Unresolved` calls through the supervised path, which arms a timeout and routes expiry to the caller's supervisor.

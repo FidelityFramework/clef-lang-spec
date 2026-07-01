@@ -113,6 +113,7 @@ let rec add value set =
             rebalance (setRight set (add value (right set)))
         else
             set  // Value already exists, return unchanged
+ 
 ```
 
 **Complexity**: O(log n)

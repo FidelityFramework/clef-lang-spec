@@ -299,6 +299,7 @@ Simple constant expressions are numeric, string, Boolean and unit constants. For
 ()              // unit         (zero-sized type)
 false           // bool         (8-bit boolean)
 true            // bool         (8-bit boolean)
+ 
 ```
 
 Simple constant expressions have the corresponding simple type and elaborate to the corresponding
@@ -536,12 +537,14 @@ following does not raise a `MatchFailureException` exception:
 ```fsharp
 let f = fun [x] y -> y
 let g = f [] // ok
+ 
 ```
 
 However, if a third line is added, a `MatchFailureException` exception is raised:
 
 ```fsharp
 let z = g 3 // MatchFailureException is raised
+ 
 ```
 
 ### Object Expressions
@@ -1367,6 +1370,7 @@ comp |> step |> step |> step |> step |> step |> step |> step |> step
 // prints "x = 1"
 // prints "x = 2"
 // returns "Done 7"
+ 
 ```
 
 ### Sequence Expressions
@@ -1424,6 +1428,7 @@ Range expressions generate sequences over a specified range. For example:
 ```fsgrammar
 seq { 1 .. 10 } // 1; 2; 3; 4; 5; 6; 7; 8; 9; 10
 seq { 1 .. 2 .. 10 } // 1; 3; 5; 7; 9
+ 
 ```
 
 Range expressions involving `expr1 .. expr2` are translated to uses of the `(..)` operator, and those
@@ -1879,6 +1884,7 @@ matrix.[*,1..3] // get columns 1..3from a matrix (returning a matrix)
 matrix.[1..3,1,.3] // get a 3x3 sub-matrix (returning a matrix)
 matrix.[3,*] // get row 3 from a matrix as a vector
 matrix.[*,3] // get column 3 from a matrix as a vector
+ 
 ```
 
 In addition, CIL array types of rank 1 to 4 are assumed to support a type extension that defines a
@@ -2610,12 +2616,14 @@ Here, `loop` has its own parameter `n` that shadows the outer `n`, so no capture
 // Source: let rec loop acc i = if i > n then acc else ...
 // Generated signature: loop(n: int, acc: int, i: int) -> int
 //                           ↑ capture   ↑ explicit parameters
+ 
 ```
 
 At call sites, the enclosing scope supplies capture values directly:
 ```fsharp
 loop 0 1      // Source syntax
 loop(n, 0, 1) // Generated call (n passed as first argument)
+ 
 ```
 
 **Implementation Note**: Named function bindings that are nested (i.e., defined within another function) SHALL have capture analysis performed. Top-level function bindings never capture because there is no enclosing scope from which to capture.
@@ -2675,6 +2683,7 @@ let pinObject() =
     let point = { x = 1; y = 2 }
     use p1 = fixed &point.x
     // code that uses p1 as a nativeptr<int>
+ 
 ```
 
 Pinning an array:
@@ -2684,6 +2693,7 @@ let pinArray() =
     let arr = [| 0.0; 1.5; 2.3 |]
     use p = fixed arr
     // code that uses p as a nativeptr<float>
+ 
 ```
 
 Pinning a string:
@@ -2693,6 +2703,7 @@ let pinString() =
     let str = "Hello"
     use pChar = fixed str
     // code that uses pChar as a nativeptr<char>
+ 
 ```
 
 The `fixed` keyword is used to pin the expression and can only appear immediately to the right of a `use` binding. The pointer is fixed for the duration of the `use` binding's scope; once it goes out of scope, it is no longer pinned. This construct is not a try/finally `IDisposable` pattern but is instead used to define the scope of the pinning.

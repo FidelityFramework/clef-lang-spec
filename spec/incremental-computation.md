@@ -87,6 +87,7 @@ Usage:
 let routingDecision : Incremental<RoutingVector> = ...             // CPU (default)
 let visionFeatures  : Incremental<FeatureMap, npu_tile> = ...      // NPU
 let languageEmbed   : Incremental<Embedding, gpu_cu> = ...         // GPU
+ 
 ```
 
 When the target measure is absent, the compiler infers it from context or defaults to CPU. When present, it constrains lowering. This follows the general Fidelity pattern of inference by default, explicit annotation when needed.
@@ -235,6 +236,7 @@ The DTS (Dimensional Type System) constrains cutoff functions. Two values with i
 ```fsharp
 // Compile-time error: cannot compare celsius and fahrenheit
 let badCutoff (a: float<celsius>) (b: float<fahrenheit>) = abs(a - b) < 0.01  // TYPE ERROR
+ 
 ```
 
 ## 6. Stabilization
@@ -355,6 +357,7 @@ llvm.cond_br %is_stale, ^recompute, ^use_cached
 
 ^done(%result: !result_type):
     // %result is the stabilized value
+ 
 ```
 
 ### 8.2 NPU Target (MLIR-AIE)
@@ -427,6 +430,7 @@ and IncrementalGraphCategory =
     | Applicative    // Static graph structure, known at compile time
     | Monadic        // Dynamic graph structure, determined at runtime
     | Mixed          // Applicative skeleton with monadic subgraphs
+ 
 ```
 
 ### 9.2 IncrementalNode in PSG
@@ -550,6 +554,7 @@ type Router() =
     inherit Actor<SensorInput>()
     override this.Receive input =
         bitnetRoute input  // Compiler infers: cacheable, structural cutoff
+ 
 ```
 
 ## 13. What Disappears

@@ -135,6 +135,7 @@ let rebalance node =
             leftRotate node
     else
         node  // Already balanced
+ 
 ```
 
 ## 5. HOF Decomposition Specifications

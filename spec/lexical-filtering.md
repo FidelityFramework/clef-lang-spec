@@ -159,6 +159,7 @@ token $end      // Note: also called OEND, OBLOCKEND and ORIGHT_BLOCK_END
 token $sep      // Note: also called OBLOCKSEP
 token $app      // Note: also called HIGH_PRECEDENCE_APP
 token $tyapp    // Note: also called HIGH_PRECEDENCE_TYAPP
+ 
 ```
 
 > Note: The following tokens are also used in the Microsoft F# implementation. They are
@@ -238,6 +239,7 @@ let x = 1
 let z = 3    // warning FS0058: possible
              // incorrect indentation: this token is offside of
              // context at position (2:1)
+ 
 ```
 
 In the second example, the `|` markers in the match patterns do not align properly:
@@ -249,6 +251,7 @@ let f () =
     match 1+1 with
     | 2 -> printf "ok"
   | _ -> failwith "no!"     // syntax error
+ 
 ```
 
 ### The Pre-Parse Stack
@@ -370,6 +373,7 @@ let FunctionSample() =
     printfn "done!"
 //      ^ Offside limit for inner `let` and `for` contexts
 //  ^ Offside limit for outer `let` context
+ 
 ```
 
 When a token occurs on or before the _offside limit_ for the current offside stack, and a _permitted
@@ -773,4 +777,5 @@ type Foo() =
     member this.Value = 1
 let b = new Foo< >() // valid
 let c = new Foo<>() // invalid
+ 
 ```

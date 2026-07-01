@@ -85,6 +85,7 @@ let readln () : string =
 let hello() =
     let name = readln()  // name points to deallocated memory!
     greet name           // Undefined behavior
+ 
 ```
 
 **The Solution**: Marking the function `inline` causes CCS to expand the function body at the call site, lifting the allocation to the caller's frame:
@@ -102,6 +103,7 @@ let hello() =
     let len = readLineInto buffer 256
     let name = NativeStr.fromPointer buffer len  // Pointer valid through hello's scope
     greet name                                    // Safe - hello's frame is alive
+ 
 ```
 
 **When to Use `inline` for Escape Analysis**:

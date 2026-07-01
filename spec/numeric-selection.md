@@ -132,6 +132,7 @@ let gravForce (m1: float<kg>) (m2: float<kg>) (r: float<m>) : float<N> =
     GravConst * m1 * m2 / (r * r)   // dimension inferred N (free, HM+ℤ unification);
                                     // range SUPPLIED BY Tier 2 — Tier 1 alone
                                     // cannot lower-bound r² in the denominator
+ 
 ```
 
 The compiler infers `N` for free; the **range comes from Tier 2**, precisely because Tier 1 dataflow cannot lower-bound `r`. This is a Tier 2 success that depends on a library that is planned, not built.

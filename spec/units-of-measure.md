@@ -189,6 +189,7 @@ The inferred type is presented as `int<b/a>`, not `int<a>`. If a measure is equi
 
 ```fsharp
 let y = 1<b> / 1<a a> // val y : int = 1
+ 
 ```
 
 ### Constraint Solving
@@ -329,6 +330,7 @@ type int8<[<Measure>] 'U>   // aliases sbyte<'U>
 type int32<[<Measure>] 'U>  // aliases int<'U>
 type uint8<[<Measure>] 'U>  // aliases byte<'U>
 type uint32<[<Measure>] 'U> // aliases uint<'U>
+ 
 ```
 
 ## Restrictions
@@ -339,10 +341,12 @@ Measures can be used in range expressions but a properly measured step is requir
 [<Measure>] type s
 [1<s> .. 5<s>] // error: The type 'int<s>' does not match the type 'int'
 [1<s> .. 1 .. 5<s>] // error: The type 'int<s>' does not match the type 'int'
+ 
 ```
 
 However, the following range expression is valid:
 
 ```fsharp
 [1<s> .. 1<s> .. 5<s>] // int<s> list = [1; 2; 3; 4; 5]
+ 
 ```

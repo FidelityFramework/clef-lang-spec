@@ -170,6 +170,7 @@ The push-side analogue of incremental cutoff is an explicit operator, `distinctU
 
 ```fsharp
 val distinctUntilChanged : Observable<'T> -> Observable<'T>   // requires 'T : equality
+ 
 ```
 
 This mirror is exact: `Incremental<'T>` suppresses *recomputation* on an unchanged input; `distinctUntilChanged` suppresses *emission* on an unchanged output. The difference is that suppression is intrinsic to `Incremental<'T>` (it is what the type is for) and optional for `Observable<'T>` (the default observable delivers every emission).
@@ -255,6 +256,7 @@ Following the Fidelity convention, `Observable<'T>` supports three levels of dev
 ```fsharp
 let sub = source |> subscribe (fun reading -> handle reading)
 // `sub` release (scope exit / actor retirement) unsubscribes
+ 
 ```
 
 ### 10.2 Level 2: Bounded

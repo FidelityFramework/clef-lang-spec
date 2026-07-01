@@ -37,6 +37,7 @@ type WidthDimension =
 type NTUWidth =
     | Fixed of bits: int              // Known at all times: 8, 16, 32, 64
     | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
+ 
 ```
 
 ### 2.2 Parameterized Numeric Types
@@ -83,6 +84,7 @@ let add (x: int) (y: int) : int = x + y   // Both NTUint(Resolved Register)
 
 // Type Error
 let invalid (x: int) (y: int64) = x + y   // NTUint(Resolved Register) ≠ NTUint(Fixed 64)
+ 
 ```
 
 ### 3.2 Type Width (Alex Responsibility)

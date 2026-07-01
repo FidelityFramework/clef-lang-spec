@@ -68,12 +68,14 @@ type Memo<'T>
 
 val create : (unit -> 'T) -> Memo<'T>    // the thunk is a flat closure; its captures are the edges
 val get    : Memo<'T> -> 'T               // demand
+ 
 ```
 
 **Desugaring.** `Memo.create f` constructs an `Incremental<'T>` node whose recompute function is the flat closure `f`. The signals and memos that `f` reads are its captures, which the compiler records as dependency edges (applicative when unconditional, monadic when conditional — see [Incremental §4.1](incremental-computation.md)). Cutoff is structural equality on `'T`, or an `[<IncrementalCutoff>]` predicate.
 
 ```fsharp
 let doubled = Memo.create (fun () -> Signal.get count * 2)   // captures `count`
+ 
 ```
 
 ## 5. Effect — Reactive Side Effect
@@ -111,6 +113,7 @@ val run : (unit -> unit) -> unit
 Batch.run (fun () ->
     Signal.set firstName "John"
     Signal.set lastName  "Doe")          // effects run once, after both writes
+ 
 ```
 
 ## 7. Store — Nested Reactive State (Optional Extension)
@@ -122,6 +125,7 @@ val create    : 'T -> Store<'T>
 val state     : Store<'T> -> 'T
 val setState  : Store<'T> -> ('T -> 'T) -> unit
 val subscribe : Store<'T> -> (unit -> unit) -> (unit -> unit)   // returns an unsubscribe closure
+ 
 ```
 
 A `Store<'T>` provides nested reactive objects in the TanStack Store style. Each reactive field desugars to a `Signal`; `subscribe` registers an effect and returns an unsubscribe closure whose invocation (or whose owning region's release) detaches it. `Store` is sugar; it introduces no mechanism beyond `Signal` and `Effect`.
@@ -162,6 +166,7 @@ let onSocketReadable (fd: int) : unit =
     Signal.set socketData (Sockets.recv fd buffer 1024 0)
 
 EventLoop.onReadable socketFd onSocketReadable   // FnPtr only at this OS edge
+ 
 ```
 
 The same pattern applies to GLib/GTK signal connection and to a Wayland `wl_surface::frame` callback driving an animation `Signal`.

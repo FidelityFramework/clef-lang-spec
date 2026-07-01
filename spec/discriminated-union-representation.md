@@ -37,6 +37,7 @@ type Expr =
     | Var of string                   // fat pointer
     | Add of Expr * Expr              // two recursive pointers
     | Lambda of string * Expr * env   // complex nested structure
+ 
 ```
 
 A naive "max-size union" representation loses type information:
@@ -130,6 +131,7 @@ type Expr =
     | Var of string                          // 1 + 16 = 17 bytes (fat ptr)
     | Add of Expr * Expr                     // 1 + 8 + 8 = 17 bytes (two ptrs)
     | Lambda of string * Expr * Closure      // 1 + 16 + 8 + 8 = 33 bytes
+ 
 ```
 
 The compiler computes:
@@ -476,6 +478,7 @@ let n = IntVal 42  // allocated in current region context
 // Function parameter (implicit)
 let makeNumber (x: int) : Number = IntVal x
 // Arena passed implicitly through calling convention
+ 
 ```
 
 ### 8.2 Lifetime Constraints
@@ -487,6 +490,7 @@ let result =
     using arena = Arena.create() in
     let n = IntVal 42  // allocated in 'arena'
     n  // ERROR: 'n' cannot escape 'arena' lifetime
+ 
 ```
 
 ### 8.3 Recursive Structure Allocation
@@ -496,6 +500,7 @@ For recursive DUs, all nodes in a tree typically share the same arena:
 ```fsharp
 let expr = Add(Const 1, Add(Const 2, Const 3))
 // All four nodes allocated in same arena
+ 
 ```
 
 ---
@@ -531,6 +536,7 @@ type Option<'T> =
 
 let x : Option<int> = Some 42      // Option_int
 let y : Option<string> = Some "hi" // Option_string
+ 
 ```
 
 Each instantiation generates its own eliminators/constructors with concrete types.
@@ -654,6 +660,7 @@ Storage: { tag: i8, slot: i64 }
 // FloatVal elimination
 %bits = llvm.extractvalue %struct[1] : i64   // ← raw slot bits
 %f = llvm.bitcast %bits : i64 to f64        // ← interpret as float
+ 
 ```
 
 **SSA Cost Implication:** The SSA count for `DUConstruct` depends on whether bitcast is needed - this is computed deterministically from the type comparison at SSA assignment time.

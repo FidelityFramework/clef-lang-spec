@@ -151,6 +151,7 @@ let has_avx512: Expr<bool> = <@ Runtime.cpuSupportsAVX512() @>
 
 // Code generation: Alex may generate runtime check or
 // use compile-time target selection
+ 
 ```
 
 ## 6. Using Predicates in Application Code
@@ -215,6 +216,7 @@ CCS may use implications to simplify predicate checking:
 // If fits_u64 is known true, fits_u32 need not be checked
 if checkPredicate "fits_u64" ctx then
     // fits_u32 is implicitly true
+ 
 ```
 
 ## 8. CCS Handling of Predicates
@@ -239,6 +241,7 @@ Some type validity depends on predicates:
 ```fsharp
 // Using int64 requires fits_u64
 let x: int64 = 100L  // Valid only if fits_u64
+ 
 ```
 
 CCS may emit warnings/errors for predicate-dependent types on constrained platforms.

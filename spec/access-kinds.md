@@ -14,6 +14,7 @@ Every pointer in Clef carries an access kind that specifies what operations are 
 ```fsharp
 type Ptr<'T, 'Region, 'Access>
 //                     ^^^^^^^ Access kind
+ 
 ```
 
 Access kinds prevent:
@@ -37,6 +38,7 @@ Read-only pointers permit load operations only.
 let flashData : Ptr<byte, Flash, ReadOnly> = ...
 let value = Ptr.read flashData      // OK
 Ptr.write flashData 0uy             // ERROR: Cannot write to ReadOnly
+ 
 ```
 
 **Code Generation**: No store instructions generated for ReadOnly pointers.
@@ -49,6 +51,7 @@ Write-only pointers permit store operations only.
 let outputReg : Ptr<uint32, Peripheral, WriteOnly> = ...
 Ptr.write outputReg 0x1234u         // OK
 let value = Ptr.read outputReg      // ERROR: Cannot read from WriteOnly
+ 
 ```
 
 **Code Generation**: No load instructions generated for WriteOnly pointers.
@@ -61,6 +64,7 @@ Read-write pointers permit both load and store operations.
 let gpioReg : Ptr<uint32, Peripheral, ReadWrite> = ...
 let current = Ptr.read gpioReg      // OK
 Ptr.write gpioReg (current ||| 0x1u) // OK
+ 
 ```
 
 ## Compile-Time Enforcement
@@ -75,6 +79,7 @@ let writeFlash (p: Ptr<byte, Flash, ReadOnly>) =
 // ERROR: Cannot read from WriteOnly pointer
 let readOutput (p: Ptr<uint32, Peripheral, WriteOnly>) =
     Ptr.read p  // Compile error
+ 
 ```
 
 ## Access Kind Coercion
@@ -94,6 +99,7 @@ More restrictive access kinds can be coerced to less restrictive:
 let rw : Ptr<int, Stack, ReadWrite> = ...
 let ro : Ptr<int, Stack, ReadOnly> = Ptr.asReadOnly rw  // OK
 let wo : Ptr<int, Stack, WriteOnly> = Ptr.asWriteOnly rw // OK
+ 
 ```
 
 ## Hardware Register Patterns

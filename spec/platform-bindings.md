@@ -341,6 +341,7 @@ The following pattern is **deprecated** and should not be used:
 module Platform.Bindings =
     let writeBytes fd buffer count : int =
         Unchecked.defaultof<int>  // BCL dependency!
+ 
 ```
 
 This pattern was used historically but creates BCL dependencies and requires special handling in the compiler.

@@ -358,6 +358,7 @@ let greetHello = greet "Hello"  // Partial application
 // Represented as:
 // Application(Var(greet), ["Hello"])
 // with returnType = TFun(string, unit)
+ 
 ```
 
 ### 5.3 Pipe Operator Reduction
@@ -436,6 +437,7 @@ Recursive bindings (`let rec`) present a unique challenge: the function referenc
 let rec factorial n =
     if n <= 1 then 1
     else n * factorial (n - 1)  // VarRef to 'factorial' - but we're defining it!
+ 
 ```
 
 **The Problem**: When checking the body of `factorial`, we encounter a `VarRef` to `factorial`. But at that point, we haven't finished creating the Binding node, so we don't have a `NodeId` to link to.
@@ -448,6 +450,7 @@ let rec factorial n =
 // 2. Add bindings to environment WITH their NodeIds
 // 3. Check body (VarRefs resolve via environment)
 // 4. Connect body to Binding node via SetChildren
+ 
 ```
 
 **Invariant**: All VarRefs, including self-references in recursive functions, have `defId = Some nodeId`:

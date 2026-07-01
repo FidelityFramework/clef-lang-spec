@@ -316,6 +316,7 @@ f 1 // 1
 f 2 // failwith "x is two"
 f 3 // failwith "x is three"
 f 4 // failwith "got to C"
+ 
 ```
 
 An active pattern function may be executed multiple times against the same pattern input during
@@ -337,6 +338,7 @@ against `pat`. For example:
 let t1 = (1, 2)
 let (x, y) as t2 = t1
 printfn "%d-%d-%A" x y t2 // 1- 2 - (1, 2)
+ 
 ```
 
 This example binds the identifiers `x`, `y`, and `t1` to the values `1` , `2` , and `(1,2)`, respectively.

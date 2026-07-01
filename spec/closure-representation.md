@@ -90,6 +90,7 @@ closure_body(self_ptr, arg1, arg2):
     cap1 = self_ptr[1]    // First capture
     cap2 = self_ptr[2]    // Second capture
     // ... use captures and arguments
+ 
 ```
 
 ## 4. Type System Integration
@@ -170,6 +171,7 @@ Clef distinguishes two categories of functions that capture variables.
 ```fsharp
 let makeAdder n =
     fun x -> x + n  // Anonymous lambda, may escape
+ 
 ```
 
 The lambda is a first-class value that can be returned, stored, or passed to higher-order functions. CCS creates a closure struct: `{ code_ptr, n }`.

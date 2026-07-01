@@ -324,6 +324,7 @@ let maybeNull : string = null  // ERROR: null literal not permitted
 
 // Clef pattern (correct):
 let maybeValue : string option = None  // OK: explicit optionality
+ 
 ```
 
 ### Member Constraints
@@ -607,6 +608,7 @@ For example, `int` is a native type abbreviation for the platform word-sized int
 ```fsharp
 // int in Clef = platform word (64-bit on 64-bit platforms)
 // NOT an abbreviation for System.Int32
+ 
 ```
 
 The types `int` and `int32` are distinct in Clef:
@@ -826,6 +828,7 @@ let isString (x: obj) =
 
 // Not resolvable - compile error
 let unknown (x: obj) = x :? SomeType  // Error if relationship unknown
+ 
 ```
 
 Pattern matching type tests work when the type relationship can be determined at compile time from the type hierarchy.

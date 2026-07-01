@@ -419,6 +419,7 @@ let x2 = r<int>
 // count = 3
 let z0 = x1
 // count = 3
+ 
 ```
 
 The elaborated form of a type function is that of a function definition that takes one argument of

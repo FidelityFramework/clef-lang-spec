@@ -275,6 +275,7 @@ _start : unit -> unit
     argv ← Sys.emptyStringArray()     // Empty string array
     result ← main(argv)               // Call F# main
     Sys.exit(result)                  // Terminate with exit code (never returns)
+ 
 ```
 
 > **Implementation Note**: `Sys.exit` has type `int -> unit`. Although the syscall never returns, the binding honors the type contract by emitting an unreachable unit return value. This maintains type consistency throughout the compilation pipeline.

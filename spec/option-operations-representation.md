@@ -228,6 +228,7 @@ let forall predicate opt =
     match opt with
     | Some x -> predicate x
     | None -> true  // Vacuously true
+ 
 ```
 
 ### 4.10 Option.iter

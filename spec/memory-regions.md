@@ -54,6 +54,7 @@ Arena-allocated values are bulk-allocated and freed together.
 ```fsharp
 // Arena<[<Measure>] 'lifetime> - CCS intrinsic type
 // Layout: NTUCompound(3) = { Base: nativeint, Capacity: int, Position: int }
+ 
 ```
 
 **Current Implementation (Level 3 - Explicit)**:
@@ -69,6 +70,7 @@ let aligned = Arena.allocAligned &arena 64 16  // 64 bytes, 16-byte aligned
 // Query and reset
 let remaining = Arena.remaining arena
 Arena.reset &arena  // Position back to 0
+ 
 ```
 
 **Arena Operations** (CCS Intrinsics):
@@ -145,6 +147,7 @@ Ptr<uint32, Peripheral, ReadWrite>  // GPIO register
 Ptr<byte, Flash, ReadOnly>          // Constant data
 Ptr<int, Stack, ReadWrite>          // Stack buffer
 Ptr<float, Arena, ReadWrite>        // Arena-allocated array
+ 
 ```
 
 ## Compile-Time Enforcement

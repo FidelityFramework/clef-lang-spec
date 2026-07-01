@@ -429,6 +429,7 @@ whereas the following is not permitted:
 
 ```fsharp
 type E<'T> = C<'T> // invalid: missing constraint
+ 
 ```
 
 Type abbreviations can define additional constraints, so the following is permitted:
@@ -445,6 +446,7 @@ For example, the following is not a valid type abbreviation.
 
 ```fsharp
 type Drop<'T,'U> = 'T * 'T // invalid: dropped type variable
+ 
 ```
 
 > Note: This restriction simplifies the process of guaranteeing a stable and consistent compilation to generic native code.
@@ -455,6 +457,7 @@ abbreviation. For example, the following type is disallowed:
 
 ```fsharp
 type BadType = #Exception -> int // disallowed
+ 
 ```
 
 Type abbreviations may be declared `internal` or `private`.
@@ -511,6 +514,7 @@ Record field labels in the _FieldLabels_ table play a special role in _Name Reso
 ```fsharp
 type R = { dx : int; dy: int }
 let f x = x.dx // x is inferred to have type R
+ 
 ```
 
 In this example, the lookup `.dx` is resolved to be a field lookup.
@@ -526,6 +530,7 @@ interface IStructuralComparable
 interface IComparable
 override GetHashCode : unit -> int
 override Equals : 'T -> bool  // where 'T is the record type
+ 
 ```
 
 > **Clef Note**: In Clef, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
@@ -621,6 +626,7 @@ interface IStructuralComparable
 interface IComparable
 override GetHashCode : unit -> int
 override Equals : 'T -> bool  // where 'T is the union type
+ 
 ```
 
 > **Clef Note**: In Clef, `Equals` uses the specific type rather than `obj`. Equality comparison is resolved at compile time through SRTP constraints.
@@ -761,6 +767,7 @@ type C() as self =
     member this.F() = printfn "hi, y = %A" y
 
 let r = new C() // raises InvalidOperationException
+ 
 ```
 
 The exception is raised because an attempt may be made to access the value of the field `y` before
@@ -804,6 +811,7 @@ type C() as self =
     member this.F() = printfn "hi, y = %A" y
 
 let r = new C() // does not raise InvalidOperationException
+ 
 ```
 
 #### Instance Function and Value Definitions in Primary Constructors
@@ -1302,6 +1310,7 @@ type Color =
     | Blue = 2
 
 let red = Red // not accepted, must use Color.Red
+ 
 ```
 
 Unlike unions, enumeration types are fundamentally "incomplete," because enumerations can
@@ -1398,6 +1407,7 @@ type 'a List with
 let intlst = [1; 2; 3]
 intlst.GetOrDefault(1) //2
 intlst.GetOrDefault(4) //0
+ 
 ```
 
 For an array type, backtick marks can be used to define an extension method to the array type:
@@ -1410,6 +1420,7 @@ type 'a ``[]`` with
 let arrlist = [| 1; 2; 3 |]
 arrlist.GetOrDefault(1) //2
 arrlist.GetOrDefault(4) //0
+ 
 ```
 
 A type can have any number of extensions.
@@ -1574,6 +1585,7 @@ type Test() =
     static member Id x = x
     member t.M1 (x: int) = Test.Id(x)
     member t.M2 (x: string) = Test.Id(x) // error, x has type 'string' not 'int'
+ 
 ```
 
 A target method that has a full type annotation is eligible for early generalization ([§](inference-constraint-solving.md#generalization)).
@@ -1792,6 +1804,7 @@ type C() =
 let c = C()
 c.Swap(first = 1,second = 2) // result is '(2,1)'
 c.Swap(second = 1,first = 2) // result is '(1,2)'
+ 
 ```
 
 Named arguments may be used only with the arguments that correspond to the arity of the
@@ -2013,6 +2026,7 @@ type GenericClass<'T>() =
     static member M(arg: 'T) = ()
 
 GenericClass<Action>.M(fun () -> ()) // allowed
+ 
 ```
 
 #### Conversion to Reference Cells
@@ -2039,6 +2053,7 @@ let f = (fun () -> ()) in C.M1(f) // not allowed
 
 let result = ref 0
 C.M2(result) // allowed
+ 
 ```
 
 > Note: These type-directed conversions are primarily for interoperability with existing member-based libraries and do not apply at invocations of functions defined in modules or bound locally in expressions.
@@ -2066,6 +2081,7 @@ This C# code can be called by the following F# code:
 let res1 = ref 0
 C.IntegerOutParam(res 1 )
 // res1.contents now equals 3
+ 
 ```
 
 Likewise, the abstract signature can be implemented as follows:
@@ -2075,6 +2091,7 @@ let x = {new D() with IntegerOutParam(res : byref<int>) = res <- 4}
 let res2 = ref 0
 x.IntegerOutParam(res2);
 // res2.contents now equals 4
+ 
 ```
 
 #### Conversion to Quotation Values
@@ -2262,6 +2279,7 @@ let v1 = BaseClass() // not allowed: BaseClass is abstract
 let v2 = (SubClass(7) :> BaseClass)
 
 v2.AbstractMethod 6 // evaluates to 13
+ 
 ```
 
 In this example, `BaseClass()` declares the abstract slot `AbstractMethod` and the `SubClass` type
@@ -2292,6 +2310,7 @@ let v3 = (SubClass2() :> BaseClass)
 v1.AbstractMethodWithDefaultImplementation 6 // evaluates to 6
 v2.AbstractMethodWithDefaultImplementation 6 // evaluates to 13
 v3.AbstractMethodWithDefaultImplementation 6 // evaluates to 6
+ 
 ```
 
 Here, the `BaseClass` type contains a default implementation, so F# allows the instantiation of `v1`. The

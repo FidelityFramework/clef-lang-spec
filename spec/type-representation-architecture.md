@@ -228,6 +228,7 @@ let rec unify t1 t2 =
         else
             fail "Type mismatch"
     // ... other cases
+ 
 ```
 
 There is no special case for records - they are just `TApp`.

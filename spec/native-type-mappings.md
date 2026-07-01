@@ -357,6 +357,7 @@ let extractRegime (bits: uint32) =
     let shifted = bits <<< 1
     let leadingZeros = clz shifted  // Guaranteed 1-2 cycles, not a loop
     // ... regime extraction logic
+ 
 ```
 
 ### Fallback Behavior
@@ -462,6 +463,7 @@ Known call sites compile to direct calls:
 ```fsharp
 let add x y = x + y
 add 1 2  // Direct call, no closure
+ 
 ```
 
 ### Closures

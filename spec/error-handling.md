@@ -149,6 +149,7 @@ However, the semantics differ:
 ```fsharp
 let x : string = null           // ERROR: null literal not available
 let y = Unchecked.defaultof<_>  // ERROR for reference types in most contexts
+ 
 ```
 
 This eliminates entire classes of runtime errors:
