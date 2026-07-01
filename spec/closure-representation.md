@@ -5,28 +5,19 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-01-19
-
-## Informative References
-
-> **Commentary**: For accessible explanation of the design rationale, including comparison with other closure representations and the MLKit heritage, see [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) in the Clef design documentation.
->
-> **Academic Foundation**: This representation follows MLKit-style flat closures. Key references:
-> - Shao, Z., & Appel, A. W. (1994). *Space-Efficient Closure Representations*. LFP '94.
-> - Tofte, M., & Talpin, J.-P. (1997). *Region-Based Memory Management*. Information and Computation.
-
----
-
 ## 1. Overview
 
-Clef uses **[flat closures](backend-lowering-architecture.md)** for function values that capture variables from their enclosing scope. This chapter specifies the memory representation, capture semantics, and calling conventions.
+A closure is a function value that carries the variables it captured from the scope where it was defined. Clef represents every such value as a **flat closure**: a code pointer paired with a single flat environment holding the captures, allocated on the stack or in a [region](memory-regions.md) and never on a garbage-collected heap. It is *flat* in that the environment is one block, not a chain of enclosing environments to traverse. This chapter specifies that representation, its capture semantics, its calling convention, and the properties that follow from it.
+
+The flat closure is the foundational representation on which much of the rest of the language rests. A [lazy value](lazy-representation.md) is a flat closure with fields added for memoization. A [sequence expression](seq-representation.md) is a flat closure that carries state-machine state. A [reactive callback](reactive-signals.md) and an [observer continuation](observable-computation.md) are flat closures whose capture sets are their dependency sets. A [discriminated union case](discriminated-union-representation.md) that holds a function holds a flat closure. Every function type in Clef ([types and type constraints](types-and-type-constraints.md)) compiles to one. Specifying the flat closure precisely, and once, is what lets those chapters extend it rather than restate it.
+
+Two properties of the representation are load-bearing across those chapters and are stated normatively here: a flat closure has **no uninitialized field**, so it carries no null state (§4), and it has a **deterministic, metadata-free layout**, so it is a self-contained value that can be moved between memory spaces (§5). The design rationale, and the reasoning for excluding null as a representable state rather than checking for it, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/) and [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) in the Clef design documentation. This representation follows the MLKit-style flat closure; see Shao and Appel, *Space-Efficient Closure Representations* (LFP '94), and Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997).
 
 ## 2. Memory Layout Specification
 
 ### 2.1 Closure Structure
 
-A closure in Clef is a struct containing a code pointer followed by captured values:
+A closure is a struct containing a code pointer followed by captured values:
 
 ```
 Closure with captures [c₁: T₁, ..., cₘ: Tₘ]
@@ -47,6 +38,8 @@ Field Indices:
   [1..m] = captured values
 ```
 
+This is the meaning of *flat*: a closure's captures are reached without traversing a chain of enclosing environments. A closure holds its captured values in a single environment, reached directly, rather than a pointer into an outer environment that points into a further one. A closure that captures one variable from an outer scope holds that variable in its own environment, not a link back through the scope that defined it. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. (In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects; see §6.3. "Flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.)
+
 ### 2.2 Capture Semantics
 
 Captures are classified by the mutability of the source binding:
@@ -57,45 +50,20 @@ Captures are classified by the mutability of the source binding:
 | Mutable binding | By Reference | `ptr<T>` | Store pointer to stack slot |
 | Ref cell | By Value | `ref<T>` | Copy ref cell pointer |
 
+An immutable binding is copied because nothing can change it; every holder of the closure sees the same value regardless. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
+
 ### 2.3 Allocation Strategy
 
-Closures are allocated:
+A closure is allocated in one of two places, chosen by its lifetime:
 
-1. **[On Stack](memory-regions.md)**: When lifetime is bounded to enclosing scope
-2. **In Region**: When escaping scope but within region lifetime
-3. **Never Heap**: No GC-managed heap allocation
+1. **[On the stack](memory-regions.md)**, when its lifetime is bounded by the enclosing scope.
+2. **In a region**, when it escapes the enclosing scope but lives within a region's lifetime.
 
-## 3. Calling Convention
+A closure is **never** allocated on a garbage-collected heap. Lifetime is resolved at compile time by escape analysis (§3.3), not by a collector at run time.
 
-### 3.1 Closure Invocation
+## 3. Capture, Escape, and the Type System
 
-When invoking a closure, the caller:
-
-1. Extracts `code_ptr` from field [0]
-2. Obtains pointer to the closure struct
-3. Calls `code_ptr` with closure pointer as first argument, followed by explicit arguments
-
-```
-call_closure(closure, arg1, arg2):
-    code_ptr = closure[0]
-    call code_ptr(&closure, arg1, arg2)
-```
-
-### 3.2 Capture Access
-
-The closure body receives a pointer to its containing struct and extracts captures by field index:
-
-```
-closure_body(self_ptr, arg1, arg2):
-    cap1 = self_ptr[1]    // First capture
-    cap2 = self_ptr[2]    // Second capture
-    // ... use captures and arguments
- 
-```
-
-## 4. Type System Integration
-
-### 4.1 Function Type Representation
+### 3.1 Function Type Representation
 
 ```
 Type ::= ...
@@ -103,13 +71,11 @@ Type ::= ...
        | TClosure(argTypes: Type list, retType: Type, captures: CaptureInfo list)
 ```
 
-At the native level, CCS (Clef Compiler Service) distinguishes:
-- `TFun` - Direct function, no captures
-- `TClosure` - Closure with captured environment
+At the native level, the Clef Compiler Service (CCS) distinguishes a direct function with no captures (`TFun`) from a closure with a captured environment (`TClosure`). The distinction is a representation choice, not a surface-syntax one: a lambda that captures nothing needs no environment and no closure value; it is a plain named function that callers reference directly. Only a lambda that captures builds a closure.
 
-### 4.2 Capture Analysis
+### 3.2 Capture Analysis
 
-During type checking, CCS computes capture information:
+During type checking, CCS computes the capture set for each closure:
 
 ```fsharp
 type CaptureInfo = {
@@ -120,65 +86,105 @@ type CaptureInfo = {
 }
 ```
 
-### 4.3 Escape Analysis
+The capture set determines the struct's layout: one field per captured variable, in a determined order, with the mode taken from `IsMutable`. Because the set is known at compile time, the layout is known at compile time (§5).
 
-A mutable binding that is captured creates a lifetime constraint:
+### 3.3 Escape Analysis
 
-**Invariant**: The stack frame containing a mutable binding SHALL outlive all closures that capture it by reference.
+Capturing a mutable binding by reference creates a lifetime constraint: the captured storage must outlive every closure that references it. Escape analysis resolves this constraint at compile time by choosing where the closure's environment is allocated, so that the storage's lifetime covers the closure's rather than requiring a collector to keep it alive.
 
-Violation of this invariant produces a compile-time error.
+**Invariant**: The environment holding a mutable capture SHALL have a lifetime that covers every closure that captures it by reference.
 
-## 5. MLIR Representation
+The analysis classifies each closure by whether it escapes its defining scope and allocates accordingly:
 
-### 5.1 Closure Type
+| Escape classification | Allocation |
+|-----------------------|------------|
+| Does not escape (stack-scoped) | Stack (`alloca`) |
+| Escapes via return, via another closure, or by reference | Region |
 
-```mlir
-!llvm.struct<(ptr, T1, T2, ...)>
+A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The choice is made by the analysis, not by the programmer, and the escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation. In neither case is the environment placed on a garbage-collected heap.
+
+## 4. Initialization and Null-Freedom
+
+Every field of a closure struct is assigned at construction. The code pointer is set to the closure's implementation function; each capture field is set to the captured value or, for a by-reference capture, to the address of live storage. There is no construction path that leaves a field unset, and there is no field whose type admits an absent or null value.
+
+A closure therefore has **no null state**. There is no uninitialized-closure value, no null code pointer to guard before an indirect call, and no null capture to check before an access. Where a program must model the possibility that a value is absent, it does so in the type, with `Option` ([option operations](option-operations-representation.md)), where absence is a declared case the compiler requires the reader to handle. Absence is a case in a type, never a state a closure field can silently hold.
+
+This property is what a null check exists to establish, established here by construction instead. A managed representation admits null in every reference field and answers the question "is this inhabited" at run time, on every access. A flat closure has already answered it, at construction, for every field. The consequence propagates through lowering: the emitted native code carries no null-pointer check for closure invocation or capture access. The rationale for excluding null as a representable state, rather than admitting and checking it, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+
+## 5. Representation Properties
+
+Three properties follow from the flat, inline, fully-initialized layout. They are the reason the flat closure, rather than a linked environment, is the mandated representation, and the reason the chapters in §7 can build on it directly.
+
+**Deterministic layout.** The struct's size and field offsets are fixed at compile time by the capture set. A closure's layout does not depend on run-time state and requires no run-time descriptor to interpret.
+
+**No runtime metadata.** A flat closure is self-describing through its static type alone. It carries no header, no environment link, and no tag that a runtime must consult to use it. Nothing about the value waits on a runtime to be resolved.
+
+**Position independence.** Because a closure's captures live in a single flat environment rather than a chain of enclosing environments, the closure is a self-contained value: a code pointer and one environment, with no chain to walk. It can be copied between memory spaces without a collector coordinating the move and without reconstructing an environment chain on the far side.
+
+These properties are what make a closure a portable value. The same closure that is safe on a CPU can be copied across a memory-space boundary or laid into a target's fabric, because it is the same fixed structure everywhere it lands; there is no managed environment it depends on. The representation realizes this by staying backend-neutral in the middle end: the closure is encoded in portable dialects and its pointers are materialized per target rather than committed to one backend (§6.3, and [Backend Lowering Architecture §4.2](backend-lowering-architecture.md)). Portability is therefore a property the lowering path preserves, not one a backend has to reconstruct. The design treatment of substrate portability, and its identity with null-freedom as one property seen from two sides, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+
+## 6. Calling Convention
+
+### 6.1 Closure Invocation
+
+To invoke a closure, the caller extracts the code pointer from field `[0]`, then calls it with a pointer to the closure struct as the first argument, followed by the explicit arguments:
+
+```
+call_closure(closure, arg1, arg2):
+    code_ptr = closure[0]
+    call code_ptr(&closure, arg1, arg2)
 ```
 
-Where `ptr` is the code pointer and `T1, T2, ...` are capture types.
+### 6.2 Capture Access
 
-### 5.2 Closure Creation
+The closure body receives a pointer to its own struct and reads captures by field index:
 
-```mlir
-// Build closure struct with captures
-%closure.1 = llvm.insertvalue %undef[0], %code_ptr : !llvm.struct<...>
-%closure.2 = llvm.insertvalue %closure.1[1], %cap1 : !llvm.struct<...>
-%closure = llvm.insertvalue %closure.2[2], %cap2 : !llvm.struct<...>
+```
+closure_body(self_ptr, arg1, arg2):
+    cap1 = self_ptr[1]    // First capture
+    cap2 = self_ptr[2]    // Second capture
+    // use captures and arguments
 ```
 
-### 5.3 Closure Invocation
+Capture access is a load at a known offset, not a search along an environment chain. This is the run-time consequence of the flat layout: constant-time access, and no indirection to chase.
 
-```mlir
-// Extract code pointer
-%code_ptr = llvm.extractvalue %closure[0] : !llvm.struct<...> -> !llvm.ptr
+### 6.3 Middle-End Encoding and Lowering
 
-// Get closure address
-%closure_ptr = llvm.alloca ... // or addressof if already allocated
+The layout in §2 is the conceptual representation. It is **not** encoded in a backend's pointer types in the middle end. The MiddleEnd (Alex) encodes a closure using only portable dialects (`func`, `memref`, `arith`), as a `(code_pointer, environment_pointer)` pair carried as `index` values, and defers the materialization of those pointers to a per-target pass. This is what keeps the representation portable across backends rather than committed to LLVM; the mechanism, including the `unrealized_conversion_cast` deferral and its per-backend resolution, is specified in [Backend Lowering Architecture §4.2](backend-lowering-architecture.md). On the LLVM backend the code pointer and captured-environment pointer materialize as `llvm.ptr` values through that resolution; on another backend they materialize into that backend's pointer mechanism from the same middle-end IR.
 
-// Indirect call with closure pointer as first argument
-%result = llvm.call %code_ptr(%closure_ptr, %arg1, %arg2) : ...
-```
+Because every field is assigned at construction (§4), the encoding carries no uninitialized or null slot into lowering on any backend, and no call site inserts a null guard.
 
-## 6. Nested Named Functions vs Escaping Closures
+## 7. The Representation Family
 
-Clef distinguishes two categories of functions that capture variables.
+The flat closure is extended, not replaced, by several other representations. Each adds fields or structure to the base layout while keeping its properties.
 
-### 6.1 Escaping Closures (Closure Struct Model)
+| Representation | Extends the flat closure with | Specified in |
+|----------------|-------------------------------|--------------|
+| Lazy value | A computed flag and a memoized value slot | [Lazy Value Representation](lazy-representation.md) |
+| Sequence expression | Resumable state-machine state | [Seq Representation](seq-representation.md) |
+| Reactive callback | A capture set read as a dependency-edge set | [Reactive Signals](reactive-signals.md) |
+| Observer continuation | The consumer state a continuation resumes into | [Observable Computation](observable-computation.md) |
+
+Each of these is a flat closure first. A lazy value is null-free and position-independent for the same reason a plain closure is; a sequence's state machine is a settled struct for the same reason. The properties in §4 and §5 are inherited by the whole family because they are properties of the base representation, established once here.
+
+## 8. Nested Named Functions vs Escaping Closures
+
+Clef distinguishes two categories of functions that capture variables. Only one needs a closure struct.
+
+### 8.1 Escaping Closures (Closure Struct Model)
 
 [Anonymous lambdas and function values](expressions.md) that may escape their defining scope use the flat closure struct:
 
 ```fsharp
 let makeAdder n =
     fun x -> x + n  // Anonymous lambda, may escape
- 
 ```
 
-The lambda is a first-class value that can be returned, stored, or passed to higher-order functions. CCS creates a closure struct: `{ code_ptr, n }`.
+The lambda is a first-class value that can be returned, stored, or passed to a higher-order function. CCS creates a closure struct `{ code_ptr, n }` for it.
 
-### 6.2 Nested Named Functions (Parameter-Passing Model)
+### 8.2 Nested Named Functions (Parameter-Passing Model)
 
-Named functions defined inside another function that are NOT escaping use parameter-passing:
+A named function defined inside another function that does **not** escape passes its captures as ordinary parameters instead of building a struct:
 
 ```fsharp
 let sumTo n =
@@ -188,17 +194,17 @@ let sumTo n =
     loop 0 1
 ```
 
-Here `loop` is called directly from `sumTo` and never escapes. Captures become additional parameters:
+Here `loop` is called directly from `sumTo` and never escapes. Its capture becomes a leading parameter:
 
-**Generated Signature**:
 ```
-loop: (n: int, acc: int, i: int) -> int
-       ↑ capture   ↑ explicit params
+Generated signature:  loop: (n: int, acc: int, i: int) -> int
+                              ↑ capture   ↑ explicit params
+Call site:            loop(n, 0, 1)
 ```
 
-**Call Site**: `loop(n, 0, 1)`, where capture `n` is passed as first argument.
+Passing the capture as a parameter costs no struct and no allocation. This is the preferred representation whenever escape analysis proves the function cannot outlive the scope it captures from.
 
-### 6.3 Classification Criteria
+### 8.3 Classification
 
 | Criterion | Escaping Closure | Nested Named Function |
 |-----------|-----------------|----------------------|
@@ -207,41 +213,40 @@ loop: (n: int, acc: int, i: int) -> int
 | Can escape scope | Yes | No |
 | Representation | `{code_ptr, cap₁, ...}` struct | Direct function |
 | Capture passing | Via struct extraction | As explicit parameters |
-| Allocation | Stack/region for struct | None |
+| Allocation | Stack or region for the struct | None |
 
-### 6.4 Classification Rule
+A Lambda is classified as a nested named function if and only if its enclosing function is present (it is nested) **and** its parent [PSG](program-semantic-graph.md) node is a `Binding` (it is named). Otherwise it is an escaping closure and uses the struct model.
 
-A Lambda SHALL be classified as a nested named function if and only if:
-1. Its `enclosingFunction` is `Some _` (nested)
-2. Its parent PSG node is a `Binding` (named definition)
+## 9. Compilation Pipeline
 
-## 7. Implementation in CCS/Firefly Pipeline
+The closure representation is produced across three phases, consistent with the coeffect model in which structure is computed before it is emitted.
 
-### 7.1 CCS Phase
+**CCS** constructs the [PSG](program-semantic-graph.md) with complete lambda information: `SemanticKind.Lambda(parameters, body, captures)`, with captures computed during scope analysis and mutability tracked in `CaptureInfo.IsMutable`.
 
-CCS constructs the [PSG](program-semantic-graph.md) with complete lambda information:
-- `SemanticKind.Lambda(parameters, body, captures)`
-- Captures computed during scope analysis
-- Mutability tracked in `CaptureInfo.IsMutable`
+**Alex preprocessing** identifies lambda nodes that capture, tagging them with a `HasClosureCapture` coeffect, then computes each closure's concrete struct layout and assigns the SSA identifiers for its construction. Layout is settled here, before emission.
 
-### 7.2 Alex Preprocessing Phase
+**Witnessing** observes the pre-computed coeffect. Where a closure coeffect is present, the witness emits the closure struct and the `(code_ptr, env_ptr)` pair. Where a lambda captures nothing, the witness emits no closure value at all: the lambda is a plain named function, and its callers reference it directly by name. A closure struct exists only when there is an environment to carry. The witness reads the layout; it does not compute it.
 
-1. **CaptureIdentification**: Identifies Lambda nodes with captures, tags with `HasClosureCapture` coeffect
-2. **ClosureLayout**: Computes struct layout, assigns SSAs for construction
+## 10. Normative Requirements
 
-### 7.3 Witness Phase
+1. **Flat Representation**: A closure with captures SHALL use the flat closure representation: a code pointer and a single flat environment holding the captures, with no linked chain of enclosing environments.
+2. **No Linked Environment Chain**: A closure's environment SHALL be a single flat block, not a chain of enclosing environments; a closure SHALL NOT traverse a linked chain of environment pointers to reach a capture.
+3. **Full Initialization**: Every field of a closure struct SHALL be assigned at construction; a closure SHALL NOT have any uninitialized or null field.
+4. **No Null State**: A closure representation SHALL NOT admit a null code pointer or a null capture; absence, where required, SHALL be modeled with `Option` rather than a nullable field.
+5. **Deterministic Layout**: A closure's size and field offsets SHALL be determined at compile time from its capture set, independent of run-time state.
+6. **No Runtime Metadata**: A closure SHALL be interpretable from its static type alone, without a run-time header, descriptor, or tag.
+7. **Capture Mode**: A mutable binding SHALL be captured by reference; an immutable binding SHALL be captured by value.
+8. **Escape-Driven Allocation**: A closure's environment SHALL be allocated by escape analysis according to whether the closure escapes: on the stack when it does not escape, in a region when it does. The environment holding a by-reference capture SHALL be allocated with a lifetime that covers every closure capturing it.
+9. **No GC Heap**: A closure's environment SHALL be allocated on the stack or in a region; it SHALL NOT be allocated on a garbage-collected heap.
+10. **Cache Alignment**: A small closure (≤64 bytes) SHOULD be aligned to a cache line.
+11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
+12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.
 
-`LambdaWitness` observes:
-- If `ClosureCoeffect` present: emit flat closure struct
-- If no captures: emit simple function pointer
+## 11. Related Chapters
 
-## 8. Normative Requirements
-
-1. **Flat Representation**: Escaping closures SHALL use flat closure representation with captures stored directly in the struct
-2. **No Environment Pointer**: Closures SHALL NOT use linked environment chains or `env_ptr` fields
-3. **Capture Mode**: Mutable bindings SHALL be captured by reference; immutable by value
-4. **Escape Safety**: Closures capturing mutable bindings SHALL NOT escape the binding's scope
-5. **No Heap**: Closures SHALL NOT be allocated on GC-managed heap
-6. **Cache Alignment**: Small closures (≤64 bytes) SHOULD be aligned to cache lines
-7. **Nested Functions**: Named functions defined within another function that do not escape SHALL use parameter-passing for captures
-8. **Classification**: A Lambda SHALL be classified as a nested named function iff its enclosing function is present AND its parent PSG node is a Binding
+- [Lazy Value Representation](lazy-representation.md), [Seq Representation](seq-representation.md) - representations that extend the flat closure
+- [Reactive Signals](reactive-signals.md), [Observable Computation](observable-computation.md) - callbacks and continuations as flat closures
+- [Discriminated Union Representation](discriminated-union-representation.md) - DU cases that hold closures
+- [Memory Regions](memory-regions.md), [Access Kinds](access-kinds.md) - allocation and mutability that govern capture
+- [Backend Lowering Architecture](backend-lowering-architecture.md) - how backends realize the representation
+- [Native Type Universe](native-type-universe.md), [Types and Type Constraints](types-and-type-constraints.md) - where function types resolve to closures

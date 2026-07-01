@@ -88,7 +88,23 @@ There is no portable MLIR representation for "pointer to function":
 | SPIR-V | Function tables, `OpFunctionPointer` |
 | WebAssembly | Function indices, `call_indirect` |
 
-### 4.2 Correct Dialect Usage
+### 4.2 The Middle-End Encoding and Deferred Resolution
+
+The MiddleEnd (Alex) does not emit the backend-specific form of the previous section. It emits a **target-agnostic encoding** of the flat closure using only portable dialects (`func`, `memref`, `arith`), and defers the backend commitment to a later, per-target pass. A closure is encoded as a `(code_pointer, environment_pointer)` pair, with both pointers carried as `index` values in `memref` rather than as any backend's pointer type.
+
+This is deliberate. Committing the closure representation to `!llvm.ptr` in the middle end would pre-commit every closure, and therefore every lazy value, sequence, and reactive callback that builds on it, to the LLVM backend. Keeping the encoding in portable dialects is what allows the same closure IR to reach LLVM, SPIR-V, WebAssembly, or a hardware backend. The middle end stays LLVM-free so that the choice of backend remains open past the middle end.
+
+The obstacle is that storing a function's address **as data** has no standard MLIR lowering: there is no portable operation that turns a function into an integer-sized value and back. The MiddleEnd represents each such conversion as a `builtin.unrealized_conversion_cast`, which is MLIR's designated mechanism for a type conversion whose realization is deferred. Three net conversions arise:
+
+| Middle-End Conversion | Meaning | Backend Realization (LLVM) |
+|---|---|---|
+| `func_type → index` | Store a function address as data | `llvm.ptrtoint` |
+| `index → func_type` | Recover a function for an indirect call | `llvm.inttoptr` |
+| `index → memref` | Reconstruct a captured-environment pointer as a `memref` for capture extraction | `llvm.inttoptr` + descriptor construction |
+
+Each backend resolves these deferred casts into its own pointer representation. For the LLVM backend the resolution runs as a dedicated pass, positioned **after** the standard dialect conversions (`--convert-func-to-llvm`, `--finalize-memref-to-llvm`, and so on) and **before** `--reconcile-unrealized-casts`, because the standard conversions leave the closure casts with intermediate types that reconciliation cannot collapse on its own. The Fidelity `flat-closure-lowering` plugin provides this as `--resolve-closure-casts`. A backend targeting different hardware supplies its own resolution of the same three conversions; the middle-end IR it consumes is identical.
+
+### 4.3 Correct Dialect Usage
 
 ```mlir
 // Thunk function - LLVM dialect (address will be taken)
@@ -110,7 +126,7 @@ func.func @main() -> i32 {
 }
 ```
 
-### 4.3 Dialect Mixing Rules
+### 4.4 Dialect Mixing Rules
 
 MLIR allows mixing portable and backend-specific operations within function bodies:
 
@@ -162,4 +178,6 @@ This configuration flows through:
 2. **Address-taken functions SHALL use backend dialects**: Functions whose address is taken use the backend's function definition (e.g., `llvm.func`)
 3. **Struct operations SHALL use backend dialects**: Record, [union](discriminated-union-representation.md), and closure struct manipulation uses backend-specific operations
 4. **`llvm.call` target restriction**: `llvm.call` SHALL only call functions defined as `llvm.func`; to call a `func.func` from `llvm.func`, use `func.call`
-5. **Platform configuration flow**: `fidproj` platform settings SHALL inform all lowering decisions
+5. **LLVM-free middle end**: The MiddleEnd SHALL encode flat closures using portable dialects and SHALL NOT commit to a backend's pointer type; the conversion of a function address to and from data SHALL be represented as `builtin.unrealized_conversion_cast` and resolved per target
+6. **Deferred cast resolution**: A backend SHALL resolve the `func_type ↔ index` and `index → memref` closure casts into its own pointer representation; for the LLVM backend this resolution SHALL run after standard dialect conversions and before `--reconcile-unrealized-casts`
+7. **Platform configuration flow**: `fidproj` platform settings SHALL inform all lowering decisions
