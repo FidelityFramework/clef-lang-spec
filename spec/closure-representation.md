@@ -7,11 +7,11 @@ status: normative
 
 ## 1. Overview
 
-A closure is a function value that carries the variables it captured from the scope where it was defined. Clef represents every such value as a **flat closure**: a code pointer paired with a single flat environment holding the captures, allocated on the stack or in a [region](memory-regions.md) and never on a garbage-collected heap. It is *flat* in that the environment is one block, not a chain of enclosing environments to traverse. This chapter specifies that representation, its capture semantics, its calling convention, and the properties that follow from it.
+A closure is a function value that carries the variables it captured from the scope where it was defined. Clef represents every such value as a **flat closure**: a code pointer paired with a single flat environment holding the captures, allocated on the stack or in a [region](memory-regions.md). It is *flat* in that the environment is one block, not a chain of enclosing environments to traverse. This chapter specifies that representation, its capture semantics, its calling convention, and the properties that follow from it.
 
 The flat closure is the foundational representation on which much of the rest of the language rests. A [lazy value](lazy-representation.md) is a flat closure with fields added for memoization. A [sequence expression](seq-representation.md) is a flat closure that carries state-machine state. A [reactive callback](reactive-signals.md) and an [observer continuation](observable-computation.md) are flat closures whose capture sets are their dependency sets. A [discriminated union case](discriminated-union-representation.md) that holds a function holds a flat closure. Every function type in Clef ([types and type constraints](types-and-type-constraints.md)) compiles to one. Specifying the flat closure precisely, and once, is what lets those chapters extend it rather than restate it.
 
-Two properties of the representation are load-bearing across those chapters and are stated normatively here: a flat closure has **no uninitialized field**, so it carries no null state (§4), and it has a **deterministic, metadata-free layout**, so it is a self-contained value that can be moved between memory spaces (§5). The design rationale, and the reasoning for excluding null as a representable state rather than checking for it, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/) and [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) in the Clef design documentation. This representation follows the MLKit-style flat closure; see Shao and Appel, *Space-Efficient Closure Representations* (LFP '94), and Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997).
+This chapter specifies the closure's layout (§2), capture and escape semantics (§3), field initialization (§4), representation properties (§5), calling convention (§6), and its relationship to the representations that extend it (§7). The design rationale is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/) and [Gaining Closure](https://clef-lang.com/docs/design/memory/gaining-closure/) in the Clef design documentation. This representation follows the MLKit-style flat closure; see Shao and Appel, *Space-Efficient Closure Representations* (LFP '94), and Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997).
 
 ## 2. Memory Layout Specification
 
@@ -38,7 +38,7 @@ Field Indices:
   [1..m] = captured values
 ```
 
-This is the meaning of *flat*: a closure's captures are reached without traversing a chain of enclosing environments. A closure holds its captured values in a single environment, reached directly, rather than a pointer into an outer environment that points into a further one. A closure that captures one variable from an outer scope holds that variable in its own environment, not a link back through the scope that defined it. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. (In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects; see §6.3. "Flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.)
+This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by walking a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.
 
 ### 2.2 Capture Semantics
 
@@ -59,7 +59,7 @@ A closure is allocated in one of two places, chosen by its lifetime:
 1. **[On the stack](memory-regions.md)**, when its lifetime is bounded by the enclosing scope.
 2. **In a region**, when it escapes the enclosing scope but lives within a region's lifetime.
 
-A closure is **never** allocated on a garbage-collected heap. Lifetime is resolved at compile time by escape analysis (§3.3), not by a collector at run time.
+The allocation site is chosen at compile time by escape analysis (§3.3).
 
 ## 3. Capture, Escape, and the Type System
 
@@ -90,7 +90,7 @@ The capture set determines the struct's layout: one field per captured variable,
 
 ### 3.3 Escape Analysis
 
-Capturing a mutable binding by reference creates a lifetime constraint: the captured storage must outlive every closure that references it. Escape analysis resolves this constraint at compile time by choosing where the closure's environment is allocated, so that the storage's lifetime covers the closure's rather than requiring a collector to keep it alive.
+Capturing a mutable binding by reference creates a lifetime constraint: the captured storage must outlive every closure that references it. Escape analysis resolves this constraint at compile time by choosing where the closure's environment is allocated, so that the storage's lifetime covers the closure's.
 
 **Invariant**: The environment holding a mutable capture SHALL have a lifetime that covers every closure that captures it by reference.
 
@@ -101,27 +101,25 @@ The analysis classifies each closure by whether it escapes its defining scope an
 | Does not escape (stack-scoped) | Stack (`alloca`) |
 | Escapes via return, via another closure, or by reference | Region |
 
-A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The choice is made by the analysis, not by the programmer, and the escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation. In neither case is the environment placed on a garbage-collected heap.
+A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation.
 
-## 4. Initialization and Null-Freedom
+## 4. Initialization
 
-Every field of a closure struct is assigned at construction. The code pointer is set to the closure's implementation function; each capture field is set to the captured value or, for a by-reference capture, to the address of live storage. There is no construction path that leaves a field unset, and there is no field whose type admits an absent or null value.
+Every field of a closure is assigned at construction. The code pointer is set to the closure's implementation function; each capture field is set to the captured value, or for a by-reference capture to the address of its storage.
 
-A closure therefore has **no null state**. There is no uninitialized-closure value, no null code pointer to guard before an indirect call, and no null capture to check before an access. Where a program must model the possibility that a value is absent, it does so in the type, with `Option` ([option operations](option-operations-representation.md)), where absence is a declared case the compiler requires the reader to handle. Absence is a case in a type, never a state a closure field can silently hold.
-
-This property is what a null check exists to establish, established here by construction instead. A managed representation admits null in every reference field and answers the question "is this inhabited" at run time, on every access. A flat closure has already answered it, at construction, for every field. The consequence propagates through lowering: the emitted native code carries no null-pointer check for closure invocation or capture access. The rationale for excluding null as a representable state, rather than admitting and checking it, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+No closure field admits a null value. This exclusion is stated explicitly because null-as-a-reference-state is a widespread convention that this representation deliberately does not adopt: a closure has no null code pointer and no null capture, and where a program models the possible absence of a value it uses `Option` ([option operations](option-operations-representation.md)) rather than a nullable field. The design rationale is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
 ## 5. Representation Properties
 
-Three properties follow from the flat, inline, fully-initialized layout. They are the reason the flat closure, rather than a linked environment, is the mandated representation, and the reason the chapters in §7 can build on it directly.
+A closure has the following properties, which the representations in §7 rely on:
 
-**Deterministic layout.** The struct's size and field offsets are fixed at compile time by the capture set. A closure's layout does not depend on run-time state and requires no run-time descriptor to interpret.
+**Deterministic layout.** A closure's size and field offsets are fixed at compile time by its capture set, independent of run-time state.
 
-**No runtime metadata.** A flat closure is self-describing through its static type alone. It carries no header, no environment link, and no tag that a runtime must consult to use it. Nothing about the value waits on a runtime to be resolved.
+**Static self-description.** A closure is interpretable from its static type alone, with no run-time header, descriptor, or tag.
 
-**Position independence.** Because a closure's captures live in a single flat environment rather than a chain of enclosing environments, the closure is a self-contained value: a code pointer and one environment, with no chain to walk. It can be copied between memory spaces without a collector coordinating the move and without reconstructing an environment chain on the far side.
+**Position independence.** A closure's captures live in a single flat environment, so the closure is a self-contained value that can be copied between memory spaces as a block and remains valid at the destination.
 
-These properties are what make a closure a portable value. The same closure that is safe on a CPU can be copied across a memory-space boundary or laid into a target's fabric, because it is the same fixed structure everywhere it lands; there is no managed environment it depends on. The representation realizes this by staying backend-neutral in the middle end: the closure is encoded in portable dialects and its pointers are materialized per target rather than committed to one backend (§6.3, and [Backend Lowering Architecture §4.2](backend-lowering-architecture.md)). Portability is therefore a property the lowering path preserves, not one a backend has to reconstruct. The design treatment of substrate portability, and its identity with null-freedom as one property seen from two sides, is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+These properties are preserved across backends: the closure is encoded in portable dialects and its pointers are materialized per target (§6.3, [Backend Lowering Architecture §4.2](backend-lowering-architecture.md)). The design treatment of substrate portability is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
 ## 6. Calling Convention
 
@@ -146,13 +144,13 @@ closure_body(self_ptr, arg1, arg2):
     // use captures and arguments
 ```
 
-Capture access is a load at a known offset, not a search along an environment chain. This is the run-time consequence of the flat layout: constant-time access, and no indirection to chase.
+Capture access is a load at a known offset.
 
 ### 6.3 Middle-End Encoding and Lowering
 
 The layout in §2 is the conceptual representation. It is **not** encoded in a backend's pointer types in the middle end. The MiddleEnd (Alex) encodes a closure using only portable dialects (`func`, `memref`, `arith`), as a `(code_pointer, environment_pointer)` pair carried as `index` values, and defers the materialization of those pointers to a per-target pass. This is what keeps the representation portable across backends rather than committed to LLVM; the mechanism, including the `unrealized_conversion_cast` deferral and its per-backend resolution, is specified in [Backend Lowering Architecture §4.2](backend-lowering-architecture.md). On the LLVM backend the code pointer and captured-environment pointer materialize as `llvm.ptr` values through that resolution; on another backend they materialize into that backend's pointer mechanism from the same middle-end IR.
 
-Because every field is assigned at construction (§4), the encoding carries no uninitialized or null slot into lowering on any backend, and no call site inserts a null guard.
+Because every field is assigned at construction (§4), the encoding carries a complete value into lowering on any backend.
 
 ## 7. The Representation Family
 
@@ -231,13 +229,13 @@ The closure representation is produced across three phases, consistent with the 
 
 1. **Flat Representation**: A closure with captures SHALL use the flat closure representation: a code pointer and a single flat environment holding the captures, with no linked chain of enclosing environments.
 2. **No Linked Environment Chain**: A closure's environment SHALL be a single flat block, not a chain of enclosing environments; a closure SHALL NOT traverse a linked chain of environment pointers to reach a capture.
-3. **Full Initialization**: Every field of a closure struct SHALL be assigned at construction; a closure SHALL NOT have any uninitialized or null field.
-4. **No Null State**: A closure representation SHALL NOT admit a null code pointer or a null capture; absence, where required, SHALL be modeled with `Option` rather than a nullable field.
+3. **Full Initialization**: Every field of a closure SHALL be assigned at construction.
+4. **No Null State**: A closure field SHALL NOT admit a null value; absence, where required, SHALL be modeled with `Option`.
 5. **Deterministic Layout**: A closure's size and field offsets SHALL be determined at compile time from its capture set, independent of run-time state.
 6. **No Runtime Metadata**: A closure SHALL be interpretable from its static type alone, without a run-time header, descriptor, or tag.
 7. **Capture Mode**: A mutable binding SHALL be captured by reference; an immutable binding SHALL be captured by value.
 8. **Escape-Driven Allocation**: A closure's environment SHALL be allocated by escape analysis according to whether the closure escapes: on the stack when it does not escape, in a region when it does. The environment holding a by-reference capture SHALL be allocated with a lifetime that covers every closure capturing it.
-9. **No GC Heap**: A closure's environment SHALL be allocated on the stack or in a region; it SHALL NOT be allocated on a garbage-collected heap.
+9. **Allocation Site**: A closure's environment SHALL be allocated on the stack or in a region, as determined by escape analysis (§3.3).
 10. **Cache Alignment**: A small closure (≤64 bytes) SHOULD be aligned to a cache line.
 11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
 12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.
