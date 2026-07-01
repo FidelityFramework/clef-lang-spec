@@ -101,7 +101,7 @@ The analysis classifies each closure by whether it escapes its defining scope an
 | Does not escape (stack-scoped) | Stack (`alloca`) |
 | Escapes via return, via another closure, or by reference | Region |
 
-A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation.
+A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation; as a design-time property established here, it is subject to the [preservation obligation through lowering](conformance.md).
 
 ## 4. Initialization
 

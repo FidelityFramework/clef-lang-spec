@@ -226,7 +226,7 @@ resolution varies.
 
 ### 3.2 Section Compilation
 
-Each section of the graph is compiled separately against its platform context:
+Each section of the graph is compiled separately against its platform context. Dimensional types are a design-time property this specification requires an implementation to establish, and their preservation across these stages is governed by the [preservation obligation through lowering](conformance.md):
 
 1. **CCS** elaborates the full program graph with dimensional types preserved
 2. **Alex** partitions the graph into target sections (CPU, GPU, FPGA, etc.)
