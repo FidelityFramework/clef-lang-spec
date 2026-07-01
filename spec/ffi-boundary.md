@@ -310,6 +310,7 @@ return = "nonnull"  # Override: gtk_window_new never returns NULL
 
 [g_object_get_data]
 return = "nullable"  # Override: may return NULL if key not found
+ 
 ```
 
 ### 5.5 Callback Function Types

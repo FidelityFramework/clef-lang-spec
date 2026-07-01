@@ -285,6 +285,7 @@ The choice is made via `.fidproj` configuration and flows through platform quota
 ```toml
 [compilation]
 cryptography_implementation = "inline"  # or "platform"
+ 
 ```
 
 The witness queries this setting via [platform context](platform-bindings.md) during MLIR generation.
