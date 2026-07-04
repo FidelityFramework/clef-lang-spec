@@ -39,7 +39,7 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 ## Program structure carriage
 
-**Program Semantic Graph (PSG)** — the graph carrying a program's structure and its design-time facts (dimensions, ranges, grades, coeffects, escape classes, reversibility) as annotations, preserved through lowering. Defined in [Program Semantic Graph](program-semantic-graph.md).
+**Program Semantic Graph (PSG)** — the graph carrying a program's structure and its design-time facts (dimensions, ranges, grades, coeffects, escape classes) as annotations, preserved through lowering. Defined in [Program Semantic Graph](program-semantic-graph.md).
 
 **Program Hypergraph (PHG)** — the PSG extended with hyperedges that bind multiple nodes at once, for constraints that are genuinely multi-way (e.g. co-location on a hardware tile, the join of several geometric elements) and that a set of pairwise edges would assert strictly more weakly.
 
@@ -49,13 +49,13 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 ## Types and dimensions
 
-**dimensional type** — a type carrying a dimension drawn from a finitely generated free abelian group of base dimensions with integer (or, with fractional types, rational) exponents. Defined across [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md).
+**dimensional type** — a type carrying a dimension drawn from a finitely generated free abelian group of base dimensions with integer exponents (the proposed fractional-type extension would admit rational exponents). Defined across [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md).
 
 **dimension** versus **range** — a value's *dimension* establishes its kind (e.g. *meters*); its *range* `[a, b]` establishes the concrete interval it occupies. Numeric selection takes the **range**, not the dimension, as its input. See [Numeric Selection §1](numeric-selection.md).
 
 **grade** — the algebraic grade (scalar, vector, bivector, …) of a value in the geometric/Clifford algebra; a structural property the type system preserves.
 
-**negative type**, **fractional type** — the additive-inverse and multiplicative-inverse (reciprocal) types that carry, respectively, a reversal channel and a deferred-supply obligation; the discipline that reaches the requirements into rational and real arithmetic. Introduced in [Special Attributes and Types](special-attributes-and-types.md).
+**negative type**, **fractional type** *(proposed; non-normative)* — the additive-inverse and multiplicative-inverse (reciprocal) types that would carry, respectively, a reversal channel and a deferred-supply obligation, reaching the requirements into rational and real arithmetic. This is a proposed extension: the type universe as specified operates without reference to negative or fractional types, and the discipline is the subject of a companion treatment, not a normative chapter of this specification. No normative requirement in this specification depends on it.
 
 ## Numeric representation
 

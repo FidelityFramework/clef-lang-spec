@@ -171,13 +171,15 @@ let checked = Checked.add System.Int32.MaxValue 1  // voption.None
 | Single | `float32`, `single` | 4 bytes | `f32` | binary32 |
 | Double | `float`, `double` | 8 bytes | `f64` | binary64 |
 
-**OCaml Provenance**: OCaml's `float` is always 64-bit (boxed in most contexts). Clef follows this default but provides `float32` for memory-constrained scenarios.
+`float` and `float32` are the **bare, no-locality-claim** real types: a value with no analyzed range whose representation is not being selected. Their `f64`/`f32` MLIR mappings are IEEE-754 **lowering targets**, chosen for a wide or unobservable range on a target whose binding offers an FPU, not a universal declared representation. IEEE-754 is a legacy hardware fixture (the FPU of a CPU, GPU, or APU), so it is one lowering target among several, not the default a real is presumed to be.
+
+For a **dimensioned or ranged** real, the representation — IEEE-754, posit, or fixed-point — is *selected* from the value's dimensional range by [Numeric Selection](numeric-selection.md#6-the-default-and-unobservable-case) (§6.1), never fixed by the type name. `float`/`float32` are what selection lowers to when the range is wide or unobservable; the `float = f64` / `float32 = f32` mappings remain correct as those lowering targets. Representation follows from analyzed range, not from a target type name.
 
 **Design Decisions**:
 
-1. **`float` = 64-bit**: Matches OCaml and F# convention. Double precision is the default for scientific computing.
+1. **`float`/`float32` carry no representation claim**: they are the bare types that lower to `f64`/`f32` when a range is wide or unobservable. They are not "the default representation" for a real; a dimensioned or ranged real has its representation selected per [Numeric Selection](numeric-selection.md) (§6.1), which may select a posit or a fixed-point number instead. Explicit developer selection of a precision and range is sovereign over inference.
 
-2. **IEEE 754 compliance**: All floating-point operations follow IEEE 754 semantics including NaN propagation, infinities, and signed zeros.
+2. **IEEE 754 compliance when IEEE is the selected representation**: where the selected or bare representation is `f64`/`f32`, all floating-point operations follow IEEE 754 semantics including NaN propagation, infinities, and signed zeros.
 
 3. **No implicit float-int conversion**:
    ```fsharp
