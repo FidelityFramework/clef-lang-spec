@@ -25,8 +25,10 @@ The following memory regions are defined:
 | `Stack` | Thread-local automatic storage | No | Yes |
 | `Arena` | Bulk allocation with batch deallocation | No | Yes |
 | `Peripheral` | Memory-mapped I/O | Yes | No |
-| `Sram` | General-purpose RAM | No | Yes |
-| `Flash` | Read-only program memory | No | Yes |
+| `Sram` | General-purpose RAM; static storage for mutable program-lifetime values | No | Yes |
+| `Flash` | Read-only program memory; static storage for immutable program-lifetime values | No | Yes |
+
+`Sram` and `Flash` are also the *static storage* of the [lifetime lattice](closure-representation.md): a value whose lifetime is the whole program (constructed once, held to program end, never freed) is placed in `Sram` when mutable or `Flash` when immutable, as a program-lifetime global rather than a heap allocation. A fixed-address `Peripheral` register is already a program-lifetime global of this kind; a program-lifetime closure, list, or record is the same, and lives in the same static storage. This is what lets a target without a heap still hold a value that outlives its constructing scope.
 
 ### Stack
 
@@ -34,9 +36,11 @@ Stack-allocated values have automatic lifetime bounded by their lexical scope.
 
 ```fsharp
 let example () =
-    let buffer : Ptr<byte, Stack, ReadWrite> = stackalloc 1024
-    // buffer is valid until function returns
-    use buffer
+    // Fixed-size stack array; storage is allocated in the Stack region
+    let buffer : array<byte, 1024, Stack> = [| 0uy; ... |]
+    // A region-typed handle to the buffer's storage, valid until the function returns
+    let handle : Ptr<byte, Stack, ReadWrite> = Ptr.ofArray buffer
+    use handle
 ```
 
 **Properties**:
@@ -59,12 +63,12 @@ Arena-allocated values are bulk-allocated and freed together.
 
 **Current Implementation (Level 3 - Explicit)**:
 ```fsharp
-// Create arena from stack-allocated backing memory
-let arenaMem = NativePtr.stackalloc<byte> 4096
-let mutable arena = Arena.fromPointer (NativePtr.toNativeInt arenaMem) 4096
+// Create arena from a bounded stack array as backing memory
+let arenaMem : array<byte, 4096, Stack> = [| 0uy; ... |]
+let mutable arena = Arena.fromArray arenaMem  // capacity taken from the array bound
 
 // Allocate from arena (note: byref parameter for mutation)
-let buffer = Arena.alloc &arena 256  // Returns nativeint
+let buffer = Arena.alloc &arena 256  // Returns a Ptr<byte, Arena, ReadWrite> handle
 let aligned = Arena.allocAligned &arena 64 16  // 64 bytes, 16-byte aligned
 
 // Query and reset
@@ -77,16 +81,16 @@ Arena.reset &arena  // Position back to 0
 
 | Operation | Type | Description |
 |-----------|------|-------------|
-| `fromPointer` | `nativeint -> int -> Arena<'lifetime>` | Create arena from backing memory |
-| `alloc` | `Arena<'lifetime> byref -> int -> nativeint` | Bump allocate bytes |
-| `allocAligned` | `Arena<'lifetime> byref -> int -> int -> nativeint` | Aligned allocation |
+| `fromArray` | `array<byte, 'n, Stack> -> Arena<'lifetime>` | Create arena from a bounded stack-array backing |
+| `alloc` | `Arena<'lifetime> byref -> int -> Ptr<byte, Arena, ReadWrite>` | Bump allocate bytes |
+| `allocAligned` | `Arena<'lifetime> byref -> int -> int -> Ptr<byte, Arena, ReadWrite>` | Aligned allocation |
 | `remaining` | `Arena<'lifetime> -> int` | Query remaining capacity |
 | `reset` | `Arena<'lifetime> byref -> unit` | Reset position to 0 |
 
 **Lifetime Parameter**: The `'lifetime` measure parameter enables future lifetime tracking. Currently documentation-level; compiler enforcement planned.
 
 **Three Levels of Control** (Lifetime Inference Principle):
-1. **Level 3 (Explicit)**: Full control via `Arena.fromPointer`, `Arena.alloc &arena` (implemented)
+1. **Level 3 (Explicit)**: Full control via `Arena.fromArray`, `Arena.alloc &arena` (implemented)
 2. **Level 2 (Hints)**: `arena { }` computation expression (future)
 3. **Level 1 (Inferred)**: Escape analysis via `inline` expansion - see [Inline Functions and Escape Analysis](special-attributes-and-types.md#inline-functions-and-escape-analysis) (implemented)
 
@@ -95,7 +99,7 @@ Arena.reset &arena  // Position back to 0
 - O(1) bump allocation
 - Cache-friendly locality
 - Scope-bounded lifetime
-- Backing memory can come from stack or heap
+- Backing memory comes from the stack, from static storage (`Sram`/`Flash`), or, where the target has one, from the heap. A target without a heap backs arenas with stack or static storage only.
 
 ### Peripheral
 

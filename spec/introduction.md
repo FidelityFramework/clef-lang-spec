@@ -163,7 +163,7 @@ Most statically-typed languages require that you specify type information for a 
 
 From the function signature, F# knows that `square` takes a single parameter named `x` and that the function returns `x * x`. The last thing evaluated in an F# function body is the return value; hence there is no "return" keyword here. Many primitive types support the multiplication (*) operator (such as `int8`, `int64`, and `float`); however, for arithmetic operations, F# infers the type `int` by default.
 
-> **Clef Note**: In Clef, `int` is the platform word size (64 bits on 64-bit platforms), not a fixed 32-bit integer. See [Native Type Mappings](native-type-mappings.md) for details.
+> **Clef Note**: In Clef, `int` is the platform word size (4 bytes/32 bits on 32-bit targets such as thumbv8m, 8 bytes/64 bits on x86-64), not a fixed 32-bit integer. See [Native Type Mappings](native-type-mappings.md) for details.
 
 Although F# can typically infer types on your behalf, occasionally you must provide explicit type annotations in F# code. For example, the following code uses a type annotation for one of the parameters to tell the compiler the type of the input.
 
@@ -283,13 +283,13 @@ Clef compiles to standalone native executables. Platform-specific operations use
 // Sys intrinsics are recognized by CCS during type checking
 // and compiled to platform-specific code by Alex
 module Sys =
-    val write : int -> nativeptr<byte> -> int -> int  // syscall on Unix
-    val read  : int -> nativeptr<byte> -> int -> int  // syscall on Unix
-    val exit  : int -> 'T                             // never returns
+    val write : int -> array<byte> -> int -> int  // buf, count; syscall on Unix
+    val read  : int -> array<byte> -> int -> int  // buf, count; syscall on Unix
+    val exit  : int -> 'T                         // never returns
  
 ```
 
-CCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
+CCS recognizes these by module pattern (`Sys.*`, `Mmio.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
 
 > **See**: [Platform Bindings](platform-bindings.md) for the three-layer binding architecture including Sys intrinsics and quotation-based bindings for external libraries.
 

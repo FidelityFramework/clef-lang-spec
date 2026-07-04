@@ -70,52 +70,61 @@ These attributes control memory layout for native compilation:
 
 #### Inline Functions and Escape Analysis
 
-In Clef, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, CCS (Clef Compiler Service) captures its body for **transparent expansion** at call sites. This is critical for **escape analysis** of stack-allocated memory.
+In Clef, the `inline` keyword has additional semantic significance beyond performance optimization. When a function is marked `inline`, CCS (Clef Compiler Service) captures its body for **transparent expansion** at call sites. This is one of the tools that keeps a scope-bounded value valid at its use site.
 
-**The Escape Problem**: When a function allocates memory via `NativePtr.stackalloc` and returns a pointer to that memory, the pointer becomes invalid when the function returns (the stack frame is deallocated).
+**Storage follows lifetime class, not the fact of escaping**: A value's storage is selected by its lifetime class, not by a binary "does it escape" test. There are four lifetime classes, and a value that outlives its defining scope does not automatically need the heap. See [Closure Representation §2.3, §3.3](closure-representation.md#33-escape-analysis) for the authoritative model.
+
+1. **scope-bounded** rides the stack (`memref.alloca`); it is valid only while the defining frame is alive.
+2. **region-bounded** lives in a region or arena and is valid for the region's extent.
+3. **program-lifetime** goes to static storage: mutable in `Sram`, immutable in `Flash`, emitted as a `memref.global` (`.bss`). It is constructed once, held to program end, and never freed. This is not the heap.
+4. **genuinely-dynamic** goes to the heap. On a freestanding no-heap target this class does not exist, so a value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation.
+
+`inline` addresses class 1. A scope-bounded stack buffer that a function returns a view into would dangle once the frame is deallocated; expanding the body at the call site lifts the buffer into the caller's frame so the view stays valid. A value that instead escapes to program lifetime does not need inlining or the heap. It classifies as program-lifetime and goes to static storage.
+
+**The scope-bounded escape**: A function fills a scope-bounded stack buffer and returns a `string` view over it. When the function returns, the frame is deallocated and the view dangles.
 
 ```fsharp
-// WITHOUT inline - pointer escapes and dangles
+// WITHOUT inline - the view escapes a scope-bounded buffer and dangles
 let readln () : string =
-    let buffer = NativePtr.stackalloc<byte> 256  // Allocated in readln's frame
+    let buffer = Array.zeroCreate<byte> 256      // scope-bounded, in readln's frame
     let len = readLineInto buffer 256
-    NativeStr.fromPointer buffer len             // Returns pointer to readln's stack!
-    // When readln returns, buffer is deallocated - pointer is now INVALID
+    String.ofUtf8 buffer[0 .. len - 1]           // view over readln's stack buffer!
+    // When readln returns, buffer is deallocated - the view is now INVALID
 
 let hello() =
-    let name = readln()  // name points to deallocated memory!
+    let name = readln()  // name views deallocated memory!
     greet name           // Undefined behavior
  
 ```
 
-**The Solution**: Marking the function `inline` causes CCS to expand the function body at the call site, lifting the allocation to the caller's frame:
+**Lifting the buffer with `inline`**: Marking the function `inline` causes CCS to expand the body at the call site, lifting the scope-bounded buffer into the caller's frame:
 
 ```fsharp
-// WITH inline - allocation lifted to caller's frame
+// WITH inline - the buffer is lifted to the caller's frame
 let inline readln () : string =
-    let buffer = NativePtr.stackalloc<byte> 256
+    let buffer = Array.zeroCreate<byte> 256
     let len = readLineInto buffer 256
-    NativeStr.fromPointer buffer len
+    String.ofUtf8 buffer[0 .. len - 1]
 
 let hello() =
     // AFTER inline expansion, semantically becomes:
-    let buffer = NativePtr.stackalloc<byte> 256  // Now in hello's frame!
+    let buffer = Array.zeroCreate<byte> 256      // Now in hello's frame!
     let len = readLineInto buffer 256
-    let name = NativeStr.fromPointer buffer len  // Pointer valid through hello's scope
-    greet name                                    // Safe - hello's frame is alive
+    let name = String.ofUtf8 buffer[0 .. len - 1]  // view valid through hello's scope
+    greet name                                      // Safe - hello's frame is alive
  
 ```
 
 **When to Use `inline` for Escape Analysis**:
 
-Functions should be marked `inline` when they:
-1. Allocate memory via `NativePtr.stackalloc` or `Arena.alloc`
-2. Return a pointer, reference, or fat pointer (like `string`) to that memory
-3. The caller needs the returned value to remain valid
+`inline` applies to the scope-bounded class. Mark a function `inline` when it:
+1. Fills a scope-bounded stack buffer (a bounded stack array)
+2. Returns a reference, view, or fat pointer (like `string`) over that buffer
+3. Has a caller that needs the returned value to remain valid past the call
 
-This pattern is common in platform libraries (e.g., `Console.readln`) where the implementation detail of stack allocation should be transparent to application code.
+This pattern is common in platform libraries (e.g., `Console.readln`) where the implementation detail of stack buffering should be transparent to application code. A value that instead needs to outlive every caller is not a candidate for inlining: it classifies as program-lifetime and is placed in static storage, or as region-bounded and placed in an arena.
 
-> **Design Note**: This mechanism supports Level 1 (Implicit) memory management from the [Memory Regions](memory-regions.md) design - developers write standard F# code while the compiler ensures memory safety through inline expansion.
+> **Design Note**: This mechanism supports Level 1 (Implicit) memory management from the [Memory Regions](memory-regions.md) design - developers write standard F# code while the compiler places each value by its lifetime class. Inline expansion is the tool for the scope-bounded class; static storage and arenas cover values that outlive their defining scope.
 
 ### Entry Point Attribute
 
@@ -125,7 +134,7 @@ This pattern is common in platform libraries (e.g., `Console.readln`) where the 
 
 ### Platform Binding Notes
 
-> **Clef Note**: Clef does not use `DllImport` or P/Invoke. Platform operations use **CCS intrinsics** (`Sys.write`, `NativePtr.set`, etc.) which are recognized by module pattern and compiled to platform-specific code. External library bindings use **quotation semantic carriers**. See [Platform Bindings](platform-bindings.md).
+> **Clef Note**: Clef does not use `DllImport` or P/Invoke. Platform operations use **CCS intrinsics** (`Sys.write`, `Mmio.store`, etc.) which are recognized by module pattern and compiled to platform-specific code. Register access uses the width-typed `Mmio` handle; there is no user-facing raw-pointer store. External library bindings use **quotation semantic carriers**. See [Platform Bindings](platform-bindings.md).
 
 ### Memory Region Attributes
 
@@ -245,14 +254,14 @@ Clef provides the following types for platform interaction:
 
 | Type | Description |
 | --- | --- |
-| `nativeint` | Platform-sized signed integer (32 bits on 32-bit platforms, 64 bits on 64-bit platforms). |
-| `unativeint` | Platform-sized unsigned integer. |
-| `nativeptr<'T>` | Typed native pointer. |
-| `voidptr` | Untyped native pointer. |
+| `nativeint` | Platform-sized signed integer (32 bits on 32-bit platforms, 64 bits on 64-bit platforms). Numeric type only; not a user-facing pointer. |
+| `unativeint` | Platform-sized unsigned integer. Numeric type only; not a user-facing pointer. |
+
+> **Clef Note**: Clef has no user-denotable raw-pointer surface. `nativeptr<'T>`, `voidptr`, `NativePtr.*`, and the `fixed`/`stackalloc`/`&&` forms are not available in Clef source, neither in interior code nor at a binding boundary. Raw-pointer kinds exist only as internal, non-user-denotable compiler plumbing. Use the sanctioned surface instead: a bounded stack array for a buffer, the width-typed `Mmio` handle for a register, `Ptr<'T, 'Region, 'Access>` or an opaque `CHandle` for a pointer returned from a C binding, and the flat closure as the interior pointer mechanism. On a freestanding no-heap target there is no FFI leg (no libc, no `malloc`), so no binding-boundary pointer arises there at all.
 
 ### Pointer Types with Access Kinds
 
-Clef extends pointer types with access kind annotations:
+Clef expresses a memory reference with region and access annotations rather than a raw pointer:
 
 ```fsharp
 type Ptr<'T, 'Region, 'Access> = ...

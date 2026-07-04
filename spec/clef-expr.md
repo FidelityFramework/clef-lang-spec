@@ -188,11 +188,11 @@ Intrinsics represent calls to CCS-recognized native operations (syscalls, pointe
 | Intrinsic of name: string * args: ClefExpr list * ty: NativeType
 ```
 
-- `name`: The intrinsic name (e.g., `"Sys.write"`, `"NativePtr.set"`)
+- `name`: The intrinsic name (e.g., `"Sys.write"`, `"Mmio.read"`)
 - `args`: The argument expressions
 - `ty`: The return type
 
-CCS recognizes these by module pattern (`Sys.*`, `NativePtr.*`) and Alex provides platform-specific implementations.
+CCS recognizes these by module pattern (`Sys.*`, `Mmio.*`) and Alex provides platform-specific implementations.
 
 Example JSON output:
 ```json

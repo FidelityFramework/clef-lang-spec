@@ -55,8 +55,9 @@ val sha1 : byte[] -> byte[]
 
 **Alex Witness Implementation:**
 - IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Cryptography, "sha1")`
-- Witness generates inline LLVM IR for SHA-1 algorithm
-- Alternatively, witness emits external function declaration for platform cryptography
+- Witness emits the SHA-1 algorithm in portable dialects (`arith`, `memref`, `func`, `scf`, `index`) at the middle end; no target commitment
+- A backend leg realizes the portable form for its target: the LLVM dialect for a CPU/MCU leg, CIRCT for an FPGA leg, MLIR-AIE for an NPU leg
+- Alternatively, witness emits a portable `func.func` external declaration (`private`) for platform cryptography, which the CPU/MCU leg lowers to an `llvm.func` extern and links against the platform library
 
 **Example:**
 ```fsharp
@@ -116,7 +117,7 @@ let decoded = Cryptography.base64Decode "SGVsbG8="
 module Bits
 ```
 
-The Bits module provides byte order operations for network protocol handling. All operations are pure and map directly to LLVM intrinsics or inline operations.
+The Bits module provides byte order operations for network protocol handling. All operations are pure and lower to portable `arith` operations at the middle end; a backend leg may realize them as its target's byte-order intrinsic (the LLVM dialect's `llvm.intr.bswap` on a CPU/MCU leg).
 
 ### 3.2 Byte Order Conversion
 
@@ -136,14 +137,21 @@ val htons : uint16 -> uint16
 **Alex Witness Implementation:**
 - IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Bits, "htons")`
 - Witness queries platform quotation for byte order
-- Little-endian platforms: emits `llvm.intr.bswap`
+- Little-endian platforms: emits the byte swap in the portable `arith` form (shift, mask, or the two-byte gather), with no target commitment
 - Big-endian platforms: emits passthrough
+- A backend leg realizes the portable byte swap for its target: the LLVM dialect's `llvm.intr.bswap` for a CPU/MCU leg, an equivalent CIRCT construct for an FPGA leg
 
 ```mlir
-// Little-endian (x86_64, ARM64 LE):
+// Middle end (portable arith), little-endian; swaps the two bytes of an i16:
+%hi   = arith.shli %value, %c8 : i16   // high byte to low position
+%lo   = arith.shrui %value, %c8 : i16  // low byte to high position
+%swapped = arith.ori %hi, %lo : i16
+// Big-endian: passthrough (no ops)
+```
+
+```mlir
+// CPU/MCU backend leg realizes the portable swap as the LLVM intrinsic:
 %swapped = llvm.intr.bswap(%value) : i16
-// Big-endian: passthrough
- 
 ```
 
 #### 3.2.2 Network to Host (16-bit)
@@ -269,16 +277,16 @@ Alex generates appropriate code based on the platform:
 The IntrinsicWitness for Cryptography operations has two implementation strategies:
 
 1. **Inline witness** (preferred for freestanding):
-   - Witness generates pure LLVM IR implementing SHA-1/Base64 algorithms
+   - Witness emits the SHA-1/Base64 algorithms in portable dialects (`arith`, `memref`, `func`, `scf`, `index`); the backend leg realizes the portable form for its target
    - No external dependencies
    - Larger binary size
    - Complete self-containment
 
 2. **External witness** (optional for console/desktop):
-   - Witness emits `llvm.func` declaration for platform cryptography
+   - Witness emits a portable `func.func` external declaration (`private`) for platform cryptography; the CPU/MCU leg lowers it to an `llvm.func` extern
    - Links against libcrypto (OpenSSL) or platform equivalent
    - Smaller binary
-   - External dependency
+   - External dependency (available only on a leg with an FFI boundary; a freestanding no-heap target has none)
 
 The choice is made via `.fidproj` configuration and flows through platform quotations:
 
@@ -317,11 +325,12 @@ Alex/Zipper Traversal
 IntrinsicWitness
     - Pattern matches on IntrinsicModule (Cryptography, Bits)
     - Pattern matches on operation name
-    - Generates appropriate MLIR based on platform context
+    - Emits portable dialects (arith/memref/func/scf/index) based on platform context; no target commitment
     ↓
-MLIR Builder accumulates emissions
+MLIR Builder accumulates portable emissions
     ↓
-LLVM → Native Binary
+Backend leg (target commitment): LLVM dialect → Native Binary (CPU/MCU),
+                                 or CIRCT (FPGA), or MLIR-AIE (NPU)
 ```
 
 **Key Architectural Points:**
@@ -338,7 +347,6 @@ These new modules complement existing intrinsics:
 |--------|---------|--------------|
 | `Cryptography` | Hash/encoding | Uses `byte[]` from `Array` module |
 | `Bits` | Byte order | Network protocol byte order conversion |
-| `NativePtr` | Memory access | `Cryptography` may use for buffer access |
 | `String` | String handling | `Cryptography.base64Encode` produces strings |
 
 Binary serialization is **not** in this set — it is handled by the structured

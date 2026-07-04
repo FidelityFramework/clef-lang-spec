@@ -13,7 +13,7 @@ Clef uses a **three-layer architecture** for platform operations:
 
 | Layer | Purpose | Examples |
 |-------|---------|----------|
-| **Layer 1: CCS Intrinsics** | Native type universe operations | `Sys.write`, `NativePtr.set` |
+| **Layer 1: CCS Intrinsics** | Native type universe operations | `Sys.write`, `Sys.exit` |
 | **Layer 2: Binding Libraries** | External library bindings | GTK, CMSIS, OpenGL |
 | **Layer 3: User Code** | Applications and libraries | User programs |
 
@@ -37,36 +37,28 @@ The `Sys` module provides direct system call primitives:
 module Sys =
     /// Write bytes to a file descriptor
     /// fd: file descriptor (0=stdin, 1=stdout, 2=stderr)
-    /// buffer: pointer to data
+    /// buffer: bounded stack array holding the data
     /// count: number of bytes to write
     /// Returns: number of bytes written, or negative on error
-    val write : fd:int -> buffer:nativeptr<byte> -> count:int -> int
+    val write : fd:int -> buffer:array<byte, 'n, Stack> -> count:int -> int
 
     /// Read bytes from a file descriptor
     /// fd: file descriptor
-    /// buffer: pointer to receive data
+    /// buffer: bounded stack array to receive the data
     /// maxCount: maximum bytes to read
     /// Returns: number of bytes read, or negative on error
-    val read : fd:int -> buffer:nativeptr<byte> -> maxCount:int -> int
+    val read : fd:int -> buffer:array<byte, 'n, Stack> -> maxCount:int -> int
 
     /// Exit the process with the specified code
     /// This function never returns
     val exit : code:int -> 'T
 ```
 
-### The NativePtr Module
+The buffer parameter carries the bounded stack array whose bound the compiler knows, not a raw pointer. There is no `nativeptr<byte>` surface for an intrinsic argument. The interior mechanism that carries the buffer's address to the backend leg is not user-denotable; source code names only the array.
 
-Pointer operations intrinsic to native compilation:
+### Buffer and Register Surfaces
 
-```fsharp
-module NativePtr =
-    val get       : nativeptr<'T> -> int -> 'T
-    val set       : nativeptr<'T> -> int -> 'T -> unit
-    val add       : nativeptr<'T> -> int -> nativeptr<'T>
-    val toNativeInt   : nativeptr<'T> -> nativeint
-    val ofNativeInt   : nativeint -> nativeptr<'T>
-    val stackalloc    : int -> nativeptr<'T>
-```
+Layer 1 exposes no raw-pointer module. A buffer is a bounded stack array (`array<byte, 'n, Stack>`), whose bound the compiler carries so an intrinsic reads and writes within it without a denotable pointer. A memory-mapped register is the width-typed [`Mmio`](ffi-boundary.md) handle. A pointer returned by a C binding is the opaque [`CHandle<'T>`](ffi-boundary.md), which is non-arithmetic and non-dereferenceable and exists only to be handed back across the boundary. The interior pointer mechanism is the flat closure. None of `nativeptr<'T>`, `voidptr`, `nativeint`-as-pointer, or a `NativePtr.*` operation is denotable in Clef source, at the Layer 1 boundary or anywhere else.
 
 ### Intrinsic Recognition
 
@@ -188,13 +180,13 @@ let gtkWindowNewDescriptor: Expr<FunctionDescriptor> = <@
       Parameters = [
           { Name = "type"; Type = I32; PassBy = Value }
       ]
-      ReturnType = Ptr gtkWindowDescriptor
+      ReturnType = Handle gtkWindowDescriptor
       CallingConvention = CDecl
       OwnershipTransfer = CallerOwns }
 @>
 
 /// The callable function - references the descriptor
-let windowNew (windowType: int) : nativeptr<GtkWindow> =
+let windowNew (windowType: int) : CHandle<GtkWindow> =
     // Body references descriptor, enabling CCS to find metadata
     failwith "Binding placeholder"
 ```
@@ -233,7 +225,8 @@ SemanticGraph node (with FFI metadata)
                 ↓
 Alex sees: "FFI call to gtk_window_new, CDecl, returns owned pointer"
                 ↓
-Generates: LLVM call with correct ABI, ownership tracking
+Alex emits the portable call node; a backend leg emits the target-specific call
+with the correct ABI and ownership tracking (LLVM being one such leg)
 ```
 
 ### Active Patterns for Recognition
@@ -290,7 +283,7 @@ type FunctionDescriptor = {
 /// Hardware register descriptor (for embedded)
 type RegisterDescriptor = {
     Name: string              // Register name
-    Address: unativeint       // Memory-mapped address
+    Address: usize            // Memory-mapped address (platform-word integer, as the Mmio handle carries it)
     AccessKind: AccessKind    // ReadOnly | WriteOnly | ReadWrite | Volatile
     ResetValue: uint32        // Value after reset
     Fields: FieldInfo[]       // Bit field definitions
@@ -325,11 +318,13 @@ User code uses intrinsics and binding libraries. It does NOT declare platform bi
 module Console
 
 let inline write (s: string) : unit =
-    Sys.write 1 s.Pointer s.Length |> ignore
+    // s.Bytes is the string's bounded backing array; no raw pointer is named
+    Sys.write 1 s.Bytes s.Length |> ignore
 
 let inline writeln (s: string) : unit =
     write s
-    Sys.write 1 &&'\n' 1 |> ignore
+    let nl : array<byte, 1, Stack> = [| 0x0Auy |]
+    Sys.write 1 nl 1 |> ignore
 ```
 
 ### Incorrect Pattern (Deprecated)
@@ -365,9 +360,9 @@ Standard file descriptors on Unix-like systems:
 CCS intrinsics have restrictions:
 
 1. **No closures**: Intrinsics cannot capture environment
-2. **Primitive types only**: Arguments and returns must be primitive or pointer types
+2. **Primitive or sanctioned-handle types only**: Arguments and returns must be primitive types, a bounded stack array, the `Mmio` register handle, or a `CHandle<'T>`; there is no raw-pointer argument type
 3. **No exceptions**: Errors returned via return values
-4. **No allocation**: Intrinsics do not allocate managed memory
+4. **No dynamic allocation**: Intrinsics do not allocate on a heap. A buffer they operate on is a scope-bounded stack array or program-lifetime static storage, per the [lifetime lattice](closure-representation.md); an intrinsic never introduces a genuinely-dynamic allocation, so it remains usable on a no-heap freestanding target
 5. **No currying**: Intrinsics must be called with all arguments
 
 ---
@@ -397,27 +392,41 @@ type PlatformDescriptor = {
     Endianness: Endianness              // Little or Big
     TypeLayouts: Map<string, TypeLayout>  // Type sizes and alignments
     SyscallConvention: SyscallConvention  // Syscall ABI
-    MemoryRegions: MemoryRegion list      // Stack, Heap, Text, Data, etc.
+    MemoryRegions: MemoryRegion list      // Per-target; e.g. Stack, Text, Data, and Heap only where the target has an allocator
     FreestandingStartup: FreestandingStartup option  // Entry point for freestanding mode
 }
 ```
+
+`MemoryRegions` is per-target. A hosted target lists `Stack`, `Heap`, `Text`, `Data`. A freestanding target with no allocator has no `Heap`: it lists `Stack` for scope-bounded values and static storage (`.bss`-class `Sram`/`Flash`) for program-lifetime values. A value that would classify as genuinely dynamic on such a target is a compile-time lifetime error, not a silent heap allocation. See the four-point lifetime lattice in [closure-representation.md §3.3](closure-representation.md).
 
 ### Freestanding Startup
 
 For freestanding builds (no libc), the platform descriptor includes startup information:
 
 ```fsharp
-type FreestandingStartup = {
-    EntrySymbol: string    // "_start" on Linux
-    ExitSyscall: int64     // 60 on Linux x86-64
-}
+type FreestandingStartup =
+    /// Hosted freestanding ELF (Linux, no libc): a named entry symbol the linker
+    /// points at, and a numbered exit syscall. "_start"/60 is this convention, not
+    /// a universal freestanding one.
+    | HostedElf of EntrySymbol: string * ExitSyscall: int64
+    /// Bare-metal M33 unikernel: control arrives at the reset vector, there is no
+    /// _start symbol, no linker entry flag, no argv, and no syscall. Exit is a halt.
+    | ResetVector of ResetHandler: string
 ```
 
-When `output_kind = "freestanding"` is specified in the project file, the compiler:
+The startup shape is per-target. `_start` plus a numbered exit syscall is the hosted-ELF freestanding convention; a bare-metal target has neither.
+
+When `output_kind = "freestanding"` is specified in the project file for a hosted-ELF target, the compiler:
 
 1. Generates a `_start` wrapper function
 2. `_start` creates an empty string array, calls the F# `main`, and calls `Sys.exit`
 3. Links with `-Wl,-e,_start` to set the entry point
+
+For a bare-metal M33 unikernel target the compiler instead:
+
+1. Emits the reset handler as the reset-vector entry (no `_start` symbol, no linker entry flag)
+2. The reset handler calls the F# `main` with no `argv` (arguments do not exist)
+3. Return from `main` is a halt (a `wfi`/spin), not an exit syscall
 
 ### Console Mode
 
@@ -426,7 +435,9 @@ For console builds (with libc), no special entry point handling is needed:
 - The F# `main` function is emitted with C-compatible signature
 - The F# type `array<string> -> int` maps to the platform C ABI
 
-### Linux x86-64 Example
+### Linux x86-64 Example (hosted ELF)
+
+The `SyscallConvention` and `FreestandingStartup` below are the hosted-ELF freestanding shape: SysV argument registers, a `_start` entry symbol, and a numbered exit syscall. These belong to this target, not to freestanding mode in general (the M33 example that follows has none of them).
 
 ```fsharp
 let platform: Expr<PlatformDescriptor> = <@
@@ -442,10 +453,25 @@ let platform: Expr<PlatformDescriptor> = <@
           SyscallNumberRegister = RAX
           SyscallInstruction = Syscall }
       MemoryRegions = (* ... *)
-      FreestandingStartup = Some {
-        EntrySymbol = "_start"
-        ExitSyscall = 60L
-      }
+      FreestandingStartup = Some (HostedElf ("_start", 60L))
+    }
+@>
+```
+
+### Bare-Metal M33 Example (reset-vector entry)
+
+The Cortex-M33 unikernel target has no syscall ABI and no `_start`. `Pointer` is the 4-byte platform word, there is no `Heap` region, and startup is the reset vector.
+
+```fsharp
+let platform: Expr<PlatformDescriptor> = <@
+    { Architecture = ARM_Thumbv8m
+      OperatingSystem = BareMetal
+      Dimensions = Map.ofList [ (Pointer, 32); (Register, 32) ]
+      Endianness = Little
+      TypeLayouts = (* ... *)
+      SyscallConvention = NoSyscalls
+      MemoryRegions = (* Stack + static Flash/Sram; no Heap *)
+      FreestandingStartup = Some (ResetVector "Reset_Handler")
     }
 @>
 ```
@@ -457,7 +483,7 @@ The platform descriptor is inspected at compile time:
 1. **CCS** reads the platform descriptor from `Fidelity.Platform`
 2. For freestanding mode, **Intrinsic Elaboration** generates the `_start` wrapper
 3. The wrapper uses `Sys.emptyStringArray` and `Sys.exit` intrinsics
-4. Alex emits MLIR; the linker sets the entry point via `-Wl,-e,_start`
+4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a backend leg lowers them and supplies the entry glue. On the hosted x86-64 leg that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the M33 unikernel leg has no linker entry flag and no `_start` (control arrives at the reset vector).
 
 The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 

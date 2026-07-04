@@ -282,7 +282,10 @@ Structs use natural alignment based on their largest field:
 | `i8`, `u8` | 1 byte |
 | `i16`, `u16` | 2 bytes |
 | `i32`, `u32`, `f32` | 4 bytes |
-| `i64`, `u64`, `f64`, pointer | 8 bytes |
+| `i64`, `u64`, `f64` | 8 bytes |
+| pointer | Platform word alignment: 8 bytes on 64-bit, 4 bytes on thumbv8m/32-bit |
+
+Pointer alignment follows the [Pointer width dimension](ntu-types.md); it is the platform word, not a fixed 8 bytes.
 
 ### Explicit Alignment
 
@@ -319,7 +322,7 @@ NORMATIVE: Stack-allocated aligned types SHALL be placed at appropriately aligne
 
 NORMATIVE: Arena allocators SHALL provide an alignment-aware allocation function:
 ```fsharp
-Arena.allocAligned<'T> : Arena -> alignment:int -> count:int -> nativeptr<'T>
+Arena.allocAligned<'T> : Arena -> alignment:int -> count:int -> Ptr<'T, Arena, ReadWrite>
 ```
 
 ## Intrinsic Operations
@@ -328,8 +331,10 @@ Certain operations have direct hardware support that F# loops cannot match. CCS 
 
 ### Bit Manipulation Intrinsics
 
-| Function | LLVM Intrinsic | Description |
-|----------|---------------|-------------|
+The middle end emits each intrinsic as a target-agnostic operation. The LLVM-leg realization is the LLVM intrinsic shown below; other backend legs (CIRCT for FPGA, JSIR for JS) realize the same operation with their own target primitives.
+
+| Function | LLVM-leg realization | Description |
+|----------|---------------------|-------------|
 | `clz : uint32 -> int` | `llvm.ctlz.i32` | Count leading zeros |
 | `clz64 : uint64 -> int` | `llvm.ctlz.i64` | Count leading zeros (64-bit) |
 | `ctz : uint32 -> int` | `llvm.cttz.i32` | Count trailing zeros |
@@ -339,12 +344,12 @@ Certain operations have direct hardware support that F# loops cannot match. CCS 
 | `bswap : uint32 -> uint32` | `llvm.bswap.i32` | Byte swap |
 | `bswap64 : uint64 -> uint64` | `llvm.bswap.i64` | Byte swap (64-bit) |
 
-NORMATIVE: These functions SHALL emit the corresponding LLVM intrinsic, not loop-based implementations.
+NORMATIVE: These functions SHALL lower to the target's native bit-manipulation primitive, not loop-based implementations. On the LLVM leg that primitive is the corresponding LLVM intrinsic shown above.
 
 ### Arithmetic Intrinsics
 
-| Function | LLVM Intrinsic | Description |
-|----------|---------------|-------------|
+| Function | LLVM-leg realization | Description |
+|----------|---------------------|-------------|
 | `mulhi : uint64 -> uint64 -> uint64` | (platform-specific) | High 64 bits of 128-bit product |
 | `addCarry : uint64 -> uint64 -> uint64 -> struct(uint64 * uint64)` | `llvm.uadd.with.overflow` | Add with carry in/out |
 
@@ -530,8 +535,16 @@ Clef Compiler Service (CCS) targets [native compilation via MLIR](backend-loweri
 │  - Memory optimization                          │
 └─────────────────────────────────────────────────┘
                       │
-                      ▼ LLVM IR → Native Binary
+                      ▼ Portable dialects
+┌─────────────────────────────────────────────────┐
+│  Backend Leg (target-committing)                │
+│  - LLVM leg: LLVM IR → CPU/MCU native binary    │
+│  - CIRCT leg: HW dialects → FPGA bitstream      │
+│  - JSIR leg: → JavaScript                        │
+└─────────────────────────────────────────────────┘
 ```
+
+The MLIR optimization passes and everything above them stay portable; a target is committed only at the backend leg. LLVM is one leg, not the sole path.
 
 ### Why IL Operations Are Not Stubbed
 

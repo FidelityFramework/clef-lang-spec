@@ -274,7 +274,7 @@ Tuple: int * string (64-bit platform)
 | Property | Value |
 |----------|-------|
 | **Structural typing** | `int * string` ≡ `int * string` regardless of context |
-| **Allocation** | Stack by default, arena when escaping |
+| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static (Sram/Flash) when program-lifetime; heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
 | **Alignment** | Natural alignment (largest field alignment) |
 | **Nesting** | `(a * b) * c` ≠ `a * (b * c)` (different memory layouts) |
 | **MLIR** | `tuple<index, !fidelity.str>` |
@@ -332,7 +332,7 @@ Record: Person (64-bit platform)
 |----------|-------|
 | **Nominal typing** | `Person` ≠ `{ Name: string; Age: int }` (different types) |
 | **Field order** | Declaration order determines memory layout |
-| **Allocation** | Stack by default, arena when escaping |
+| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static (Sram/Flash) when program-lifetime; heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
 | **Alignment** | Natural alignment per field, struct alignment = max field alignment |
 | **MLIR** | `!fidelity.record<"Person", name: !fidelity.str, age: index>` |
 
@@ -444,7 +444,7 @@ type Result<'T, 'E> = Ok of 'T | Error of 'E
 ```fsharp
 type Message =
     | Ping                              // Tag only: 1 byte + padding
-    | Data of payload: array<byte>      // Tag + fat pointer: 1 + 7 + 16 = 24 bytes
+    | Data of payload: array<byte>      // Tag + fat pointer: 24 bytes on x86-64 (1 tag + 7 pad + 2 platform words); 12 bytes on thumbv8m
     | Error of code: int * msg: string  // Tag + int + string: 1 + 7 + 8 + 16 = 32 bytes
  
 ```
@@ -545,6 +545,8 @@ string
      8 bytes           8 bytes       = 16 bytes (64-bit)
 ```
 
+> **Platform word**: The pointer and `usize` are each one platform word. The byte figures above are the x86-64 instance (8-byte word, 16-byte header). On thumbv8m/M33 the word is 4 bytes, so the header is 8 bytes.
+
 | Property | Value |
 |----------|-------|
 | **Encoding** | UTF-8 (NOT UTF-16) |
@@ -596,6 +598,8 @@ array<'T>
      8 bytes           8 bytes       = 16 bytes (header)
                                      + len * sizeof<'T> (elements)
 ```
+
+> **Platform word**: The pointer and `usize` are each one platform word, so the header is 2 words. The 16-byte figure is the x86-64 instance; on thumbv8m/M33 (4-byte word) the header is 8 bytes.
 
 | Property | Value |
 |----------|-------|
@@ -775,17 +779,21 @@ list<'T>
 ┌────────────────────┬─────────────────────┐
 │ head: 'T           │ tail: ptr<list<'T>> │
 └────────────────────┴─────────────────────┘
-     sizeof<'T>            8 bytes (pointer)
+     sizeof<'T>            platform word
+                          (8 bytes x86-64,
+                           4 bytes thumbv8m)
 ```
+
+> **Platform word**: The `tail` pointer is one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
 
 | Property | Value |
 |----------|-------|
 | **Empty list** | Special tag, no allocation |
 | **Immutable** | Always (structural sharing) |
-| **Allocation** | Arena or stack (not GC heap) |
+| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
 | **MLIR** | `!fidelity.list<T>` |
 
-**Arena Allocation**: List cons cells are allocated in arenas (not GC heap), providing better cache locality and batch deallocation at scope end. The immutable structure enables structural sharing as in OCaml.
+**Arena Allocation**: List cons cells are allocated in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap), providing better cache locality and batch deallocation at scope end. The immutable structure enables structural sharing as in OCaml. On a heap-free target a cons cell whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 **When to Use**:
 - Pattern matching on head/tail
@@ -810,15 +818,17 @@ Map<'K, 'V>  (AVL tree node)
 ┌────────────────────┬────────────────────┬─────────────────────┬─────────────────────┬──────────┐
 │ key: 'K            │ value: 'V          │ left: ptr<Map>      │ right: ptr<Map>     │ height: i8│
 └────────────────────┴────────────────────┴─────────────────────┴─────────────────────┴──────────┘
-     sizeof<'K>           sizeof<'V>            8 bytes              8 bytes            1 byte
+     sizeof<'K>           sizeof<'V>          platform word        platform word        1 byte
 ```
+
+> **Platform word**: `left` and `right` are each one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
 
 | Property | Value |
 |----------|-------|
 | **Empty map** | Null pointer (no allocation) |
 | **Structure** | Self-balancing AVL tree |
 | **Immutable** | Always (structural sharing on update) |
-| **Allocation** | Arena or stack (not GC heap) |
+| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
 | **Key constraint** | `'K : comparison` |
 | **MLIR** | `!fidelity.map<K, V>` |
 
@@ -849,15 +859,17 @@ Set<'T>  (AVL tree node)
 ┌────────────────────┬─────────────────────┬─────────────────────┬──────────┐
 │ value: 'T          │ left: ptr<Set>      │ right: ptr<Set>     │ height: i8│
 └────────────────────┴─────────────────────┴─────────────────────┴──────────┘
-     sizeof<'T>            8 bytes              8 bytes            1 byte
+     sizeof<'T>          platform word        platform word        1 byte
 ```
+
+> **Platform word**: `left` and `right` are each one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
 
 | Property | Value |
 |----------|-------|
 | **Empty set** | Null pointer (no allocation) |
 | **Structure** | Self-balancing AVL tree |
 | **Immutable** | Always (structural sharing on update) |
-| **Allocation** | Arena or stack (not GC heap) |
+| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
 | **Element constraint** | `'T : comparison` |
 | **MLIR** | `!fidelity.set<T>` |
 
@@ -912,7 +924,7 @@ Closure
 ┌─────────────────────┬─────────────────────┐
 │ fn_ptr: ptr<fn>     │ env: captured values│
 └─────────────────────┴─────────────────────┘
-     8 bytes              sizeof<env>
+   1 platform word          sizeof<env>
 ```
 
 | Property | Value |
@@ -921,7 +933,7 @@ Closure
 | **Invocation** | `fn_ptr(env, args...)` |
 | **MLIR** | `!fidelity.closure<(args) -> ret, env>` |
 
-**Closure Allocation**: Closures are allocated on stack or in arenas (not GC heap). Small closures (<64 bytes) fit within one cache line for efficient invocation.
+**Closure Allocation**: Closures are allocated on stack or in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap). Small closures (<64 bytes) fit within one cache line for efficient invocation. On a heap-free target a closure whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 ### 6.3 Inline Semantics (fsil Absorption)
 
@@ -985,10 +997,10 @@ ref<'T>
 | Property | Value |
 |----------|-------|
 | **Representation** | Single-field mutable record |
-| **Allocation** | Stack or arena (not GC) |
+| **Allocation** | Stack, arena, or static storage (Sram/Flash) for program-lifetime values (not GC) |
 | **MLIR** | `!fidelity.ref<T>` or `ptr<T>` |
 
-**Stack/Arena Allocation**: Refs are allocated on stack or in arenas (not GC heap), eliminating allocation pressure in loops and providing predictable memory behavior for embedded targets.
+**Stack/Arena Allocation**: Refs are allocated on stack or in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap), eliminating allocation pressure in loops and providing predictable memory behavior for embedded targets. On a heap-free target a ref whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 ### 7.2 Mutable Bindings
 
@@ -1129,28 +1141,30 @@ Arena<'lifetime>
      8 bytes           8 bytes           8 bytes       = 24 bytes (64-bit)
 ```
 
+> **Platform word**: Each field is one platform word, so the struct is 3 words. The 24-byte total is the x86-64 instance; on thumbv8m/M33 (4-byte word) the struct is 12 bytes. `Base` here is an internal compiler field, not a user-denotable pointer.
+
 | Property | Value |
 |----------|-------|
 | **CCS Type** | Intrinsic with NTUCompound(3) |
 | **Lifetime param** | Measure type for tracking |
-| **Allocation** | Stack-backed (typical) or heap-backed |
+| **Allocation** | Stack-backed, static-backed (Sram/Flash), or heap-backed where a heap exists |
 | **MLIR** | Three-word struct with InsertValue/ExtractValue |
 
 **CCS Intrinsic Operations**:
 
 | Operation | Type Signature |
 |-----------|----------------|
-| `Arena.fromPointer` | `nativeint -> int -> Arena<'lifetime>` |
-| `Arena.alloc` | `Arena<'lifetime> byref -> int -> nativeint` |
-| `Arena.allocAligned` | `Arena<'lifetime> byref -> int -> int -> nativeint` |
+| `Arena.fromBuffer` | `array<byte> -> Arena<'lifetime>` |
+| `Arena.alloc` | `Arena<'lifetime> byref -> int -> Ptr<byte, Arena, ReadWrite>` |
+| `Arena.allocAligned` | `Arena<'lifetime> byref -> int -> int -> Ptr<byte, Arena, ReadWrite>` |
 | `Arena.remaining` | `Arena<'lifetime> -> int` |
 | `Arena.reset` | `Arena<'lifetime> byref -> unit` |
 
 **Usage Pattern**:
 ```fsharp
-// Arena backed by stack memory
-let arenaMem = NativePtr.stackalloc<byte> 4096
-let mutable arena = Arena.fromPointer (NativePtr.toNativeInt arenaMem) 4096
+// Arena backed by a bounded stack array
+let arenaMem : array<byte> = Array.zeroCreate 4096
+let mutable arena = Arena.fromBuffer arenaMem
 
 // Allocate from arena
 let buffer = Arena.alloc &arena 256
@@ -1159,7 +1173,7 @@ let buffer = Arena.alloc &arena 256
  
 ```
 
-**Byref Parameter**: Operations that mutate arena state (alloc, reset) take `Arena<'lifetime> byref` to enable in-place position updates without copying the 24-byte struct.
+**Byref Parameter**: Operations that mutate arena state (alloc, reset) take `Arena<'lifetime> byref` to enable in-place position updates without copying the three-word struct (24 bytes on x86-64, 12 bytes on thumbv8m/M33).
 
 **Lifetime Inference Principle**: Arena demonstrates the three-level approach:
 - **Level 3 (Explicit)**: Current - full manual control
@@ -1384,7 +1398,6 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 |------|----------|-------|
 | `voption<'T>` | FSharp.Core | THE underlying option implementation |
 | `nativeint` | FSharp.Core | Platform-sized integer |
-| `nativeptr<'T>` | FSharp.NativePtr | Native pointer operations |
 | `Span<'T>` | FSharp.Core | Contiguous memory view |
 
 ### CCS Type Resolution

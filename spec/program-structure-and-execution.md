@@ -175,7 +175,7 @@ The following directives are valid in all files:
 
 ## Program Execution
 
-> **Clef Note**: Execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler.
+> **Clef Note**: Execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler: each value's storage is chosen at compile time by its lifetime class under the four-point lifetime lattice (scope-bounded to the stack, region-bounded to a region, program-lifetime to static storage, genuinely-dynamic to the heap), specified in [Closure Representation §3.3](closure-representation.md) and given its region-storage form in [Memory Regions](memory-regions.md). On a target without a heap, only the scope-bounded and program-lifetime classes have a home, and a value that classifies as dynamic is a compile-time lifetime error rather than a silent allocation.
 
 Execution of Clef code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
 
@@ -250,17 +250,20 @@ The function becomes the entry point to the program. At startup, Clef executes a
 
 #### Entry Point Modes
 
-Clef supports multiple entry point modes, specified via `output_kind` in the project file:
+Clef supports multiple entry point modes, specified via `output_kind` in the project file. The entry convention is target-specific: the symbol the platform hands control to, and the way the program terminates, are fixed by the target's ABI, not by a single universal freestanding form.
 
 | Mode | Entry Symbol | libc Required | Description |
 |------|-------------|---------------|-------------|
 | **Console** | `main` | Yes | Standard mode; libc provides `_start` which calls user's `main` |
-| **Freestanding** | `_start` | No | Bare metal; compiler generates `_start` wrapper |
+| **Freestanding (hosted ELF)** | `_start` | No | Hosted OS (Linux/ELF) without libc; compiler generates a `_start` wrapper that terminates via the exit syscall |
+| **Freestanding (bare-metal)** | reset vector | No | Bare metal (for example a thumbv8m/M33 unikernel); the platform enters at the reset-vector entry, there is no `_start` and no exit syscall, and termination is a halt |
 | **Library** | None | Optional | Shared library with exported symbols |
 
 #### Freestanding Entry Point Generation
 
-For freestanding builds (`output_kind = "freestanding"`), the compiler generates a `_start` wrapper function that:
+Freestanding builds (`output_kind = "freestanding"`) run without libc, so the compiler supplies the entry itself. What that entry looks like is fixed by the target: a hosted OS that loads an ELF image and services syscalls hands control to a `_start` symbol and expects an exit syscall to terminate; a bare-metal target has neither. The two cases below are the ends of that range.
+
+**Hosted ELF (Linux/ELF freestanding).** On a hosted OS that loads an ELF image without libc, the compiler generates a `_start` wrapper function that:
 
 1. Creates an empty `string array` (F# convention; full argc/argv conversion is future work)
 2. Calls the user's `main` function with this argument
@@ -279,6 +282,17 @@ _start : unit -> unit
 ```
 
 > **Implementation Note**: `Sys.exit` has type `int -> unit`. Although the syscall never returns, the binding honors the type contract by emitting an unreachable unit return value. This maintains type consistency throughout the compilation pipeline.
+
+**Bare-metal (reset-vector entry).** On a bare-metal target such as a thumbv8m/M33 unikernel there is no loader, no `_start`, and no exit syscall. The processor enters the image at the reset-vector entry recorded in the vector table, which the compiler emits together with the initial stack pointer. There is no argc/argv and no command line, so no empty `string array` is constructed. When the entry function returns, there is no process to terminate and no exit code to report to; termination is a halt (an idle loop, a `wfi`-class wait, or a target-defined reset), not a syscall.
+
+```
+reset : unit -> unit                  // reset-vector entry; address recorded in the vector table
+    result ← main()                   // Call F# main (no argv on bare metal)
+    halt(result)                      // No exit syscall: park the core (idle/wfi) or reset
+ 
+```
+
+> **Implementation Note**: `main`'s return value is the process exit code only where the platform has a process to exit. On a bare-metal target the return value has no OS recipient; a target descriptor MAY map it to a status register, an indicator, or nothing, and the entry does not return to any caller.
 
 #### Console Mode (libc)
 

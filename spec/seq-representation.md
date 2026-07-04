@@ -26,6 +26,8 @@ PRD-15 (SimpleSeq)    → State machine closure: {state, current, code_ptr, cap�
 
 **Key Insight**: A sequence expression creates a struct containing both captured values from the enclosing scope AND internal mutable state declared within the seq body.
 
+**Allocation and Lifetime**: The seq struct is a value like any other closure-family struct, so its storage is chosen by the four-point lifetime lattice specified in [Closure Representation §3.3](closure-representation.md). A seq whose lifetime is scope-bounded lives on the stack; a seq that escapes to program lifetime is placed in static storage (`memref.global`), constructed once and held to program end. On a no-heap target (freestanding unikernel) only the scope-bounded and program-lifetime classes exist; a seq value that classifies as genuinely-dynamic on such a target is a compile-time lifetime error, not a silent heap allocation.
+
 ## 3. Primitive Sequence Values
 
 ### 3.1 Seq.empty
@@ -49,14 +51,14 @@ Seq.empty<T>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: T            (sizeof(T) bytes) - undefined (never read)        │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr         (8 bytes) - trivial MoveNext (always false)       │
+│ code_ptr: ptr         (1 word) - trivial MoveNext (always false)        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **MoveNext for Seq.empty**:
 ```
-func @seq_empty_movenext(%ptr: !llvm.ptr) -> i1 {
-    return %false : i1
+func.func @seq_empty_movenext(%env: memref<?xi64>) -> i1 {
+    func.return %false : i1
 }
 ```
 
@@ -88,7 +90,7 @@ Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S�
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: T              (sizeof(T) bytes) - current yielded value       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (8 bytes) - MoveNext function address           │
+│ code_ptr: ptr           (1 word) - MoveNext function address            │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ c₁: T₁                  (captured value from enclosing scope)           │
 ├─────────────────────────────────────────────────────────────────────────┤

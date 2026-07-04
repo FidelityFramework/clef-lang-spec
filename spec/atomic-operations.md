@@ -15,7 +15,7 @@ Clef follows a **layered exposure model** for concurrency primitives:
 |-------|----------|-----------|----------|
 | Application | Most developers | Actors, channels | Sequential consistency (implicit) |
 | Library | Framework implementers | `Atomic` module | Full ordering control |
-| Runtime | Fidelity internals | LLVM intrinsics | Platform-specific |
+| Runtime | Fidelity internals | Portable atomic encoding, realized per backend leg | Platform-specific |
 
 Application developers use actors and channels. Library developers use the `Atomic` module when implementing lock-free data structures. The complexity of memory ordering is contained to library implementations.
 
@@ -89,32 +89,32 @@ Sequential consistency is the default and recommended ordering:
 ```fsharp
 module Atomic.SeqCst =
     /// Atomically load a value
-    val load<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> 'T
+    val load<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> 'T
 
     /// Atomically store a value
-    val store<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> unit
+    val store<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> unit
 
     /// Atomically exchange values, return old value
-    val exchange<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val exchange<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 
     /// Compare and swap, return success and old value
     val compareExchange<'T when 'T : unmanaged> :
-        ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
+        cell:Ptr<'T, 'Region, ReadWrite> -> expected:'T -> desired:'T -> struct ('T * bool)
 
     /// Atomically add, return old value
-    val fetchAdd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val fetchAdd<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 
     /// Atomically subtract, return old value
-    val fetchSub<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val fetchSub<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 
     /// Atomically AND, return old value
-    val fetchAnd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val fetchAnd<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 
     /// Atomically OR, return old value
-    val fetchOr<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val fetchOr<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 
     /// Atomically XOR, return old value
-    val fetchXor<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val fetchXor<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
 ```
 
 ### Atomic.Relaxed
@@ -123,12 +123,12 @@ For operations where only atomicity matters:
 
 ```fsharp
 module Atomic.Relaxed =
-    val load<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> 'T
-    val store<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> unit
-    val exchange<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val load<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> 'T
+    val store<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> unit
+    val exchange<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
     val compareExchange<'T when 'T : unmanaged> :
-        ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
-    val fetchAdd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+        cell:Ptr<'T, 'Region, ReadWrite> -> expected:'T -> desired:'T -> struct ('T * bool)
+    val fetchAdd<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
     // ... other operations
  
 ```
@@ -139,20 +139,20 @@ For synchronization patterns:
 
 ```fsharp
 module Atomic.Acquire =
-    val load<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> 'T
+    val load<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> 'T
     val compareExchange<'T when 'T : unmanaged> :
-        ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
+        cell:Ptr<'T, 'Region, ReadWrite> -> expected:'T -> desired:'T -> struct ('T * bool)
 
 module Atomic.Release =
-    val store<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> unit
+    val store<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> unit
     val compareExchange<'T when 'T : unmanaged> :
-        ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
+        cell:Ptr<'T, 'Region, ReadWrite> -> expected:'T -> desired:'T -> struct ('T * bool)
 
 module Atomic.AcquireRelease =
-    val exchange<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+    val exchange<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
     val compareExchange<'T when 'T : unmanaged> :
-        ptr:nativeptr<'T> -> expected:'T -> desired:'T -> struct ('T * bool)
-    val fetchAdd<'T when 'T : unmanaged> : ptr:nativeptr<'T> -> value:'T -> 'T
+        cell:Ptr<'T, 'Region, ReadWrite> -> expected:'T -> desired:'T -> struct ('T * bool)
+    val fetchAdd<'T when 'T : unmanaged> : cell:Ptr<'T, 'Region, ReadWrite> -> value:'T -> 'T
     // ... other operations
  
 ```
@@ -215,12 +215,12 @@ Atomic operations are constrained to types that can be atomically accessed by ha
 // ARM64: 1, 2, 4, 8 byte aligned types
 
 // Valid
-Atomic.SeqCst.load<int32> ptr
-Atomic.SeqCst.load<int64> ptr
-Atomic.SeqCst.load<nativeint> ptr
+Atomic.SeqCst.load<int32> cell
+Atomic.SeqCst.load<int64> cell
+Atomic.SeqCst.load<usize> cell
 
 // Invalid (too large for hardware atomic)
-Atomic.SeqCst.load<LargeStruct> ptr  // Compile error
+Atomic.SeqCst.load<LargeStruct> cell  // Compile error
  
 ```
 
@@ -231,17 +231,19 @@ Atomic.SeqCst.load<LargeStruct> ptr  // Compile error
 ```fsharp
 type Spinlock = { mutable locked: int32 }
 
-let acquire (lock: nativeptr<Spinlock>) =
-    while Atomic.AcquireRelease.compareExchange
-            (NativePtr.add lock 0)  // offset to 'locked' field
-            0
-            1
+// The atomic cell is a region-typed handle to the `locked` field.
+// For a program-lifetime lock this handle points into static storage (Sram);
+// `Ptr.field` projects the field handle from a handle to the record.
+let acquire (lock: Ptr<Spinlock, 'Region, ReadWrite>) =
+    let locked = Ptr.field lock (fun s -> s.locked)  // Ptr<int32, 'Region, ReadWrite>
+    while Atomic.AcquireRelease.compareExchange locked 0 1
           |> snd |> not do
         // Spin
         ()
 
-let release (lock: nativeptr<Spinlock>) =
-    Atomic.Release.store (NativePtr.add lock 0) 0
+let release (lock: Ptr<Spinlock, 'Region, ReadWrite>) =
+    let locked = Ptr.field lock (fun s -> s.locked)
+    Atomic.Release.store locked 0
 ```
 
 ### Reference Counting
@@ -252,33 +254,40 @@ type RefCounted<'T> = {
     value: 'T
 }
 
-let retain (obj: nativeptr<RefCounted<'T>>) =
-    Atomic.Relaxed.fetchAdd (NativePtr.add obj 0) 1 |> ignore
+let retain (obj: Ptr<RefCounted<'T>, 'Region, ReadWrite>) =
+    let refCount = Ptr.field obj (fun o -> o.refCount)  // Ptr<int32, 'Region, ReadWrite>
+    Atomic.Relaxed.fetchAdd refCount 1 |> ignore
 
-let release (obj: nativeptr<RefCounted<'T>>) =
-    let oldCount = Atomic.AcquireRelease.fetchSub (NativePtr.add obj 0) 1
+let release (obj: Ptr<RefCounted<'T>, 'Region, ReadWrite>) =
+    let refCount = Ptr.field obj (fun o -> o.refCount)
+    let oldCount = Atomic.AcquireRelease.fetchSub refCount 1
     if oldCount = 1 then
         Atomic.fenceAcquire ()
-        // Deallocate obj
+        // Reclaim obj's storage
  
 ```
 
 ### Single-Producer Single-Consumer Queue
 
 ```fsharp
-type SPSCQueue<'T> = {
-    buffer: nativeptr<'T>
-    capacity: int
+// `Capacity` is a compile-time bound; the buffer is a bounded array whose
+// storage lives in the region 'Region (Stack for a scope-bounded queue,
+// Sram for a program-lifetime one). No raw element pointer is exposed.
+type SPSCQueue<'T, 'Capacity, 'Region> = {
+    buffer: array<'T, 'Capacity, 'Region>
     mutable head: int  // Written by consumer, read by producer
     mutable tail: int  // Written by producer, read by consumer
 }
 
-let enqueue (q: nativeptr<SPSCQueue<'T>>) (item: 'T) =
-    let tail = Atomic.Relaxed.load (NativePtr.add q offsetof_tail)
-    let head = Atomic.Acquire.load (NativePtr.add q offsetof_head)
+let enqueue (q: Ptr<SPSCQueue<'T, 'Capacity, 'Region>, 'QRegion, ReadWrite>) (item: 'T) =
+    let tailCell = Ptr.field q (fun s -> s.tail)  // Ptr<int, 'QRegion, ReadWrite>
+    let headCell = Ptr.field q (fun s -> s.head)
+    let tail = Atomic.Relaxed.load tailCell
+    let head = Atomic.Acquire.load headCell
     if tail - head < capacity then
-        NativePtr.write (NativePtr.add q.buffer (tail % capacity)) item
-        Atomic.Release.store (NativePtr.add q offsetof_tail) (tail + 1)
+        let slot = Ptr.field q (fun s -> s.buffer.[tail % capacity])
+        Ptr.write slot item
+        Atomic.Release.store tailCell (tail + 1)
         true
     else
         false
@@ -339,7 +348,7 @@ Atomic operations are CCS (Clef Compiler Service) intrinsics:
                 NativeType.TStruct [tvar; env.Globals.BoolType])))
 ```
 
-Alex maps these to LLVM atomic instructions with appropriate ordering.
+Alex emits a portable atomic encoding that preserves the memory-ordering annotation and commits to no target. Each backend leg then realizes it: the LLVM leg maps to LLVM atomic instructions with the corresponding ordering, the thumbv8m leg to `ldar`/`stlr` and the exclusive-monitor loop, and other legs to their own atomic primitives.
 
 ## Grammar
 

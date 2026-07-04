@@ -115,10 +115,10 @@ _simplified_ and _eliminated_ based on these equations through _constraint solvi
 
 CCS uses a unified type representation throughout type checking and inference. Type constructors from the [Native Type Universe (NTU)](native-type-universe.md) are recognized during construction, producing `NativeType` values directly with type variables preserved.
 
-When CCS encounters a type expression such as `nativeptr<'T>`:
+When CCS encounters a type expression such as `array<'T>`:
 
-1. The type constructor `nativeptr` is recognized as part of the NTU
-2. A `NativeType.TNativePtr` value is produced
+1. The type constructor `array` is recognized as part of the NTU
+2. A `NativeType.TArray` value is produced
 3. The type variable `'T` is preserved as `NativeType.TVar`
 4. Hindley-Milner type inference proceeds with full polymorphism
 
@@ -234,7 +234,7 @@ A type of the form `ty []` is a _single-dimensional array_ type, and a type of t
 > ┌─────────────────┬─────────────────┐
 > │ ptr: *T         │ len: usize      │
 > └─────────────────┴─────────────────┘
->      8 bytes           8 bytes       = 16 bytes (header)
+>      1 word            1 word        = 2 words (header)
 >                                      + len * sizeof<'T> (elements)
 > ```
 >
@@ -460,6 +460,8 @@ specified below:
 - Type `nativeptr<type>` is unmanaged.
 - A non-generic struct type whose fields are all unmanaged types is unmanaged.
 
+> **Clef Note**: `nativeptr<_>` is not user-denotable in Clef source. It survives only as internal `TNativePtr` compiler plumbing, so the clause above describes an internal representation rather than a type a program can write. Buffers use bounded stack arrays, registers use the `Mmio` width-typed handle, and a C binding's returned pointer uses an opaque handle (`Ptr<'T, Region, Access>`).
+
 ### Equality and Comparison Constraints
 
 _Equality constraints_ and _comparison constraints_ have the following forms, respectively:
@@ -606,13 +608,13 @@ Two static types are considered equivalent and indistinguishable if they are equ
 For example, `int` is a native type abbreviation for the platform word-sized integer:
 
 ```fsharp
-// int in Clef = platform word (64-bit on 64-bit platforms)
+// int in Clef = platform word (64-bit on x86-64, 32-bit on thumbv8m/M33)
 // NOT an abbreviation for System.Int32
  
 ```
 
 The types `int` and `int32` are distinct in Clef:
-- `int` = platform word (64-bit on x86-64)
+- `int` = platform word (64-bit on x86-64, 32-bit on thumbv8m/M33)
 - `int32` = fixed 32-bit integer
 
 Likewise, consider the process of checking this function:

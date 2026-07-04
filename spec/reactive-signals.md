@@ -152,7 +152,7 @@ Reactive callbacks (`Memo`, `Effect`, `Batch`, `Store.subscribe`) take **flat cl
 
 Signals are the scaffolding between the application core and a front end, and the surface API is identical across targets — which is the point.
 
-- **Native renderer.** Flat closures lower through LLVM to region-allocated closure records plus a function pointer. Signal writes drive re-render through the same stabilization model that governs any `Incremental` graph; a render function is an `Effect` demanded by the frame boundary.
+- **Native renderer.** Flat closures lower through the native backend leg (the LLVM leg off the portable middle end — see [Closure Representation §6.3](closure-representation.md) and [Backend Lowering §4.2](backend-lowering-architecture.md)) to region-allocated closure records plus a function address. Signal writes drive re-render through the same stabilization model that governs any `Incremental` graph; a render function is an `Effect` demanded by the frame boundary.
 - **WebView / JavaScript front end.** Through JSIR — Composer's JavaScript-as-MLIR backend — flat closures lower to native JavaScript closures (captured scope is exactly what a JS function object carries). The *same* `Signal`/`Memo`/`Effect` source therefore compiles to JavaScript, enabling interop with JS-side reactive libraries (e.g. SolidJS) and genuine frontend/backend consistency. This target-polymorphism is the reason the reactive primitive is a closure rather than an `FnPtr`: a closure rides JSIR's bidirectional MLIR↔JavaScript mapping idiomatically, whereas a raw function pointer has no natural JavaScript form.
 - **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire; a `Signal` on one side is mirrored to the other without a bespoke serialization layer.
 
@@ -233,7 +233,7 @@ Unlike the earlier Clef formulation, **closures are used exactly as in SolidJS**
 5. **Signal set is invalidation**: `Signal.set` SHALL emit an invalidation to dependents per the Observable/Incremental model, subject to change detection.
 6. **Batching**: `Batch.run` SHALL coalesce contained writes into a single stabilization boundary.
 7. **Deterministic disposal**: Effect and subscription lifetimes SHALL be tied to the enclosing actor/region with deterministic release; no GC or finalizer SHALL be required to dispose.
-8. **Target parity**: The `Signal`/`Memo`/`Effect` surface SHALL compile to both native (LLVM) and JavaScript (JSIR) targets from the same source, with reactive callbacks lowering to region-allocated closures and JavaScript closures respectively.
+8. **Target parity**: The `Signal`/`Memo`/`Effect` surface SHALL compile to both the native target (the LLVM backend leg) and the JavaScript target (the JSIR backend leg) from the same source, with reactive callbacks lowering to region-allocated closures and JavaScript closures respectively. LLVM and JSIR are sibling target legs off the portable middle end (as is CIRCT for FPGA); the middle end commits to no target, and each leg realizes the flat closure through its own mechanism.
 9. **FnPtr scope**: `FnPtr` SHALL be confined to C FFI interop; it SHALL NOT appear in the reactive API surface.
 
 ## References

@@ -185,8 +185,10 @@ else scalar_impl()
 **After (on x86_64 without AVX-512):**
 ```mlir
 // Only avx2_impl remains
-call @vectorAdd_avx2(%a, %b) : (!llvm.ptr, !llvm.ptr) -> !llvm.ptr
+func.call @vectorAdd_avx2(%a, %b) : (memref<?xf64>, memref<?xf64>) -> memref<?xf64>
 ```
+
+Predicate resolution and dead-code elimination run in the portable middle end, so the surviving branch is expressed in a portable dialect (`func`, `memref`). The choice of vector implementation is settled here; the pointer representation of each `array<float>` argument is not, and is realized only in the backend leg selected for the platform.
 
 ## 7. Predicate Implications
 

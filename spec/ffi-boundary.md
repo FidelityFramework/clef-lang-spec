@@ -5,22 +5,24 @@ category: Platform
 status: normative
 ---
 
-This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries. It establishes the null-safety contract, pointer type semantics, and the normative requirements for binding generation tools like Farscape.
+This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries on a hosted target (Lane 1). It establishes the null-safety contract, the opaque-handle representation of a C binding's pointer, and the normative requirements for binding generation tools like Farscape. A freestanding no-heap target (the unikernel lane) has no FFI leg at all, so nothing in this chapter applies there; interior memory on that lane follows the lifetime lattice defined in `closure-representation.md` §3.3.
+
+Interior Clef has no raw pointer type. `nativeptr<'T>`, `voidptr`, and `nativeint`-as-pointer are not denotable in Clef source, at the FFI boundary or anywhere else. A C binding that returns a pointer marshals that pointer through an opaque handle, `CHandle<'T>`: the handle is non-arithmetic and non-dereferenceable in Clef source, and its only use is to be passed back across the boundary to another C binding. The interior pointer mechanism is the flat closure; a register is the width-typed `Mmio` handle.
 
 ## 1. Null Safety Principle
 
 ### 1.1 Core Invariant
 
-> **Null exists ONLY at the FFI boundary. Within Clef code, `nativeptr<'T>` and `FnPtr<'F>` are NEVER null.**
+> **Null exists ONLY at the FFI boundary. Within Clef code, `CHandle<'T>` and `FnPtr<'F>` are NEVER null.**
 
-This invariant is fundamental to Clef's memory safety guarantees. Unlike C where any pointer may be null, Clef enforces non-nullability at the type level.
+This invariant is fundamental to Clef's memory safety guarantees. Unlike C where any pointer may be null, Clef enforces non-nullability at the type level. A C binding hands back an opaque handle rather than a raw pointer, so interior code never holds a dereferenceable address.
 
 ### 1.2 Rationale
 
 Null pointer dereferences are a leading cause of crashes and security vulnerabilities in native code. By eliminating null from the type system's interior, Clef provides:
 
-1. **Compile-time safety**: The type checker ensures non-null pointers are always valid
-2. **Explicit optionality**: `Option<nativeptr<'T>>` makes nullability visible in the type signature
+1. **Compile-time safety**: The type checker ensures handles handed back from C are always valid
+2. **Explicit optionality**: `Option<CHandle<'T>>` makes nullability visible in the type signature
 3. **Clean FFI boundary**: Null handling is isolated to the interface with C code
 4. **No runtime null checks**: Interior code needs no defensive null checks
 
@@ -28,22 +30,22 @@ Null pointer dereferences are a leading cause of crashes and security vulnerabil
 
 The FFI boundary is the interface between Clef code and external C functions. At this boundary:
 
-- **Outgoing** (F# → C): `Option<nativeptr<'T>>` converts to nullable C pointer
+- **Outgoing** (F# → C): `Option<CHandle<'T>>` converts to nullable C pointer
   - `None` → `NULL`
-  - `Some ptr` → pointer value
+  - `Some handle` → the pointer the handle carries
 
-- **Incoming** (C → F#): Nullable C pointer converts to `Option<nativeptr<'T>>`
+- **Incoming** (C → F#): Nullable C pointer converts to `Option<CHandle<'T>>`
   - `NULL` → `None`
-  - Non-null → `Some ptr`
+  - Non-null → `Some handle`
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Clef World                                        │
 │                                                         │
-│  nativeptr<'T>         - NEVER null                    │
-│  FnPtr<'F>             - NEVER null                    │
-│  Option<nativeptr<'T>> - explicit nullability          │
-│  Option<FnPtr<'F>>     - explicit nullability          │
+│  CHandle<'T>            - NEVER null, opaque           │
+│  FnPtr<'F>              - NEVER null                   │
+│  Option<CHandle<'T>>    - explicit nullability         │
+│  Option<FnPtr<'F>>      - explicit nullability         │
 └─────────────────────────────────────────────────────────┘
                          ↕ FFI Boundary
 ┌─────────────────────────────────────────────────────────┐
@@ -56,35 +58,34 @@ The FFI boundary is the interface between Clef code and external C functions. At
 
 ## 2. Pointer Types at FFI Boundary
 
-### 2.1 Non-Nullable Pointers
+### 2.1 Non-Nullable Handles
 
 | Clef Type | C Equivalent | Semantics |
 |---------------|--------------|-----------|
-| `nativeptr<'T>` | `T*` (non-null) | Typed pointer, guaranteed valid |
+| `CHandle<'T>` | `T*` (non-null) | Opaque typed handle, guaranteed valid; non-arithmetic, non-dereferenceable in Clef source |
+| `CHandle<unit>` | `void*` (non-null) | Opaque untyped handle, guaranteed valid |
 | `FnPtr<'F>` | Function pointer (non-null) | Function pointer, guaranteed valid |
-| `voidptr` | `void*` (non-null) | Untyped pointer, guaranteed valid |
-| `nativeint` | `intptr_t` | Pointer-sized integer |
 
-These types have no null representation. Attempting to construct a null value is a compile-time error.
+A `CHandle<'T>` carries a C pointer across the boundary but exposes no pointer operations in Clef source: no arithmetic, no dereference, no conversion to an integer. Its only role is to be handed back to another C binding. These types have no null representation, and attempting to construct a null value is a compile-time error.
 
-### 2.2 Nullable Pointers (FFI Only)
+### 2.2 Nullable Handles (FFI Only)
 
 | Clef Type | C Equivalent | Semantics |
 |---------------|--------------|-----------|
-| `Option<nativeptr<'T>>` | `T*` (nullable) | May be null, explicit handling required |
+| `Option<CHandle<'T>>` | `T*` (nullable) | May be null, explicit handling required |
+| `Option<CHandle<unit>>` | `void*` (nullable) | Untyped nullable handle |
 | `Option<FnPtr<'F>>` | Function pointer (nullable) | May be null callback |
-| `Option<voidptr>` | `void*` (nullable) | Untyped nullable pointer |
 
 `Option` wrapping is used ONLY at FFI boundaries where C semantics require nullable pointers.
 
 ### 2.3 Memory Layout
 
-`Option<nativeptr<'T>>` has the same memory layout as `nativeptr<'T>` (a single platform word). The compiler uses the null pointer optimization:
+`Option<CHandle<'T>>` has the same memory layout as `CHandle<'T>` (a single platform word). The compiler uses the null pointer optimization:
 
 - `None` is represented as the bit pattern `0` (null)
-- `Some ptr` is represented as the pointer value itself
+- `Some handle` is represented as the carried pointer value itself
 
-This ensures zero overhead for Option-wrapped pointers at the FFI boundary.
+This ensures zero overhead for Option-wrapped handles at the FFI boundary.
 
 ## 3. FnPtr Intrinsics
 
@@ -95,8 +96,8 @@ This ensures zero overhead for Option-wrapped pointers at the FFI boundary.
 ```fsharp
 FnPtr<unit -> unit>                              // void (*)(void)
 FnPtr<int -> int>                                // int (*)(int)
-FnPtr<nativeptr<byte> -> int -> int>             // int (*)(char*, int)
-FnPtr<Option<nativeptr<int>> -> unit>            // void (*)(int*)  -- nullable param
+FnPtr<CHandle<byte> -> int -> int>               // int (*)(char*, int)
+FnPtr<Option<CHandle<int>> -> unit>              // void (*)(int*)  -- nullable param
  
 ```
 
@@ -119,15 +120,13 @@ FnPtr.fromSymbol<'F> : string -> FnPtr<'F>
 **Example:**
 ```fsharp
 // Declare external C functions
-let private strlen_ptr = FnPtr.fromSymbol<nativeptr<byte> -> int> "strlen"
+let private strlen_ptr = FnPtr.fromSymbol<CHandle<byte> -> int> "strlen"
 let private gtk_init_ptr =
-    FnPtr.fromSymbol<Option<nativeptr<int>> -> Option<nativeptr<nativeptr<byte>>> -> unit> "gtk_init"
+    FnPtr.fromSymbol<Option<CHandle<int>> -> Option<CHandle<CHandle<byte>>> -> unit> "gtk_init"
 ```
 
 **Code Generation:**
-The compiler emits:
-1. An LLVM external function declaration for the symbol
-2. The address of the symbol as the FnPtr value
+The middle end emits portable dialects only: an external `func.func` declaration for the symbol, and the symbol address carried as a `builtin.unrealized_conversion_cast` (a function address is data with no portable form). Each backend leg realizes that cast: the LLVM leg (CPU/MCU) lowers the declaration to an `llvm.func` and the address to an `llvm.mlir.addressof`; other legs realize it in their own terms.
 
 ### 3.3 FnPtr.invoke
 
@@ -140,8 +139,8 @@ FnPtr.invoke : FnPtr<'F> -> 'F
 
 **Semantics:**
 - Invokes the function with the provided arguments
-- Arguments matching `Option<nativeptr<'T>>` are marshalled (None → NULL)
-- Return values matching `Option<nativeptr<'T>>` are marshalled (NULL → None)
+- Arguments matching `Option<CHandle<'T>>` are marshalled (None → NULL)
+- Return values matching `Option<CHandle<'T>>` are marshalled (NULL → None)
 
 **Example:**
 ```fsharp
@@ -208,39 +207,43 @@ match maybeCallback with
 
 ### 4.1 Parameter Marshalling (F# → C)
 
-When a function parameter has type `Option<nativeptr<'T>>` or `Option<FnPtr<'F>>`:
+When a function parameter has type `Option<CHandle<'T>>` or `Option<FnPtr<'F>>`:
 
 | F# Value | C Value |
 |----------|---------|
 | `None` | `NULL` (0) |
-| `Some ptr` | `ptr` (pointer value) |
+| `Some handle` | the pointer the handle carries |
 
 **Optimization:** When the argument is a compile-time `None` literal, the compiler directly emits null without runtime checks.
 
 ### 4.2 Return Value Marshalling (C → F#)
 
-When a function return type is `Option<nativeptr<'T>>` or `Option<FnPtr<'F>>`:
+When a function return type is `Option<CHandle<'T>>` or `Option<FnPtr<'F>>`:
 
 | C Value | F# Value |
 |---------|----------|
 | `NULL` (0) | `None` |
-| Non-null | `Some ptr` |
+| Non-null | `Some handle` |
 
-**Code Generation:**
+**Code Generation (portable dialects):**
+The compare-against-null and the select are expressed in portable ops. The returned pointer is a platform word, typed `index`; the null check is `arith.cmpi`; the choice between `None` and `Some` is `scf.select` (or `arith.select`).
 ```mlir
-// C function returns nullable pointer
-%result = llvm.call @may_return_null() : () -> !llvm.ptr
+// C function returns nullable pointer (platform word, carried as index)
+%result = func.call @may_return_null() : () -> index
 
 // Marshal to Option
-%is_null = llvm.icmp "eq" %result, %null : !llvm.ptr
-%option = llvm.select %is_null, %none_value, %some_result : ...
+%zero = arith.constant 0 : index
+%is_null = arith.cmpi eq, %result, %zero : index
+%option = arith.select %is_null, %none_value, %some_result : ...
 ```
+
+**LLVM-leg lowering example:** on the CPU/MCU leg the same marshalling lowers to `llvm.call ... -> !llvm.ptr`, `llvm.icmp "eq"`, and `llvm.select`. That form is one target leg, not what the middle end emits.
 
 ### 4.3 Non-Marshalled Types
 
 Types NOT wrapped in `Option` are passed directly without marshalling:
 
-- `nativeptr<'T>`: passed as-is (must be non-null)
+- `CHandle<'T>`: passed as-is (must be non-null)
 - `FnPtr<'F>`: passed as-is (must be non-null)
 - `int`, `float`, etc.: passed as-is (value types)
 
@@ -256,26 +259,26 @@ Farscape MUST interpret C nullability annotations as follows:
 
 | C Annotation | Platform | Clef Output |
 |-------------|----------|------------------|
-| `_Nonnull` | Clang/Apple | `nativeptr<'T>` |
-| `_Nullable` | Clang/Apple | `Option<nativeptr<'T>>` |
+| `_Nonnull` | Clang/Apple | `CHandle<'T>` |
+| `_Nullable` | Clang/Apple | `Option<CHandle<'T>>` |
 | `_Null_unspecified` | Clang/Apple | See default policy |
-| `__attribute__((nonnull))` | GCC | `nativeptr<'T>` |
-| `_In_` | Windows SAL | `nativeptr<'T>` |
-| `_In_opt_` | Windows SAL | `Option<nativeptr<'T>>` |
-| `_Out_` | Windows SAL | `nativeptr<'T>` |
-| `_Out_opt_` | Windows SAL | `Option<nativeptr<'T>>` |
+| `__attribute__((nonnull))` | GCC | `CHandle<'T>` |
+| `_In_` | Windows SAL | `CHandle<'T>` |
+| `_In_opt_` | Windows SAL | `Option<CHandle<'T>>` |
+| `_Out_` | Windows SAL | `CHandle<'T>` |
+| `_Out_opt_` | Windows SAL | `Option<CHandle<'T>>` |
 
 ### 5.2 Default Policy (Unannotated Pointers)
 
 When C code lacks nullability annotations, Farscape MUST apply these defaults:
 
 **Function Parameters:**
-- Default: `nativeptr<'T>` (assume non-null)
-- Override to `Option<nativeptr<'T>>` when documentation indicates nullable
+- Default: `CHandle<'T>` (assume non-null)
+- Override to `Option<CHandle<'T>>` when documentation indicates nullable
 
 **Function Return Values:**
-- Default: `nativeptr<'T>` (assume non-null)
-- Override to `Option<nativeptr<'T>>` for functions documented to return NULL on error
+- Default: `CHandle<'T>` (assume non-null)
+- Override to `Option<CHandle<'T>>` for functions documented to return NULL on error
 
 **Rationale:** Most C APIs expect non-null parameters and return non-null on success. Defaulting to non-null reduces Option ceremony while the override mechanism handles exceptions.
 
@@ -330,13 +333,13 @@ module Platform.GTK
 
 // External declarations
 let private gtk_init_ptr =
-    FnPtr.fromSymbol<Option<nativeptr<int>> -> Option<nativeptr<nativeptr<byte>>> -> unit> "gtk_init"
+    FnPtr.fromSymbol<Option<CHandle<int>> -> Option<CHandle<CHandle<byte>>> -> unit> "gtk_init"
 
 let private gtk_window_new_ptr =
-    FnPtr.fromSymbol<int -> nativeptr<GtkWindow>> "gtk_window_new"
+    FnPtr.fromSymbol<int -> CHandle<GtkWindow>> "gtk_window_new"
 
 let private gtk_widget_show_all_ptr =
-    FnPtr.fromSymbol<nativeptr<GtkWidget> -> unit> "gtk_widget_show_all"
+    FnPtr.fromSymbol<CHandle<GtkWidget> -> unit> "gtk_widget_show_all"
 
 let private gtk_main_ptr =
     FnPtr.fromSymbol<unit -> unit> "gtk_main"
@@ -345,10 +348,10 @@ let private gtk_main_ptr =
 let gtkInit () =
     FnPtr.invoke gtk_init_ptr None None
 
-let gtkWindowNew (windowType: GtkWindowType) : nativeptr<GtkWindow> =
+let gtkWindowNew (windowType: GtkWindowType) : CHandle<GtkWindow> =
     FnPtr.invoke gtk_window_new_ptr (int windowType)
 
-let gtkWidgetShowAll (widget: nativeptr<GtkWidget>) : unit =
+let gtkWidgetShowAll (widget: CHandle<GtkWidget>) : unit =
     FnPtr.invoke gtk_widget_show_all_ptr widget
 
 let gtkMain () =
@@ -357,30 +360,32 @@ let gtkMain () =
 
 ### 6.2 libc Bindings
 
+This example is hosted-libc (Lane 1). `malloc`/`free` exist only where a C runtime with a heap is linked. A freestanding no-heap target has no libc and no FFI leg, so these bindings do not exist there; interior memory on that lane follows the lifetime lattice of `closure-representation.md` §3.3, and a value that classifies as genuinely-dynamic on a no-heap target is a compile-time lifetime error rather than a call to `malloc`.
+
 ```fsharp
 module Platform.Libc
 
 // strlen: never returns null, never accepts null
 let private strlen_ptr =
-    FnPtr.fromSymbol<nativeptr<byte> -> int> "strlen"
+    FnPtr.fromSymbol<CHandle<byte> -> int> "strlen"
 
 // malloc: may return NULL on failure
 let private malloc_ptr =
-    FnPtr.fromSymbol<int -> Option<voidptr>> "malloc"
+    FnPtr.fromSymbol<int -> Option<CHandle<unit>>> "malloc"
 
 // free: accepts NULL (no-op)
 let private free_ptr =
-    FnPtr.fromSymbol<Option<voidptr> -> unit> "free"
+    FnPtr.fromSymbol<Option<CHandle<unit>> -> unit> "free"
 
 // High-level API
-let strlen (s: nativeptr<byte>) : int =
+let strlen (s: CHandle<byte>) : int =
     FnPtr.invoke strlen_ptr s
 
-let malloc (size: int) : Option<voidptr> =
+let malloc (size: int) : Option<CHandle<unit>> =
     FnPtr.invoke malloc_ptr size
 
-let free (ptr: Option<voidptr>) : unit =
-    FnPtr.invoke free_ptr ptr
+let free (handle: Option<CHandle<unit>>) : unit =
+    FnPtr.invoke free_ptr handle
 ```
 
 ### 6.3 Callback Pattern
@@ -391,26 +396,27 @@ module Platform.GLib
 // Type alias for GLib callback
 type GSourceFunc = int -> int  // gboolean (*)(gpointer) simplified
 
-// g_idle_add accepts non-null callback
+// g_idle_add accepts non-null callback; user_data is a nullable gpointer (void*)
 let private g_idle_add_ptr =
-    FnPtr.fromSymbol<FnPtr<GSourceFunc> -> nativeint -> uint32> "g_idle_add"
+    FnPtr.fromSymbol<FnPtr<GSourceFunc> -> Option<CHandle<unit>> -> uint32> "g_idle_add"
 
 // User's callback (must be top-level)
 let myIdleCallback (userData: int) : int =
     // Do work...
     0  // Return FALSE to remove source
 
-// Register callback
+// Register callback (no user_data -> None -> NULL)
 let sourceId =
     let callbackPtr = FnPtr.ofFunction myIdleCallback
-    FnPtr.invoke g_idle_add_ptr callbackPtr 0n
+    FnPtr.invoke g_idle_add_ptr callbackPtr None
 ```
 
 ## 7. Normative Summary
 
-1. `nativeptr<'T>` and `FnPtr<'F>` are NEVER null within Clef code
-2. `Option<nativeptr<'T>>` and `Option<FnPtr<'F>>` represent nullable pointers at FFI boundary
+1. A C binding's pointer marshals through the opaque `CHandle<'T>`; interior Clef has no raw pointer type, and `nativeptr<'T>`/`voidptr`/`nativeint`-as-pointer are not denotable anywhere. `CHandle<'T>` and `FnPtr<'F>` are NEVER null within Clef code
+2. `Option<CHandle<'T>>` and `Option<FnPtr<'F>>` represent nullable pointers at the FFI boundary
 3. `FnPtr.fromSymbol` declares linker-resolved external symbols
 4. `FnPtr.invoke` calls through function pointers with automatic Option↔NULL marshalling
 5. `FnPtr.ofFunction` converts top-level functions only (no closures)
 6. Farscape MUST follow the nullability annotation mapping and default policies defined herein
+7. This chapter is hosted-target (Lane 1) only; a freestanding no-heap target has no FFI leg, and its interior memory follows the lifetime lattice of `closure-representation.md` §3.3

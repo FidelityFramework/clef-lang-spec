@@ -254,8 +254,6 @@ This ensures that Alex can dispatch on intrinsics without knowledge of namespace
 | Module | Description | Provider |
 |--------|-------------|----------|
 | `Sys` | System calls | Compiler |
-| `NativePtr` | Pointer operations | Compiler |
-| `NativeStr` | String operations | Compiler |
 | `Array` | Array operations | Compiler |
 | `Math` | Mathematical functions | Compiler |
 | `Lazy` | Lazy computation (PRD-14) | Compiler |

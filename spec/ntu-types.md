@@ -142,7 +142,9 @@ The architecture uses a three-tier exposure model:
 | `unativeint` | `NTUuint (Resolved Pointer)` |
 | `float32` | `NTUfloat (Fixed 32)` |
 | `float` | `NTUfloat (Fixed 64)` |
-| `nativeptr<'T>` | `NTUptr` |
+| `Ptr<'T, Region, Access>` | `NTUptr` |
+
+`NTUptr` is the internal kind for a pointer-shaped value. The only user-denotable source that maps to it is the opaque handle `Ptr<'T, Region, Access>` returned across a C binding, together with the register handle `Mmio` for a fixed-address peripheral. `nativeptr<'T>` is not a Clef source type and never appears in user code; the compiler reaches `NTUptr` through its own internal plumbing, not through a written `nativeptr<'T>` annotation.
 
 ### 4.2 Developer Experience
 
@@ -152,9 +154,9 @@ let x: int = 42  // CCS sees NTUint
 let arr: array<int> = [| 1; 2; 3 |]
 ```
 
-**Level 2/3 (Explicit)**: Developers use semantic aliases for clarity.
+**Level 2/3 (Explicit)**: Developers use semantic aliases for clarity. A byte buffer is a bounded stack array, not a raw pointer.
 ```fsharp
-let write (fd: platformint) (buf: nativeptr<byte>) (count: platformsize) : platformint =
+let write (fd: platformint) (buf: array<byte>) (count: platformsize) : platformint =
     Platform.Bindings.write fd buf count
 ```
 
@@ -298,6 +300,8 @@ let linux_arm32: Expr<NTUResolutions> = <@
 
 ### 8.1 NTU to MLIR Type Mapping
 
+The middle end (Alex) emits only portable dialect types (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`) and commits to no target. Pointer-shaped NTU kinds map to the platform-sized `index` type, not to any target dialect. `NTUptr` in particular maps to `index` at the NTU level (Composer `TypeMapping.fs` maps `NTUptr`/`NTUfnptr` -> `TIndex`, which serializes as `index`). Target realization is a backend-leg concern: the LLVM leg lowers `index` to `!llvm.ptr` where a raw address is needed, the CIRCT/FPGA leg realizes it as a target-appropriate carrier, and constructs with no portable form (a function address taken as data, a raw environment pointer) are carried across the tier boundary as `builtin.unrealized_conversion_cast` and realized per leg.
+
 | NTU Type | MLIR Type (x86_64) | MLIR Type (ARM32) |
 |----------|-------------------|-------------------|
 | `NTUint (Resolved Register)` | `i64` | `i32` |
@@ -310,9 +314,12 @@ let linux_arm32: Expr<NTUResolutions> = <@
 | `NTUint (Fixed 64)` | `i64` | `i64` |
 | `NTUfloat (Fixed 32)` | `f32` | `f32` |
 | `NTUfloat (Fixed 64)` | `f64` | `f64` |
-| `NTUptr` | `!llvm.ptr` | `!llvm.ptr` |
-| `NTUsize` | `i64` | `i32` |
-| `NTUdiff` | `i64` | `i32` |
+| `NTUptr` | `index` | `index` |
+| `NTUfnptr` | `index` | `index` |
+| `NTUsize` | `index` | `index` |
+| `NTUdiff` | `index` | `index` |
+
+The `index` type is platform-sized: it resolves to a 64-bit value on x86_64 and a 32-bit value on ARM32 (and on thumbv8m/M33), so a single portable mapping carries the correct pointer width per target without the NTU level naming any concrete byte count. On a backend leg that needs a raw address rather than an index (the LLVM CPU/MCU leg), `index` is realized as `!llvm.ptr` during leg lowering. That realization is lossy and belongs to the leg, so it never appears in what the NTU or the middle end emits.
 
 ## 9. Conformance Requirements
 

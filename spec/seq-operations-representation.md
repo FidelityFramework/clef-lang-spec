@@ -73,7 +73,7 @@ MapSeq<A, B> with inner: Seq<A>, mapper: Closure<A -> B>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: B              (sizeof(B) bytes) - current transformed value   │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (8 bytes) - MapMoveNext function address        │
+│ code_ptr: ptr           (one platform word) - MapMoveNext address       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED, copied        │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -99,7 +99,7 @@ FilterSeq<A> with inner: Seq<A>, predicate: Closure<A -> bool>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: A              (sizeof(A) bytes) - current matching value       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (8 bytes) - FilterMoveNext function address      │
+│ code_ptr: ptr           (one platform word) - FilterMoveNext address     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -116,7 +116,7 @@ TakeSeq<A> with inner: Seq<A>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: A              (sizeof(A) bytes)                                │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (8 bytes) - TakeMoveNext function address        │
+│ code_ptr: ptr           (one platform word) - TakeMoveNext address       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -135,7 +135,7 @@ CollectSeq<A, B> with outer: Seq<A>, mapper: Closure<A -> Seq<B>>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: B              (sizeof(B) bytes)                                │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (8 bytes) - CollectMoveNext function address     │
+│ code_ptr: ptr           (one platform word) - CollectMoveNext address    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ outer_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -160,6 +160,9 @@ let mapped = Seq.map mapper innerSeq
 The wrapper creation **copies both `innerSeq` and `mapper` by value** into the wrapper struct:
 
 ```mlir
+// LLVM backend leg — committed dialect. NOT middle-end output; the middle end
+// emits this construction over portable memref/arith, and the LLVM leg commits
+// the struct access to the target ABI (Backend Lowering Architecture §4.2).
 // Create MapSeq wrapper - COPIES both values
 %undef = llvm.mlir.undef : !map_seq_type
 %s0 = llvm.insertvalue %zero, %undef[0] : !map_seq_type           // state = 0
@@ -175,7 +178,7 @@ The wrapper creation **copies both `innerSeq` and `mapper` by value** into the w
 
 **No Aliasing**: No shared mutable state between different wrappers created from the same source.
 
-**Lifetime Simplicity**: The wrapper struct contains everything it needs. No dangling references.
+**Lifetime Simplicity**: The wrapper struct contains everything it needs, with no interior pointers into a separately-allocated inner seq or closure, so it has no dangling references. Because the inner seq and closure are inlined, the whole wrapper is one value with a single lifetime, and that lifetime is classified and placed by the four-point lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap (a freestanding unikernel) only the stack and static placements exist, and a wrapper that would classify as dynamic there is a compile-time lifetime error, not a silent heap allocation.
 
 **Example**:
 ```fsharp
@@ -197,6 +200,9 @@ Both iterations work because each `for` expression copies `doubled` into its own
 When invoking the mapper/predicate, the closure is extracted from the wrapper and invoked per the flat closure convention:
 
 ```mlir
+// LLVM backend leg — committed dialect. NOT middle-end output; the middle end
+// carries the closure extraction and indirect call over portable dialects, and
+// the LLVM leg commits them (Backend Lowering Architecture §4.2).
 // In MapMoveNext:
 // 1. Extract mapper closure (value copy in struct)
 %mapper = llvm.extractvalue %wrapper[4] : !map_seq_type -> !closure_type
@@ -352,7 +358,7 @@ Unlike transformers, `Seq.fold` does **not** create a wrapper sequence. It immed
 let sum = Seq.fold (fun acc x -> acc + x) 0 source
 ```
 
-**Implementation**:
+**Implementation** on the LLVM backend leg (committed dialect, not middle-end output). The middle end emits the loop over portable `scf`/`memref`/`arith` and carries the closure over portable dialects; the LLVM leg commits the `alloca`/`getelementptr`/`load`/`store` and the indirect `call` to the target ABI, per [Backend Lowering Architecture §4.2](../backend-lowering-architecture.md):
 ```mlir
 func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
     // Allocate source on stack for mutation
@@ -414,7 +420,7 @@ func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
 2. **Copy Semantics**: Wrapper creation SHALL copy inner seq and closure by value, not by pointer
 3. **Field Order**: Wrapper struct fields SHALL be ordered: state, current, code_ptr, inner_seq, closure/config
 4. **Closure Invocation**: Mapper/predicate invocation SHALL follow flat closure calling convention (extract code_ptr and captures, call with captures prepended)
-5. **No Heap**: Wrapper sequences SHALL NOT be allocated on GC-managed heap
+5. **Lifetime-Driven Placement**: A wrapper sequence SHALL be placed by the four-point lifetime lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. A wrapper sequence SHALL NOT be allocated on a GC-managed heap. On a target without a heap, a wrapper that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation.
 6. **Composition = Nesting**: Composed operations SHALL produce nested structs, not linked structures
 7. **Eager Consumers**: `Seq.fold` SHALL consume immediately, not create wrapper
 

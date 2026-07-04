@@ -124,15 +124,15 @@ On CPU targets, an observable with `N` registered observers materializes as a so
 ```
 Observable<T>
 ┌──────────────────────────────────────────────────────────────────┐
-│ source_ptr: ptr         (8 bytes on 64-bit)                     │
+│ source_ptr: ptr         (1 platform word)                       │
 ├──────────────────────────────────────────────────────────────────┤
 │ observer_count: i32     (4 bytes)                               │
 ├──────────────────────────────────────────────────────────────────┤
-│ observer_ptrs: ptr[N]   (N × 8 bytes; flat closures: fn + env)  │
+│ observer_ptrs: ptr[N]   (N platform words; flat closures)       │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-Each observer pointer references a flat closure (function pointer plus captured environment) laid out per [Closure Representation](closure-representation.md).
+A `ptr` here is the platform word: `sizeof(ptr)` is 4 bytes on thumbv8m/M33 and 8 bytes on x86-64. So a source reference plus `N` observer pointers occupy `(N + 1)` platform words plus the 4-byte count. Each observer pointer references a flat closure (function pointer plus captured environment) laid out per [Closure Representation](closure-representation.md).
 
 ## 4. Subscription and Emission
 
@@ -198,18 +198,29 @@ The PSG node references the producer and the list of registered observer continu
 
 ### 7.1 CPU Target
 
-On CPU, emission lowers to a direct dispatch loop over the observer closures (no virtual dispatch, no managed callback):
+The CPU leg is one of several target legs the backend can select (alongside the CIRCT/FPGA and JS legs); it is the leg reached when the delivery context is a CPU or MCU. On it, emission lowers to a direct dispatch loop over the observer closures (no virtual dispatch, no managed callback). The loop structure and observer-array access are portable — the middle end expresses them in `scf`/`memref` and commits to no target:
 
 ```mlir
-// Emit value %v to all registered observers
-%count = llvm.load %observer_count_ptr : !llvm.ptr -> i32
+// Emit value %v to all registered observers (portable middle-end form)
+%count = memref.load %observer_count[] : memref<i32>
+%n = index.casts %count : i32 to index
 // for i in 0 .. count-1: invoke observers[i](%v)
-scf.for %i = %c0 to %count step %c1 {
-    %obs_ptr = llvm.getelementptr %observer_ptrs[%i] : (!llvm.ptr, i32) -> !llvm.ptr
-    %obs = llvm.load %obs_ptr : !llvm.ptr -> !llvm.ptr
-    llvm.call %obs(%v) : (!result_type) -> ()    // flat-closure invocation
+scf.for %i = %c0 to %n step %c1 {
+    %obs = memref.load %observer_ptrs[%i] : memref<?x!closure>
+    func.call_indirect %obs(%v) : (!result_type) -> ()   // flat-closure invocation
 }
 ```
+
+Only the flat-closure invocation carries a construct with no portable form (a function address applied as data). On the LLVM leg specifically, the indirect call and the raw environment pointer realize as `llvm.*`:
+
+```mlir
+// LLVM-leg realization of the flat-closure dispatch inside the loop body
+%obs_ptr = llvm.getelementptr %observer_ptrs[%i] : (!llvm.ptr, i64) -> !llvm.ptr
+%obs = llvm.load %obs_ptr : !llvm.ptr -> !llvm.ptr
+llvm.call %obs(%v) : (!result_type) -> ()
+```
+
+Other legs realize the same indirect dispatch through their own lowering (a hardware-selected observer table on the CIRCT/FPGA leg, a closure object on the JS leg); the `scf`/`memref` loop above is shared across all of them.
 
 ### 7.2 Fusion into Incremental (Accelerator Path)
 

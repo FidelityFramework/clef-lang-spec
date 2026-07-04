@@ -7,7 +7,7 @@ status: normative
 
 ## 1. Overview
 
-A closure is a function value that carries the variables it captured from the scope where it was defined. Clef represents every such value as a **flat closure**: a code pointer paired with a single flat environment holding the captures, allocated on the stack or in a [region](memory-regions.md). It is *flat* in that the environment is one block, not a chain of enclosing environments to traverse. This chapter specifies that representation, its capture semantics, its calling convention, and the properties that follow from it.
+A closure is a function value that carries the variables it captured from the scope where it was defined. Clef represents every such value as a **flat closure**: a code pointer paired with a single flat environment holding the captures, placed in the storage whose lifetime covers it, stack, region, static, or heap, by the lifetime lattice of §3.3. It is *flat* in that the environment is one block, not a chain of enclosing environments to traverse. This chapter specifies that representation, its capture semantics, its calling convention, and the properties that follow from it.
 
 The flat closure is the foundational representation on which much of the rest of the language rests. A [lazy value](lazy-representation.md) is a flat closure with fields added for memoization. A [sequence expression](seq-representation.md) is a flat closure that carries state-machine state. A [reactive callback](reactive-signals.md) and an [observer continuation](observable-computation.md) are flat closures whose capture sets are their dependency sets. A [discriminated union case](discriminated-union-representation.md) that holds a function holds a flat closure. Every function type in Clef ([types and type constraints](types-and-type-constraints.md)) compiles to one. Specifying the flat closure precisely, and once, is what lets those chapters extend it rather than restate it.
 
@@ -22,7 +22,7 @@ A closure is a struct containing a code pointer followed by captured values:
 ```
 Closure with captures [c₁: T₁, ..., cₘ: Tₘ]
 ┌─────────────────────────────────────────────────────────┐
-│ code_ptr: ptr                           (8 bytes)       │
+│ code_ptr: ptr                    (one platform word)    │
 ├─────────────────────────────────────────────────────────┤
 │ c₁: T₁  (sizeof(T₁) bytes, aligned)                     │
 ├─────────────────────────────────────────────────────────┤
@@ -54,12 +54,14 @@ An immutable binding is copied because nothing can change it; every holder of th
 
 ### 2.3 Allocation Strategy
 
-A closure is allocated in one of two places, chosen by its lifetime:
+A closure's environment is placed in the storage whose lifetime covers it, chosen from four by its lifetime classification:
 
 1. **[On the stack](memory-regions.md)**, when its lifetime is bounded by the enclosing scope.
 2. **In a region**, when it escapes the enclosing scope but lives within a region's lifetime.
+3. **In static storage**, the [`Sram`](memory-regions.md) region for a mutable environment or [`Flash`](memory-regions.md) for an immutable one, when its lifetime is the whole program (constructed once, held to program end, never freed).
+4. **On the heap**, when its extent is genuinely dynamic.
 
-The allocation site is chosen at compile time by escape analysis (§3.3).
+The classification and placement are chosen at compile time by escape analysis (§3.3). A target without a heap (a freestanding unikernel) admits only the stack and static placements; a closure that classifies as dynamic there is a lifetime error, not a silent heap allocation. Static placement uses the same program-lifetime storage that a fixed-address register (`Peripheral`) or a linker-carved buffer already occupies: a program-lifetime closure is a global, and it lives where the other globals live.
 
 ## 3. Capture, Escape, and the Type System
 
@@ -94,14 +96,18 @@ Capturing a mutable binding by reference creates a lifetime constraint: the capt
 
 **Invariant**: The environment holding a mutable capture SHALL have a lifetime that covers every closure that captures it by reference.
 
-The analysis classifies each closure by whether it escapes its defining scope and allocates accordingly:
+The analysis classifies each closure by *how long its environment must live*, and allocates in the storage whose lifetime covers it. Escaping the defining scope and requiring the heap are distinct questions: a closure can escape its scope and still have a statically known, program-long lifetime, in which case it belongs in static storage, not on a heap.
 
-| Escape classification | Allocation |
-|-----------------------|------------|
-| Does not escape (stack-scoped) | Stack (`alloca`) |
-| Escapes via return, via another closure, or by reference | Region |
+| Lifetime classification | Escapes scope? | Allocation |
+|-------------------------|----------------|------------|
+| Scope-bounded | No | Stack (`alloca`) |
+| Region-bounded | Yes, within a region's lifetime | [Region](memory-regions.md) |
+| **Program-lifetime** | Yes, for the whole program | Static storage (`.bss`-class, `memref.global`) |
+| Dynamic | Yes, unknown extent | Heap |
 
-A closure that does not escape keeps its environment on the stack, reclaimed when the scope exits. A closure that escapes has its environment allocated in a [region](memory-regions.md) whose lifetime covers the closure, so a by-reference capture remains valid after the defining scope returns. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation; as a design-time property established here, it is subject to the [preservation obligation through lowering](conformance.md).
+A scope-bounded closure keeps its environment on the stack, reclaimed when the scope exits. A region-bounded closure has its environment in a region whose lifetime covers it, so a by-reference capture remains valid after the defining scope returns. A **program-lifetime** closure, one constructed once and held for the life of the program with no free (a capability record assembled at startup and held by the entry point is the canonical case), has a statically knowable lifetime equal to the program's, and its environment is placed in static storage rather than allocated: it is a global in the same sense a fixed-address register or a linker-carved ring buffer is a global. A dynamic closure of genuinely unknown extent uses the heap.
+
+This four-point lattice matters because a target may have no heap. On a freestanding target (a unikernel with no allocator), the *only* lifetimes that have a home are scope-bounded (stack) and program-lifetime (static); a closure that classifies as dynamic on such a target is a lifetime error, not a silent heap allocation. Collapsing "escapes" to "heap" would make every long-lived closure, including a capability record, allocate on a heap that does not exist. Distinguishing program-lifetime from dynamic is what lets a returned-and-held closure live in `.bss` and satisfy a no-allocation discipline by construction. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation; as a design-time property established here, it is subject to the [preservation obligation through lowering](conformance.md).
 
 ## 4. Initialization
 
@@ -211,7 +217,7 @@ Passing the capture as a parameter costs no struct and no allocation. This is th
 | Can escape scope | Yes | No |
 | Representation | `{code_ptr, cap₁, ...}` struct | Direct function |
 | Capture passing | Via struct extraction | As explicit parameters |
-| Allocation | Stack or region for the struct | None |
+| Allocation | Stack, region, or static for the struct (§3.3) | None |
 
 A Lambda is classified as a nested named function if and only if its enclosing function is present (it is nested) **and** its parent [PSG](program-semantic-graph.md) node is a `Binding` (it is named). Otherwise it is an escaping closure and uses the struct model.
 
@@ -234,8 +240,8 @@ The closure representation is produced across three phases, consistent with the 
 5. **Deterministic Layout**: A closure's size and field offsets SHALL be determined at compile time from its capture set, independent of run-time state.
 6. **No Runtime Metadata**: A closure SHALL be interpretable from its static type alone, without a run-time header, descriptor, or tag.
 7. **Capture Mode**: A mutable binding SHALL be captured by reference; an immutable binding SHALL be captured by value.
-8. **Escape-Driven Allocation**: A closure's environment SHALL be allocated by escape analysis according to whether the closure escapes: on the stack when it does not escape, in a region when it does. The environment holding a by-reference capture SHALL be allocated with a lifetime that covers every closure capturing it.
-9. **Allocation Site**: A closure's environment SHALL be allocated on the stack or in a region, as determined by escape analysis (§3.3).
+8. **Lifetime-Driven Allocation**: A closure's environment SHALL be placed by escape analysis in the storage whose lifetime covers the closure, per the §3.3 lattice: the stack when scope-bounded, a region when region-bounded, static storage when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. The environment holding a by-reference capture SHALL be placed with a lifetime that covers every closure capturing it. On a target without a heap, a closure that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation.
+9. **Allocation Site**: A closure's environment SHALL be placed on the stack, in a region, in static storage, or on the heap, as determined by the §3.3 lifetime classification from escape analysis.
 10. **Cache Alignment**: A small closure (≤64 bytes) SHOULD be aligned to a cache line.
 11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
 12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.

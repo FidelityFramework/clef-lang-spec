@@ -30,7 +30,7 @@ Lazy<T> with captures [c₁: T₁, ..., cₘ: Tₘ]
 ├─────────────────────────────────────────────────────────────────────────┤
 │ value: T                  (sizeof(T) bytes, aligned)                     │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr             (8 bytes on 64-bit)                            │
+│ code_ptr: ptr             (1 platform word)                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ c₁: T₁                    (sizeof(T₁) bytes, aligned)                    │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -61,12 +61,17 @@ For a lazy value with element type `T` and `N` captures with types `T₁, ..., T
 
 ```
 size(Lazy<T, [T₁...Tₙ]>) = align(1) + sizeof(T) + sizeof(ptr) + Σᵢ sizeof(Tᵢ)
-                         = 1 + padding + sizeof(T) + 8 + Σᵢ sizeof(Tᵢ)
+                         = 1 + padding + sizeof(T) + sizeof(ptr) + Σᵢ sizeof(Tᵢ)
 ```
 
-Typical sizes on 64-bit platforms:
-- `lazy 42` (no captures): 1 + 7 + 8 + 8 = 24 bytes
-- `lazy (a + b)` with `a, b: int`: 1 + 7 + 8 + 8 + 8 + 8 = 40 bytes
+`sizeof(ptr)` is the platform word: 4 bytes on `thumbv8m`/Cortex-M33, 8 bytes on x86-64. The byte totals below are worked for both. Taking `int` as a 64-bit value for the x86-64 column:
+
+- `lazy 42` (no captures):
+  - x86-64: 1 + 7 + 8 + 8 = 24 bytes
+  - thumbv8m (M33), with `int` as a 4-byte value: 1 + 3 + 4 + 4 = 12 bytes
+- `lazy (a + b)` with `a, b: int`:
+  - x86-64: 1 + 7 + 8 + 8 + 8 + 8 = 40 bytes
+  - thumbv8m (M33): 1 + 3 + 4 + 4 + 4 + 4 = 20 bytes
 
 ## 4. Thunk Calling Convention
 
@@ -87,28 +92,33 @@ thunk_fn: (ptr<Lazy<T>>) -> T
 ### 4.2 Thunk Implementation
 
 The thunk body:
-1. Receives pointer to lazy struct as `%arg0`
+1. Receives the lazy struct's environment as `%arg0`
 2. Extracts captures from indices `[3..N+2]`
 3. Executes the deferred computation
 4. Returns the result
 
+The middle end emits the thunk as a portable `func.func` and reads captures through a `memref`, exactly as the flat closure does (see [Flat Closure Pattern and Deferred Resolution](backend-lowering-architecture.md#4-flat-closure-pattern-and-deferred-resolution)). Nothing in the middle-end form names a target:
+
 ```mlir
-llvm.func @thunk_example(%lazy_ptr: !llvm.ptr) -> i64 {
-    // Extract capture at index 3
-    %cap0 = llvm.getelementptr %lazy_ptr[0, 3] : ... -> !llvm.ptr
-    %a = llvm.load %cap0 : !llvm.ptr -> i64
-    
-    // Extract capture at index 4
-    %cap1 = llvm.getelementptr %lazy_ptr[0, 4] : ... -> !llvm.ptr
-    %b = llvm.load %cap1 : !llvm.ptr -> i64
-    
-    // Compute result
+// Middle end — portable dialects only.
+func.func private @thunk_example(%env: memref<?xi64>) -> i64 {
+    // Extract capture at index 3 — portable memref access, no ABI committed.
+    %c3 = arith.constant 3 : index
+    %a = memref.load %env[%c3] : memref<?xi64>
+
+    // Extract capture at index 4.
+    %c4 = arith.constant 4 : index
+    %b = memref.load %env[%c4] : memref<?xi64>
+
+    // Compute result.
     %result = arith.addi %a, %b : i64
-    llvm.return %result : i64
+    func.return %result : i64
 }
 ```
 
-> **NORMATIVE**: Lazy thunks SHALL use `llvm.func` regardless of capture count. Even a lazy thunk with no captures (e.g., `lazy 42`) must be defined as `llvm.func` because its address is taken via `llvm.mlir.addressof` and stored in the lazy struct. The `llvm.mlir.addressof` operation requires the target to be `llvm.func`, `llvm.mlir.global`, or `llvm.mlir.alias` - it cannot reference a `func.func`.
+A thunk with no captures (e.g., `lazy 42`) is still a `func.func`; its body reads nothing from the environment. The thunk's address is stored in the lazy struct as *data*, which has no portable operation. The middle end carries that conversion as a `builtin.unrealized_conversion_cast` (`func_type → index`) and defers the commitment to the backend leg, the same mechanism the flat closure uses for a function address (backend §4.2).
+
+The `llvm.func` / `llvm.mlir.addressof` form is one backend leg's realization of this thunk, not what the middle end emits. On the LLVM leg the closure-cast pass resolves the deferred casts into the target's pointer representation: the `func_type → index` cast becomes `llvm.ptrtoint`, and the `memref` capture read becomes a `getelementptr` + `load` in the target ABI. A different leg (CIRCT, SPIR-V, WebAssembly) resolves the same middle-end IR its own way.
 
 ### 4.3 Alternative Considered: Parameter Passing
 
@@ -273,65 +283,80 @@ When `Context = LazyThunk`:
 
 ## 8. MLIR Generation
 
+The middle end emits lazy construction over `memref`, with the thunk address carried as a deferred `func_type → index` cast. The struct is a `memref` of the lazy layout; field writes are `memref.store` at the fixed indices. Nothing here commits a target ABI.
+
 ### 8.1 Lazy Value Creation
 
 ```mlir
-// lazy (a + b) where a, b are captured int values
+// lazy (a + b) where a, b are captured int values.
+// Middle end — portable dialects only.
 
-// Step 1: Constants and undef
-%false = arith.constant 0 : i1
-%undef = llvm.mlir.undef : !llvm.struct<(i1, i64, !llvm.ptr, i64, i64)>
+// Step 1: Allocate the lazy struct's storage per its lifetime class (§9).
+//         Scope-bounded here, so memref.alloca; a program-lifetime lazy
+//         would be a memref.global instead.
+%lazy = memref.alloca() : memref<5xi64>
 
-// Step 2: Insert computed flag at [0]
-%v1 = llvm.insertvalue %false, %undef[0] : !llvm.struct<...>
+// Step 2: Write computed flag = false at [0].
+%c0 = arith.constant 0 : index
+%false = arith.constant 0 : i64
+memref.store %false, %lazy[%c0] : memref<5xi64>
 
-// Step 3: Insert code pointer at [2]
-%code_addr = llvm.mlir.addressof @thunk_lazyAdd_body : !llvm.ptr
-%v2 = llvm.insertvalue %code_addr, %v1[2] : !llvm.struct<...>
+// Step 3: Write code pointer at [2].
+//         The thunk address is data, so it is carried as a deferred cast.
+%code = builtin.unrealized_conversion_cast @thunk_lazyAdd_body
+      : (memref<?xi64>) -> i64 to i64
+%c2 = arith.constant 2 : index
+memref.store %code, %lazy[%c2] : memref<5xi64>
 
-// Step 4: Insert captures at [3], [4], ...
-%v3 = llvm.insertvalue %a, %v2[3] : !llvm.struct<...>
-%v4 = llvm.insertvalue %b, %v3[4] : !llvm.struct<...>
+// Step 4: Write captures at [3], [4], ...
+%c3 = arith.constant 3 : index
+memref.store %a, %lazy[%c3] : memref<5xi64>
+%c4 = arith.constant 4 : index
+memref.store %b, %lazy[%c4] : memref<5xi64>
 
-// %v4 is the complete lazy value
- 
+// %lazy is the complete lazy value.
 ```
+
+The backend leg commits this to its ABI: on the LLVM leg the `memref` becomes an `!llvm.struct` with `insertvalue`/`store` at the same indices, and the deferred `func_type → index` cast becomes `llvm.ptrtoint` of the thunk's `llvm.func` address. That committed form is one leg's realization, not middle-end output.
 
 ### 8.2 Force Operation
 
+Force reads the `computed` flag, and either returns the cached value or calls the thunk through its stored code pointer. The middle end emits this over `memref` and `scf`, with the code-pointer call carried as a deferred `index → func_type` cast. Nothing here commits a target ABI.
+
 ```mlir
-// Lazy.force lazy_val
+// Lazy.force lazy_val, where %lazy is memref<5xi64> (§8.1).
+// Middle end — portable dialects only.
 
-// Extract computed flag
-%computed = llvm.extractvalue %lazy_val[0] : !llvm.struct<...> -> i1
+// Read computed flag at [0].
+%c0 = arith.constant 0 : index
+%flag = memref.load %lazy[%c0] : memref<5xi64>
+%zero = arith.constant 0 : i64
+%computed = arith.cmpi ne, %flag, %zero : i64
 
-// Branch based on computed
-llvm.cond_br %computed, ^already_computed, ^need_compute
+%value = scf.if %computed -> i64 {
+    // Already computed: return the cached value at [1].
+    %c1 = arith.constant 1 : index
+    %cached = memref.load %lazy[%c1] : memref<5xi64>
+    scf.yield %cached : i64
+} else {
+    // Read the code pointer at [2] and realize it as callable.
+    %c2 = arith.constant 2 : index
+    %code = memref.load %lazy[%c2] : memref<5xi64>
+    %fn = builtin.unrealized_conversion_cast %code
+        : i64 to (memref<?xi64>) -> i64
 
-^need_compute:
-    // Extract code pointer
-    %code_ptr = llvm.extractvalue %lazy_val[2] : !llvm.struct<...> -> !llvm.ptr
-    
-    // Get pointer to lazy struct (struct pointer passing convention)
-    %lazy_ptr = llvm.alloca 1 x !llvm.struct<...> : ... -> !llvm.ptr
-    llvm.store %lazy_val, %lazy_ptr : ...
-    
-    // Call thunk
-    %result = llvm.call %code_ptr(%lazy_ptr) : (!llvm.ptr) -> i64
-    
-    // For memoizing: store result and set computed = true
-    // (Currently: pure thunk semantics, no memoization)
-    
-    llvm.br ^done(%result : i64)
+    // Struct-pointer-passing convention: pass the environment to the thunk.
+    %env = memref.cast %lazy : memref<5xi64> to memref<?xi64>
+    %result = func.call_indirect %fn(%env) : (memref<?xi64>) -> i64
 
-^already_computed:
-    %cached = llvm.extractvalue %lazy_val[1] : !llvm.struct<...> -> i64
-    llvm.br ^done(%cached : i64)
-
-^done(%value: i64):
-    // %value is the forced result
- 
+    // For memoizing: store %result at [1] and set the flag at [0]
+    // (§9; current implementation uses pure thunk semantics, no memoization).
+    scf.yield %result : i64
+}
+// %value is the forced result.
 ```
+
+The backend leg commits this: on the LLVM leg the `memref` reads become `extractvalue`/`load`, the `index → func_type` cast becomes `llvm.inttoptr`, and `func.call_indirect` becomes an indirect `llvm.call`. A different leg realizes the same middle-end IR its own way.
 
 ## 9. Memoization Strategy
 
@@ -349,17 +374,23 @@ Lazy.force expensive  // Prints again, returns 42
  
 ```
 
-### 9.2 Future: Memoizing Semantics
+### 9.2 Storage Placement
 
-True memoization requires:
-1. Mutation of the `computed` flag
-2. Storage of result in `value` slot
-3. Thread synchronization (for concurrent access)
+A lazy value is a flat closure, so its storage is placed by the same four-point lifetime lattice that governs closures (see [Closure Representation §2.3, §3.3](closure-representation.md#23-allocation-strategy)). Escape analysis classifies the lazy value by how long it must live and places it in the storage whose lifetime covers it:
 
-This will be implemented with arena-based memory:
-- Lazy struct allocated in arena (stable address)
-- Compare-and-swap for thread-safe memoization
-- Memory barrier for cross-thread visibility
+1. **Scope-bounded**: on the stack (`memref.alloca`), reclaimed when the enclosing scope exits.
+2. **Region-bounded**: in a [region](memory-regions.md) whose lifetime covers it, when it escapes the scope but lives within a region's lifetime.
+3. **Program-lifetime**: in static storage (the [`Sram`](memory-regions.md) region for a mutable lazy value or [`Flash`](memory-regions.md) for an immutable one), emitted as a `memref.global`, when it is constructed once and held for the life of the program with no free.
+4. **Dynamic**: on the heap, when its extent is genuinely dynamic.
+
+Escaping the defining scope does not imply the heap. A lazy value returned from a function and held for the program's life has a statically knowable, program-long lifetime and belongs in static storage, in the same sense a fixed-address register or a linker-carved buffer is a global. On a freestanding target with no allocator (a unikernel), only the scope-bounded and program-lifetime placements have a home; a lazy value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation.
+
+Memoization is a mutation-in-place property that interacts with this placement, because in-place update of the `computed` flag and the `value` slot requires a stable address:
+
+- A **scope-bounded** or **program-lifetime** lazy value already has a stable address (its `alloca` slot or its `memref.global`), so memoization writes directly to `value` at index `[1]` and sets `computed` at `[0]`.
+- Under concurrent access to a program-lifetime lazy value, a compare-and-swap on the `computed` flag resolves the race (one force wins), and a memory barrier makes the memoized `value` visible across threads.
+
+The current implementation (§9.1) uses pure thunk semantics and updates no state, so it is insensitive to placement. Memoizing semantics are placement-sensitive precisely because they mutate the struct in place.
 
 ### 9.3 Thread Safety Considerations
 
@@ -421,7 +452,7 @@ Lazy.create (fun () -> expr)
 3. **Capture Indices**: Captures SHALL begin at index 3
 4. **Module-Level Exclusion**: Module-level bindings SHALL NOT be captured
 5. **Thunk Convention**: Thunks SHALL receive pointer to containing lazy struct
-6. **No Heap**: Lazy values SHALL NOT be allocated on GC-managed heap
+6. **Lifetime-Driven Placement**: A lazy value's storage SHALL be placed by escape analysis in the storage whose lifetime covers it, per the four-point lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis): the stack when scope-bounded, a region when region-bounded, static storage (`memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap, a lazy value that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation. Lazy values SHALL NOT be placed on a GC-managed heap.
 7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
 
 ## 12. Implementation in CCS/Firefly Pipeline

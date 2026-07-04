@@ -128,7 +128,7 @@ In an actor context, the cached value is allocated in the enclosing actor's aren
 
 ### 3.3 Memory Layout on CPU Target
 
-On CPU targets, an incremental node with element type `T` and `N` captured dependencies materializes as:
+On CPU targets, an incremental node with element type `T` and `N` captured dependencies materializes as the struct below. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
 
 ```
 IncrementalNode<T> with dependencies [d₁: T₁, ..., dₙ: Tₙ]
@@ -139,11 +139,11 @@ IncrementalNode<T> with dependencies [d₁: T₁, ..., dₙ: Tₙ]
 ├──────────────────────────────────────────────────────────────────┤
 │ value: T                (sizeof(T) bytes, aligned)               │
 ├──────────────────────────────────────────────────────────────────┤
-│ recompute_ptr: ptr      (8 bytes on 64-bit)                      │
+│ recompute_ptr: ptr      (1 platform word: 4 bytes M33, 8 x86-64) │
 ├──────────────────────────────────────────────────────────────────┤
 │ dep_count: i32          (4 bytes)                                │
 ├──────────────────────────────────────────────────────────────────┤
-│ dep_ptrs: ptr[N]        (N × 8 bytes, pointers to dep nodes)    │
+│ dep_ptrs: ptr[N]        (N platform words, pointers to dep nodes)│
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -321,7 +321,7 @@ This distinction determines whether the lowered code uses static dispatch (appli
 
 ### 8.1 CPU Target
 
-On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values:
+On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values. The `llvm.*` operations below are the CPU/MCU backend leg, not what the portable middle end emits. The middle end forms the stabilization control flow in portable dialects only (the staleness branch as `scf`/`cf`, the node struct and its fields as `memref` load and store), commits to no target, and hands that form to a backend leg. The LLVM leg shown here is one such target commitment; the NPU leg (§8.2) and GPU leg (§8.3) realize the same portable form differently. Read the block below as the LLVM leg's output after that commitment, not as middle-end output.
 
 ```mlir
 // Stabilization check for a single node
