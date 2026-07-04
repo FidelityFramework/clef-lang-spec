@@ -2586,7 +2586,7 @@ let sumTo (n: int) : int =
     loop 0 1
 ```
 
-In this example, the nested `loop` function captures `n` from `sumTo`. The capture analysis (see [Closure Representation §4.2](closure-representation.md#42-capture-analysis-in-ccs)) SHALL identify `n` as a captured variable for `loop`, even though `loop` is a named recursive binding rather than an anonymous lambda.
+In this example, the nested `loop` function captures `n` from `sumTo`. The capture analysis (see [Closure Representation §3.2](closure-representation.md#32-capture-analysis)) SHALL identify `n` as a captured variable for `loop`, even though `loop` is a named recursive binding rather than an anonymous lambda.
 
 Contrast with:
 ```fsharp
