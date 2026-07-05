@@ -64,7 +64,17 @@ A conforming implementation SHALL NOT discharge any of these by silently substit
 
 A design-time property this specification requires an implementation to establish SHALL be preserved through lowering to the target, or re-checked at the lowering steps that could perturb it. An implementation SHALL NOT establish a property at the source and then emit target code that violates it without diagnosis. Where a lowering pass is certified to preserve a carried property by construction, the property rides through; where it is not, the property SHALL be re-checked at the affected lowering edge. A property silently lost in lowering is a conformance violation, detected by the re-check.
 
-## 7. Limits of conformance
+## 7. Profiles
+
+Some requirements of this specification bind an implementation only when it serves a class of target for which those requirements are relevant. A **profile** is a named body of normative content that binds an implementation when, and only when, the implementation claims that profile. An implementation claims a profile by stating that it does and by meeting every requirement the profile carries; the requirements of an unclaimed profile place no obligation on it.
+
+A profile has a **conformance designator** — a name by which an implementation's conformance to the profile is claimed and reported, distinct from conformance to the core. An implementation conforms to the **core** of this specification (Clauses 1 through 13 and every chapter not assigned to a profile) unconditionally. It conforms to a profile additionally and separately, and a conformance claim states which profiles it includes.
+
+A profile is used where a requirement is fully normative for the targets that need it and absent for those that do not, so that neither the implementation-defined channel (§3.3) nor a **SHOULD** captures the obligation correctly. The implementation-defined channel records a target's *choice* among options; a profile states the *requirements* that bind once a target is of the profile's class. A value a target reports (its representations, its capabilities) is implementation-defined; a body of requirements that binds a freestanding target and does not exist for a hosted one is a profile.
+
+A chapter or a section assigned to a profile states that assignment. Its requirements are normative for an implementation that claims the profile and do not apply to one that does not. The **Freestanding Runtime Substrate** profile carries the requirements a target must meet when it provides the runtime services a hosting environment would otherwise supply — persistence ([Modular Blob Storage](modular-blob-storage.md)), the storage regions that back it ([Memory Regions](memory-regions.md)), and the scheduling and memory management the target owns in the absence of an operating system. A hosted implementation that delegates these to its environment does not claim the profile, and the profile's requirements do not bind it.
+
+## 8. Limits of conformance
 
 This specification does not require that a conforming implementation:
 
@@ -75,7 +85,7 @@ This specification does not require that a conforming implementation:
 
 Where this specification leaves a behavior implementation-defined, unspecified, or (in the rare cases it arises) undefined, conformance is governed by [Behavior Classification](behavior-classification.md), not by this clause.
 
-## 8. Conformance requirements
+## 9. Conformance requirements
 
 1. A conforming implementation **SHALL** accept and correctly realize every conforming program, within the behavior classification of [Behavior Classification](behavior-classification.md).
 2. A conforming implementation **SHALL** issue at least one diagnostic for every violation of a diagnosable rule, and **SHALL NOT** silently accept a non-conforming program.
@@ -83,4 +93,5 @@ Where this specification leaves a behavior implementation-defined, unspecified, 
 4. A conforming implementation **SHALL** satisfy each normative reference for the requirements that invoke it.
 5. A conforming implementation **SHALL NOT** discharge a required diagnostic by silent substitution, fallback, or fabrication.
 6. A conforming implementation **SHALL** preserve through lowering, or re-check at lowering, every design-time property this specification requires it to establish.
-7. An extension **SHALL NOT** alter the behavior of a conforming program that uses only the specified language; an implementation **SHOULD** provide a specification-only checking mode.
+7. A conforming implementation **SHALL** conform to the core unconditionally; it **SHALL** meet every requirement of each profile it claims, and a profile's requirements **SHALL NOT** bind an implementation that does not claim the profile.
+8. An extension **SHALL NOT** alter the behavior of a conforming program that uses only the specified language; an implementation **SHOULD** provide a specification-only checking mode.
