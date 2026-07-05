@@ -7,7 +7,7 @@ status: draft
 
 > **Status**: Draft (captured design; not yet ratified). This chapter defines **Modular Blob Storage (MBS)**, the abstraction. A target's instantiation — for the EK-RA6M5, the *Credential Store* — is documented with that target.
 >
-> **Profile**: This chapter belongs to the **Freestanding Runtime Substrate** profile ([Conformance §7](conformance.md)). Its requirements bind an implementation that claims that profile; an implementation that delegates persistence to a hosting environment does not claim the profile, and these requirements do not apply to it.
+> **Profile**: This chapter belongs to the **Freestanding Substrate** profile ([Conformance §7](conformance.md)). Its requirements bind an implementation that claims that profile; an implementation that delegates persistence to a hosting environment does not claim the profile, and these requirements do not apply to it.
 
 ## 1. Overview
 

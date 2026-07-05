@@ -7,7 +7,7 @@ status: draft
 
 > **Status**: Draft — scoped outline (captured design; not yet full normative prose). This chapter defines the **Credential Authority**, the on-device certificate-and-key authority layered over [Modular Blob Storage](modular-blob-storage.md). MBS persists credential material as sealed blobs; the authority mints, derives, holds, and delegates it. This outline fixes the structure and the decisions; the normative prose is deferred.
 >
-> **Profile**: This chapter belongs to the **Freestanding Runtime Substrate** profile ([Conformance §7](conformance.md)); its requirements bind an implementation that claims that profile.
+> **Profile**: This chapter belongs to the **Freestanding Substrate** profile ([Conformance §7](conformance.md)); its requirements bind an implementation that claims that profile.
 
 ## 1. Purpose and Position
 
