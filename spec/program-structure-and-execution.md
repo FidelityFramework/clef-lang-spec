@@ -256,7 +256,7 @@ Clef supports multiple entry point modes, specified via `output_kind` in the pro
 |------|-------------|---------------|-------------|
 | **Console** | `main` | Yes | Standard mode; libc provides `_start` which calls user's `main` |
 | **Freestanding (hosted ELF)** | `_start` | No | Hosted OS (Linux/ELF) without libc; compiler generates a `_start` wrapper that terminates via the exit syscall |
-| **Freestanding (bare-metal)** | reset vector | No | Bare metal (for example a thumbv8m/M33 unikernel); the platform enters at the reset-vector entry, there is no `_start` and no exit syscall, and termination is a halt |
+| **Freestanding (bare-metal)** | reset vector | No | Bare metal (for example a thumbv8m/M33 target); the platform enters at the reset-vector entry, there is no `_start` and no exit syscall, and termination is a halt |
 | **Library** | None | Optional | Shared library with exported symbols |
 
 #### Freestanding Entry Point Generation
@@ -283,7 +283,7 @@ _start : unit -> unit
 
 > **Implementation Note**: `Sys.exit` has type `int -> unit`. Although the syscall never returns, the binding honors the type contract by emitting an unreachable unit return value. This maintains type consistency throughout the compilation pipeline.
 
-**Bare-metal (reset-vector entry).** On a bare-metal target such as a thumbv8m/M33 unikernel there is no loader, no `_start`, and no exit syscall. The processor enters the image at the reset-vector entry recorded in the vector table, which the compiler emits together with the initial stack pointer. There is no argc/argv and no command line, so no empty `string array` is constructed. When the entry function returns, there is no process to terminate and no exit code to report to; termination is a halt (an idle loop, a `wfi`-class wait, or a target-defined reset), not a syscall.
+**Bare-metal (reset-vector entry).** On a bare-metal target such as a thumbv8m/M33 there is no loader, no `_start`, and no exit syscall. The processor enters the image at the reset-vector entry recorded in the vector table, which the compiler emits together with the initial stack pointer. There is no argc/argv and no command line, so no empty `string array` is constructed. When the entry function returns, there is no process to terminate and no exit code to report to; termination is a halt (an idle loop, a `wfi`-class wait, or a target-defined reset), not a syscall.
 
 ```
 reset : unit -> unit                  // reset-vector entry; address recorded in the vector table

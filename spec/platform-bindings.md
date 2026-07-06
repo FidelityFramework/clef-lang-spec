@@ -409,7 +409,7 @@ type FreestandingStartup =
     /// points at, and a numbered exit syscall. "_start"/60 is this convention, not
     /// a universal freestanding one.
     | HostedElf of EntrySymbol: string * ExitSyscall: int64
-    /// Bare-metal M33 unikernel: control arrives at the reset vector, there is no
+    /// Bare-metal M33: control arrives at the reset vector, there is no
     /// _start symbol, no linker entry flag, no argv, and no syscall. Exit is a halt.
     | ResetVector of ResetHandler: string
 ```
@@ -422,7 +422,7 @@ When `output_kind = "freestanding"` is specified in the project file for a hoste
 2. `_start` creates an empty string array, calls the F# `main`, and calls `Sys.exit`
 3. Links with `-Wl,-e,_start` to set the entry point
 
-For a bare-metal M33 unikernel target the compiler instead:
+For a bare-metal M33 target the compiler instead:
 
 1. Emits the reset handler as the reset-vector entry (no `_start` symbol, no linker entry flag)
 2. The reset handler calls the F# `main` with no `argv` (arguments do not exist)
@@ -460,7 +460,7 @@ let platform: Expr<PlatformDescriptor> = <@
 
 ### Bare-Metal M33 Example (reset-vector entry)
 
-The Cortex-M33 unikernel target has no syscall ABI and no `_start`. `Pointer` is the 4-byte platform word, there is no `Heap` region, and startup is the reset vector.
+The bare-metal Cortex-M33 target has no syscall ABI and no `_start`. `Pointer` is the 4-byte platform word, there is no `Heap` region, and startup is the reset vector.
 
 ```fsharp
 let platform: Expr<PlatformDescriptor> = <@
@@ -483,7 +483,7 @@ The platform descriptor is inspected at compile time:
 1. **CCS** reads the platform descriptor from `Fidelity.Platform`
 2. For freestanding mode, **Intrinsic Elaboration** generates the `_start` wrapper
 3. The wrapper uses `Sys.emptyStringArray` and `Sys.exit` intrinsics
-4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a backend leg lowers them and supplies the entry glue. On the hosted x86-64 leg that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the M33 unikernel leg has no linker entry flag and no `_start` (control arrives at the reset vector).
+4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a backend leg lowers them and supplies the entry glue. On the hosted x86-64 leg that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the bare-metal M33 leg has no linker entry flag and no `_start` (control arrives at the reset vector).
 
 The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 
