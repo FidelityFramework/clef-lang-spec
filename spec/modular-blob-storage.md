@@ -13,7 +13,7 @@ status: draft
 
 Modular Blob Storage persists values whose lifetime exceeds a single program run. It is the durable rung of the [lifetime lattice](closure-representation.md): an MBS value survives power cycles, at a known location, under an access policy.
 
-MBS is a persistence substrate. It supplies durable storage, handle addressing, a small index, and sealing. A filesystem adds four things over such a substrate — an open namespace, a path hierarchy, run-time storage growth, and a mutable metadata tree — and a target that needs them builds them above MBS. A freestanding, no-heap unikernel uses the substrate directly. MBS is thus the first step toward a filesystem, stopping at the layer a constrained target can afford.
+MBS is a persistence substrate. It supplies durable storage, handle addressing, a small index, and sealing. A filesystem adds four things over such a substrate — an open namespace, a path hierarchy, run-time storage growth, and a mutable metadata tree — and a target that needs them builds them above MBS. A freestanding, no-heap target uses the substrate directly. MBS is thus the first step toward a filesystem, stopping at the layer a constrained target can afford.
 
 The name records the model. **Modular**: a record may be composed of sub-parts stored and addressed as a unit. **Blob**: a record is an opaque sealed object, written and read whole. **Storage**: the medium is persistent, reached through an API.
 

@@ -144,7 +144,9 @@ Within a backend leg, MLIR allows portable and committed operations to coexist i
 
 The entry point is where a backend leg's target commitment is most visible, because it is inherently target-specific: how a program receives control and how it exits are properties of the target, not of the program. The middle end emits `main` as an ordinary `func.func`; the leg supplies the entry glue.
 
-In freestanding mode the leg emits an `_start` in its committed function form (its address is taken by the linker) that calls the portable `main`. The glue below is written for a hosted x86-64 leg; another leg supplies its own. On the Cortex-M33 unikernel leg there is no `syscall` and no stack-passed `argc`/`argv`: `_start` is the reset entry, arguments do not exist, and exit is a halt, so the glue is entirely different while `main` is unchanged.
+A leg operates in one of two modes. A **hosted** leg targets an environment with an OS runtime beneath the program (an x86-64 Linux leg, say), which supplies process startup, `syscall`, and stack-passed `argc`/`argv`. A **freestanding** leg targets an environment with no such runtime: the program is self-contained and receives control directly. The mode governs only the presence of a host runtime; it does not by itself fix word size, whether an allocator or C library is linked, or the core count — those are properties of the specific target, not of being freestanding. (A unikernel is one freestanding target: a self-contained image with no host OS. Not every freestanding target is a unikernel, and this mode distinction does not turn on that term.)
+
+In freestanding mode the leg emits an `_start` in its committed function form (its address is taken by the linker) that calls the portable `main`. The glue below is written for a hosted x86-64 leg; another leg supplies its own. On the Cortex-M33 freestanding leg there is no `syscall` and no stack-passed `argc`/`argv`: `_start` is the reset entry, arguments do not exist, and exit is a halt, so the glue is entirely different while `main` is unchanged.
 
 ```mlir
 // Backend leg (x86-64 hosted) — committed dialect. NOT middle-end output.
@@ -164,7 +166,7 @@ llvm.func @_start() -> i32 {
 
 ## 6. Platform Configuration
 
-The project file specifies the target platform. The values below are one target; the M33 unikernel leg sets `target = "thumbv8m.main-none-eabi"` and `word_size = 32`, and the same fields drive its layout and word size.
+The project file specifies the target platform. The values below are one target; the M33 freestanding leg sets `target = "thumbv8m.main-none-eabi"` and `word_size = 32`, and the same fields drive its layout and word size.
 
 ```toml
 [compilation]

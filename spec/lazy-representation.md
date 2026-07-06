@@ -383,7 +383,7 @@ A lazy value is a flat closure, so its storage is placed by the same four-point 
 3. **Program-lifetime**: in static storage (the [`Sram`](memory-regions.md) region for a mutable lazy value or [`Flash`](memory-regions.md) for an immutable one), emitted as a `memref.global`, when it is constructed once and held for the life of the program with no free.
 4. **Dynamic**: on the heap, when its extent is genuinely dynamic.
 
-Escaping the defining scope does not imply the heap. A lazy value returned from a function and held for the program's life has a statically knowable, program-long lifetime and belongs in static storage, in the same sense a fixed-address register or a linker-carved buffer is a global. On a freestanding target with no allocator (a unikernel), only the scope-bounded and program-lifetime placements have a home; a lazy value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation.
+Escaping the defining scope does not imply the heap. A lazy value returned from a function and held for the program's life has a statically knowable, program-long lifetime and belongs in static storage, in the same sense a fixed-address register or a linker-carved buffer is a global. On a target with no allocator, only the scope-bounded and program-lifetime placements have a home; a lazy value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation.
 
 Memoization is a mutation-in-place property that interacts with this placement, because in-place update of the `computed` flag and the `value` slot requires a stable address:
 

@@ -185,7 +185,7 @@ A DU value is represented as a **pointer to its storage block**. The block is pl
 3. **program-lifetime**: the block lives in static storage ([`Sram`](memory-regions.md) when mutable, [`Flash`](memory-regions.md) when immutable), constructed once and held to program end, never freed; it is a global in the same sense a fixed-address register or a linker-carved buffer is.
 4. **genuinely-dynamic**: the block lives on the heap.
 
-On a no-heap target (a freestanding unikernel) only the stack and static placements have a home; a DU value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation. Escaping the defining scope does not by itself imply the heap: a DU value that escapes its scope but has a statically known program-long lifetime is placed in static storage.
+On a no-heap target only the stack and static placements have a home; a DU value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation. Escaping the defining scope does not by itself imply the heap: a DU value that escapes its scope but has a statically known program-long lifetime is placed in static storage.
 
 ```
 DU Value (at runtime)

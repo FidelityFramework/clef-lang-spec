@@ -5,7 +5,11 @@ category: Platform
 status: normative
 ---
 
-This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries on a hosted target (Lane 1). It establishes the null-safety contract, the opaque-handle representation of a C binding's pointer, and the normative requirements for binding generation tools like Farscape. A freestanding no-heap target (the unikernel lane) has no FFI leg at all, so nothing in this chapter applies there; interior memory on that lane follows the lifetime lattice defined in `closure-representation.md` §3.3.
+This chapter defines the Foreign Function Interface (FFI) boundary between Clef code and external C libraries on a target that links a host C runtime (Lane 1, hosted). It establishes the null-safety contract, the opaque-handle representation of a C binding's pointer, and the normative requirements for binding generation tools like Farscape. The FFI leg exists whenever a C runtime is linked, and its presence is independent of whether the target is freestanding:
+
+- **Hosted** — libc is linked dynamically; the FFI boundary of this chapter applies as written.
+- **Freestanding with static libc** — libc is linked statically and its resources are accessed directly, with no dynamic linker in the image. The FFI leg still exists and this chapter still applies; static coupling removes the dynamic-binding step (a supply-chain consideration developed in the platform documentation, out of scope here).
+- **Bare (no C runtime)** — no libc is linked at all, so there is no FFI leg and nothing in this chapter applies. Interior memory follows the lifetime lattice defined in `closure-representation.md` §3.3.
 
 Interior Clef has no raw pointer type. `nativeptr<'T>`, `voidptr`, and `nativeint`-as-pointer are not denotable in Clef source, at the FFI boundary or anywhere else. A C binding that returns a pointer marshals that pointer through an opaque handle, `CHandle<'T>`: the handle is non-arithmetic and non-dereferenceable in Clef source, and its only use is to be passed back across the boundary to another C binding. The interior pointer mechanism is the flat closure; a register is the width-typed `Mmio` handle.
 
@@ -360,7 +364,7 @@ let gtkMain () =
 
 ### 6.2 libc Bindings
 
-This example is hosted-libc (Lane 1). `malloc`/`free` exist only where a C runtime with a heap is linked. A freestanding no-heap target has no libc and no FFI leg, so these bindings do not exist there; interior memory on that lane follows the lifetime lattice of `closure-representation.md` §3.3, and a value that classifies as genuinely-dynamic on a no-heap target is a compile-time lifetime error rather than a call to `malloc`.
+This example is hosted-libc (Lane 1). `malloc`/`free` exist only where a C runtime with a heap is linked. On a no-heap target these particular bindings do not exist, and interior memory follows the lifetime lattice of `closure-representation.md` §3.3: a value that classifies as genuinely-dynamic on a no-heap target is a compile-time lifetime error rather than a call to `malloc`. A bare target with no C runtime at all has no FFI leg of any kind.
 
 ```fsharp
 module Platform.Libc
@@ -419,4 +423,4 @@ let sourceId =
 4. `FnPtr.invoke` calls through function pointers with automatic Option↔NULL marshalling
 5. `FnPtr.ofFunction` converts top-level functions only (no closures)
 6. Farscape MUST follow the nullability annotation mapping and default policies defined herein
-7. This chapter is hosted-target (Lane 1) only; a freestanding no-heap target has no FFI leg, and its interior memory follows the lifetime lattice of `closure-representation.md` §3.3
+7. This chapter applies wherever a host C runtime is linked, whether dynamically (hosted) or statically (freestanding with static libc); a bare target with no C runtime has no FFI leg, and its interior memory follows the lifetime lattice of `closure-representation.md` §3.3

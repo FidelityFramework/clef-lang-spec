@@ -26,7 +26,7 @@ PRD-15 (SimpleSeq)    → State machine closure: {state, current, code_ptr, cap�
 
 **Key Insight**: A sequence expression creates a struct containing both captured values from the enclosing scope AND internal mutable state declared within the seq body.
 
-**Allocation and Lifetime**: The seq struct is a value like any other closure-family struct, so its storage is chosen by the four-point lifetime lattice specified in [Closure Representation §3.3](closure-representation.md). A seq whose lifetime is scope-bounded lives on the stack; a seq that escapes to program lifetime is placed in static storage (`memref.global`), constructed once and held to program end. On a no-heap target (freestanding unikernel) only the scope-bounded and program-lifetime classes exist; a seq value that classifies as genuinely-dynamic on such a target is a compile-time lifetime error, not a silent heap allocation.
+**Allocation and Lifetime**: The seq struct is a value like any other closure-family struct, so its storage is chosen by the four-point lifetime lattice specified in [Closure Representation §3.3](closure-representation.md). A seq whose lifetime is scope-bounded lives on the stack; a seq that escapes to program lifetime is placed in static storage (`memref.global`), constructed once and held to program end. On a no-heap target only the scope-bounded and program-lifetime classes exist; a seq value that classifies as genuinely-dynamic on such a target is a compile-time lifetime error, not a silent heap allocation.
 
 ## 3. Primitive Sequence Values
 
