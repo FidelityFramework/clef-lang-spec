@@ -6,7 +6,8 @@ status: normative
 ---
 
 > **Normative specification for the delimited-continuation operation surface, its target
-> lowerings, and single-core cooperative scheduling in Clef compilation.**
+> lowerings, and the cooperative scheduling that suspend/resume realizes on a
+> single-core target in Clef compilation.**
 
 ## 1. Overview
 
@@ -17,7 +18,7 @@ The surface has **two destinations, and both reach the native-CPU backend leg th
 - **LLVM coroutines** (§5.1) — `cont.suspend`/`resume` lower to `llvm.coro.*` intrinsics, which the LLVM coroutine passes split into a resumable frame. This is the general destination on the native-CPU leg.
 - **Stack switching** (§5.2) — on a target exposing first-class suspend/resume as a primitive, the ops lower to it directly. This was always the same LLVM destination reached through the coroutine ABI; the stack-switching primitive is how the coroutine's suspend/resume is realized where the target provides it natively.
 
-On a **freestanding single-core target** (a unikernel), the coroutine frame is the resumable state that a `seq` expression already uses ([Sequence Expression Representation](seq-representation.md)) — the same struct, generalized to capture the **delimited remainder** rather than only loop-local state (§4). No separate scheduler runtime is introduced: on a single core the resume semantics **are** the cooperative scheduler (§7).
+On a **freestanding target** (a unikernel — a program with no host OS or allocator beneath it, entered at a reset vector), the coroutine frame is the resumable state that a `seq` expression already uses ([Sequence Expression Representation](seq-representation.md)) — the same struct, generalized to capture the **delimited remainder** rather than only loop-local state (§4). No separate scheduler runtime is introduced. Whether the resume semantics are also the entire scheduler is a separate, target-cardinality question: on a **single-core** target the suspend/resume semantics **are** the cooperative scheduler (§7), because there is one thread of control to hand back and forth. "Unikernel" names the host axis (no OS), not the core count; the single-core reduction of §7 is the scheduling model for a single-core freestanding target, one point in a target space a freestanding lowering also spans to multi-core.
 
 The choice among destinations is a per-call-site lowering decision, not a change to the operation surface or its semantics. The transportability is the design: a front end emits the continuation ops once, and each target supplies a lowering pass — the same discipline the framework applies to platform bindings and device sources elsewhere.
 
@@ -64,7 +65,7 @@ The surface of §2 transports to two destinations. Both reach the native-CPU bac
 
 ### 5.1 LLVM coroutines (the freestanding state machine)
 
-On the general native path, `cont.suspend`/`resume` lower through the LLVM coroutine intrinsics (`llvm.coro.*`), whose split pass realizes the §4 state as a resumable frame. On a **freestanding single-core target** the frame is the `seq` state-machine struct ([seq §4.1](seq-representation.md)) — byte-compatible, with `seq`'s `current` reinterpreted as the in-flight value — so the allocation, escape-classification, and arena-placement rules of [Memory Regions](memory-regions.md) apply unchanged. When the continuation's scope is bounded (the common case for a unikernel event loop) the frame is stack- or arena-allocated with no heap involvement, and resume is the `seq` CFG of [seq §5.2](seq-representation.md): an `entry` block loads the suspension index and `switch`es to the per-suspension resume blocks, each of which delivers the in-flight value, advances the index, and returns; the origin block marks done. On this target it reduces to a single `llvm.switch %index, %resume_blocks` — no coroutine runtime library, no heap frame, no scheduler.
+On the general native path, `cont.suspend`/`resume` lower through the LLVM coroutine intrinsics (`llvm.coro.*`), whose split pass realizes the §4 state as a resumable frame. On a **freestanding target** the frame is the `seq` state-machine struct ([seq §4.1](seq-representation.md)) — byte-compatible, with `seq`'s `current` reinterpreted as the in-flight value — so the allocation, escape-classification, and arena-placement rules of [Memory Regions](memory-regions.md) apply unchanged. When the continuation's scope is bounded (the common case when a freestanding target drives an event loop) the frame is stack- or arena-allocated with no heap involvement, and resume is the `seq` CFG of [seq §5.2](seq-representation.md): an `entry` block loads the suspension index and `switch`es to the per-suspension resume blocks, each of which delivers the in-flight value, advances the index, and returns; the origin block marks done. On this target it reduces to a single `llvm.switch %index, %resume_blocks` — no coroutine runtime library, no heap frame, no scheduler.
 
 Resume on this path has the `MoveNext` shape of [seq §5.1](seq-representation.md):
 
@@ -94,13 +95,13 @@ The suspension-point state indices are assigned by a coeffect analogous to the Y
 
 ## 7. NORMATIVE: Single-Core Cooperative Scheduling
 
-On a single-core freestanding target (a unikernel), the suspend/resume semantics of the continuation surface **are** the cooperative scheduler. No scheduler runtime, task queue, or preemption mechanism is introduced; the scheduling discipline is a consequence of the `cont.suspend`/`cont.resume` semantics, and this section states it normatively so it can be relied upon. It holds regardless of which §5 lowering is chosen; on the freestanding target it is realized by §5.1.
+On a **single-core** freestanding target, the suspend/resume semantics of the continuation surface **are** the cooperative scheduler. The operative property is the single core, not the freestanding host: with one thread of control, a continuation that suspends is the only thing that can hand the core to another, so no scheduler runtime, task queue, or preemption mechanism is needed. (A freestanding target is not inherently single-core — "unikernel" denotes the absence of a host OS, and a freestanding lowering also spans to multi-core parts, whose scheduling is out of this section's scope.) The scheduling discipline is a consequence of the `cont.suspend`/`cont.resume` semantics, and this section states it normatively so it can be relied upon. It holds regardless of which §5 lowering is chosen; on the freestanding target it is realized by §5.1.
 
 A conforming single-core implementation SHALL observe:
 
 1. **Continuations are tasks.** A suspended continuation is a runnable unit. There is no task object distinct from the continuation itself.
 
-2. **Resume is the scheduling event.** A continuation runs only when resumed (`cont.resume`) by delivery of its awaited value. On a unikernel the delivery source is a peripheral interrupt (or a completion the interrupt records); the interrupt-to-continuation binding is the scheduler's dispatch.
+2. **Resume is the scheduling event.** A continuation runs only when resumed (`cont.resume`) by delivery of its awaited value. On a bare-metal freestanding target the delivery source is a peripheral interrupt (or a completion the interrupt records); the interrupt-to-continuation binding is the scheduler's dispatch.
 
 3. **Run-to-completion until the next `cont.suspend` (non-preemption).** Once resumed, a continuation runs until it reaches its next `cont.suspend` or its origin. It is never preempted mid-remainder. This is the cooperative guarantee: a continuation yields the core only at a suspension point, never involuntarily.
 
@@ -108,10 +109,12 @@ A conforming single-core implementation SHALL observe:
 
 The interrupt handler that delivers a value SHALL be a captureless top-level handler bound directly to the vector-table slot (hardware vectors carry no environment pointer); it reaches continuation state through the resume entry point, not through a captured closure. The progress guarantee under this discipline is that every continuation whose awaited value has been delivered is eventually resumed; on a single core with one interrupt source per suspension class this reduces to "the handler resumes the awaiting continuation," and no fairness policy beyond interrupt priority is required.
 
-> This is the sense in which the concurrency model degrades to a single-core event loop *by
-> construction*: the braided crossing (a `cont.suspend` that spawns an awaited computation
-> and threads its result back through the remainder) is held by the continuation, and on one
-> core the continuation's own suspend/resume is the whole of the scheduling.
+> This is the sense in which the concurrency model reduces to an event loop *on a single core*:
+> the braided crossing (a `cont.suspend` that spawns an awaited computation
+> and threads its result back through the remainder) is held by the continuation, and where the
+> target has one core the continuation's own suspend/resume is the whole of the scheduling. The
+> reduction is a property of the core count, not of the freestanding host — the same continuation
+> semantics carry to a multi-core target, where the scheduling is more than one event loop.
 
 ## 8. SSA Cost
 
