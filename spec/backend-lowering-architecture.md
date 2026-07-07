@@ -12,6 +12,8 @@ status: normative
 
 > **Commentary**: For accessible explanation of the portable middle end and why a target commitment is deferred to the backend, see [Why Clef Is A Natural Fit for MLIR](https://clef-lang.com/docs/design/compilation/why-clef-fits-mlir/) in the Clef design documentation.
 >
+> **Artifact Class**: The deployment-facing rationale for the sealed-image artifact class that the freestanding mode of §5 enables is developed in [Getting to the Heart of Unikernels](https://clef-lang.com/blog/getting-to-the-heart-of-unikernels/) on the Clef blog.
+>
 > **For .NET Developers**: Guidance on transitioning from CLR concepts to native compilation is available in the rationale documentation.
 
 ---
