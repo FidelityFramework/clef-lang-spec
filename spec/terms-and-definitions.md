@@ -57,6 +57,8 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **negative type**, **fractional type** *(proposed; non-normative)* — the additive-inverse and multiplicative-inverse (reciprocal) types that would carry, respectively, a reversal channel and a deferred-supply obligation, reaching the requirements into rational and real arithmetic. This is a proposed extension: the type universe as specified operates without reference to negative or fractional types, and the discipline is the subject of a companion treatment, not a normative chapter of this specification. No normative requirement in this specification depends on it.
 
+**braid type** *(proposed; non-normative)* — a type that would decorate a tensor arrangement's crossing order, the non-abelian exchange of concurrent strands recorded as an element of the braid group. Its abelian projection, the writhe, is a single-generator quantity of the same kind the dimensional discipline already carries; the non-abelian remainder is the order-sensitive content the writhe discards. This is a proposed extension: the type universe as specified operates without reference to the braid word, and the discipline is the subject of a companion treatment, not a normative chapter of this specification. Only the writhe is available to normative text; no normative requirement in this specification depends on the non-abelian braid word.
+
 ## Numeric representation
 
 **representation** — the machine form chosen for a real value: a posit, an IEEE-754 float, or a fixed-point number. Selected from the value's range, per target. Defined in [Numeric Selection](numeric-selection.md).
