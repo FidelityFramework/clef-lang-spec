@@ -58,7 +58,7 @@ The split is total: every rounding obligation in the framework is either soundne
 
 The quire is the framework's canonical example of rounding *deferred* rather than *directed*, and its discipline is already normative in [Numeric Selection §10.2](numeric-selection.md); this section states the rounding semantics that section's `Quire.toPosit` depends on.
 
-An accumulation lowered to a quire performs **no rounding at any intermediate step**. The `n²/2`-bit accumulator (512 bits for posit32, per the Posit Standard 2022) holds every partial product exactly, and rounding occurs **exactly once**, at the final `quire → posit` conversion. The single rounding at conversion SHALL use the posit's only defined mode, round-to-nearest-ties-to-even (§2); no directed mode applies, because none exists for posits. The dimension is preserved through the accumulation and verified at the conversion output (an `fma` of `newtons × meters` accumulates as `joules`, rounded once to a `Posit32<joules>`).
+An accumulation lowered to a quire performs **no rounding at any intermediate step**. The fixed-width accumulator (800 bits for a b-posit of width `n > 12`, per arXiv:2603.01615; `n²/2` bits for a full-gamut posit of width `n`, per the Posit Standard 2022) holds every partial product exactly, and rounding occurs **exactly once**, at the final `quire → posit` conversion. The single rounding at conversion SHALL use the posit's only defined mode, round-to-nearest-ties-to-even (§2); no directed mode applies, because none exists for posits. The dimension is preserved through the accumulation and verified at the conversion output (an `fma` of `newtons × meters` accumulates as `joules`, rounded once to a `Posit32<joules>`).
 
 This single-rounding discipline is the mechanism behind the quire's two stated benefits (per [Numeric Selection §10.2.2](numeric-selection.md), and the dts-dmm and decidable-by-construction pre-prints): exact accumulation keeps the structural zeros of Clifford/Cayley algebra structurally zero, and it defeats catastrophic cancellation in a difference or sum of nearly-equal quantities by deferring all rounding past the cancellation. Both follow from *one rounding instead of `k`*, and neither is a claim about near-zero precision, which posits do not have.
 
@@ -162,7 +162,8 @@ Numeric selection's diagnostic family (per [Numeric Selection §11](numeric-sele
 
 - *IEEE Standard for Floating-Point Arithmetic*, IEEE 754-2019. (Five rounding-direction attributes; the directed modes toward `±∞`.)
 - *IEEE Standard for Interval Arithmetic*, IEEE 1788-2015. (Sound enclosure requires the lower endpoint toward `−∞` and the upper toward `+∞` at every operation.)
-- *Standard for Posit Arithmetic* (2022). (Round-to-nearest-ties-to-even as the sole posit rounding mode; the quire and its `n²/2` width.)
+- *Standard for Posit Arithmetic* (2022). (Round-to-nearest-ties-to-even as the sole posit rounding mode; the full-gamut quire and its `n²/2` width.)
+- Jonnalagadda, A. A., Thotli, R., & Gustafson, J. L. (2026). *Closing the Gap Between Float and Posit Hardware Efficiency.* arXiv:2603.01615. (The bounded-regime b-posit and its fixed 800-bit quire.)
 - Moore, R. E. (1966). *Interval Analysis.* Prentice-Hall. (Outward rounding / ULP widening for a sound enclosure when native directed rounding is unavailable.)
 - Gustafson, J. L. (2017). *Posit Arithmetic.* (Tapered precision; the quire's single final rounding.)
 - Intel® 64 and IA-32 Architectures Software Developer's Manual; Arm® Architecture Reference Manual. (The CPU rounding-mode control registers `MXCSR` and `FPCR` as global dynamic state — informative, for the §7 asymmetry.)

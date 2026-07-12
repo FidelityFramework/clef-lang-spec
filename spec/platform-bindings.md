@@ -382,6 +382,8 @@ CCS intrinsics have restrictions:
 
 The **Platform Descriptor** is a quotation-based structure that defines all platform-specific characteristics. It flows from `Fidelity.Platform` through CCS to Alex, enabling compile-time platform specialization.
 
+> *Informative.* The [Building Bulletproof eBPF Programs](https://clef-lang.com/blog/building-bulletproof-ebpf-programs/) design orientation applies this descriptor discipline to the Linux kernel's programmable surface, where hooks, helpers, and verifier budgets fill the same record vocabulary.
+
 ### Structure
 
 ```fsharp

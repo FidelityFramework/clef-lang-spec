@@ -15,7 +15,8 @@ These are **normative** references: where a chapter of this specification requir
 
 - **IEEE 754-2019** — *IEEE Standard for Floating-Point Arithmetic.* Governs the IEEE-754 representations selectable by [Numeric Selection](numeric-selection.md), their error model, and the rounding-direction attributes required by [Rounding](rounding.md).
 - **IEEE 1788-2015** — *IEEE Standard for Interval Arithmetic.* Governs the soundness obligation for interval enclosures (the outward-rounding requirement) referenced by [Rounding](rounding.md) and the real interval domain of [Numeric Selection §9.1](numeric-selection.md).
-- **Standard for Posit Arithmetic (2022)** — Governs the posit representations and the quire (the `n²/2` accumulator width and its exact-accumulation semantics) referenced by [Numeric Selection](numeric-selection.md) and [Rounding](rounding.md).
+- **Standard for Posit Arithmetic (2022)** — Governs the full-gamut posit representations and their quire (the `n²/2` accumulator width and its exact-accumulation semantics) referenced by [Numeric Selection](numeric-selection.md) and [Rounding](rounding.md).
+- **Jonnalagadda, Thotli & Gustafson (2026), arXiv:2603.01615, *Closing the Gap Between Float and Posit Hardware Efficiency*** — Governs the bounded-regime b-posit representation and its fixed 800-bit universal quire referenced by [Numeric Selection §10.2](numeric-selection.md) and [Rounding §4](rounding.md).
 
 ## Cryptographic operations
 
