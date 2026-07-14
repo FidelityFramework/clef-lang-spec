@@ -2,7 +2,7 @@
 title: "Modular Blob Storage"
 weight: 465
 category: Representation
-status: draft
+status: normative
 ---
 
 > **Status**: Draft (captured design; not yet ratified). This chapter defines **Modular Blob Storage (MBS)**, the abstraction. A target's instantiation — for the EK-RA6M5, the *Credential Store* — is documented with that target.

@@ -33,7 +33,7 @@ The dependency direction is part of the contract's purpose. Prospero's supervisi
 
 **latency domain** — a set of processing elements over which a turn-granularity dispatch decision is meaningful: one core, one coherent multicore package, one board-level fabric. A network hop always crosses a latency domain.
 
-> **Clef Note**: The word *sentinel* in this specification names the numeric width and representation placeholders of [Numeric Selection](numeric-selection.md) (the sentinel/resolver pattern). The runtime structure that carries an actor reference's liveness state is called the *actor-reference sentinel* in the design documentation. Where this file needs that concept it says **reference state**, and §9 gives the states.
+> **Clef Note**: The word *sentinel* in this specification names the numeric width and representation placeholders of [Numeric Selection](numeric-selection.md) (the sentinel/resolver pattern). The runtime structure that carries an actor reference's liveness state is called the *actor-reference sentinel* in the design documentation. Where this file needs that concept it says **reference state**, and §10 gives the states.
 
 ## 3. Fairness
 
@@ -53,7 +53,7 @@ The actor definition in [Terms and Definitions](terms-and-definitions.md) relies
 
 Control-plane actions SHALL NOT contend with data-plane traffic for the same bounded capacity. When every data-plane resource an implementation bounds (mailbox slots, message envelopes, channel slots) is exhausted, the implementation SHALL still be able to: retire an actor, execute a supervisor restart, deliver a timer expiry, and update reference state.
 
-On the native profile, the design realization is Prospero on an elevated thread with supervision executed as direct calls rather than as messages competing for data-plane capacity. On the freestanding single-core profile the separation is hardware exception priority rather than a thread: dispatch runs in the processor's thread mode, and supervision, timer expiry, and turn-budget enforcement execute at reserved handler priorities with capacities set at build time. A freestanding implementation SHALL arm the control-plane tier, its timer and its vector entries, before dispatching the first turn. Other profiles satisfy the clause by equivalent separation.
+On the native profile, the design realization is Prospero on an elevated thread with supervision executed as direct calls rather than as messages competing for data-plane capacity. On the freestanding single-core profile the separation is hardware exception priority rather than a thread: dispatch runs in the processor's thread mode, and supervision, timer expiry, and turn-budget enforcement execute at reserved handler priorities with capacities set at build time. A freestanding implementation SHALL arm the control-plane tier, its timer, its watchdog, and its vector entries, before dispatching the first turn. Other profiles satisfy the clause by equivalent separation.
 
 ## 6. Admission
 
@@ -97,7 +97,21 @@ An implementation occupies one of three authority positions, recorded in its man
 
 **NORMATIVE**: A turn-granularity dispatch decision SHALL NOT cross a latency domain. Cross-domain progress is a supervision concern, discharged with deadlines and escalation under Prospero, in the same posture as the `Unresolved` wait class of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md).
 
-## 9. Dormant References and Hydration (Proposed)
+## 9. Control-Plane Observability
+
+This contract separates watching-as-recording from watching-as-enforcement, because the two roles answer the watchers question differently. Enforcement escalates strictly outward: §5's control plane within an implementation, and beyond it a chain that SHALL terminate outside the implementation, at a hardware watchdog on the freestanding profile (armed before first dispatch, per §5) or at the substrate's own supervisor on hosted profiles. This contract provides no software watcher above the supervisor. Recording is the remainder of this section, and it requires no watcher because it holds no authority.
+
+An implementation SHALL provide a bounded control-plane event record (a ring, in the natural realization) covering, at minimum: turn faults and budget exhaustions, restarts and retirements, escalations and quarantine decisions, admission-refusal counts, and the entry or reset cause where the substrate reports one. Writes to the record SHALL be wait-free and allocation-free, SHALL be permitted from the control plane's own execution context (Handler mode on the freestanding profile), and SHALL NOT enter the message fabric. The record is lossy by design: on overflow, the oldest entries are overwritten. No control-plane action SHALL depend on the acceptance of a record entry.
+
+**NORMATIVE**: Dispatch SHALL NOT generate message-fabric traffic on its own behalf. The scheduler and the supervisor observe themselves through the record and never through messages, so that observation is never load.
+
+An implementation MAY expose the record through a distinguished telemetry actor that drains it. The drain SHALL hold no supervision or dispatch authority. It SHALL be demand-driven: with no registered consumer it is not dispatched, in the sense of the §7 Clef Note. Its failure SHALL affect visibility only and never progress, which is why it is supervised as an ordinary actor and needs no watcher of its own.
+
+A freestanding implementation SHOULD preserve a last-words region across reset, a no-init memory region read together with the reset cause, so that the record of the previous run is readable at the next boot, before the supervision tree is armed. Durable storage of fault records beyond that region is outside this contract's scope. Where a platform provides it, [Modular Blob Storage](modular-blob-storage.md) owns the durability commitments, and nothing in this section depends on them.
+
+> **Clef Note**: The record and the determinism mode of §7 MAY share one mechanism. The recorded source sequence that makes replay possible and the telemetry stream are one object at two fidelities: total in a simulated implementation, a lossy prefix in production. Interpretation of user-level logging effects is Olivier's concern and out of scope here, except that the interpreter SHALL respect this section's invariants, with the turn as the natural batch boundary. The mechanism names in this section (ring, drain, last-words region) are illustrative. The invariants are the contract.
+
+## 10. Dormant References and Hydration (Proposed)
 
 > **Status (July 2026)**: This section is informative and proposed. Nothing in it is assumed by the normative clauses above.
 
@@ -113,7 +127,7 @@ On the freestanding profile, hydration SHALL only activate capacity the build's 
 
 The wire-crossing case, where a sender on one node holds a `Dormant` reference to an actor whose home is another node, composes the pieces above: admission at the remote mailbox, a control-plane event raised to the remote node's resident supervisor, hydration dispatched by that node's own scheduler. The sender neither observes nor orchestrates any of it. We are aware this reach of the design carries the most open questions, and we are taking some care to treat the referential-transparency and supervision-visibility consequences properly before any of it hardens into normative text.
 
-## 10. Conformance Requirements
+## 11. Conformance Requirements
 
 1. An implementation SHALL dispatch every ready actor within a finite number of scheduling events (§3).
 2. An implementation SHALL run every turn to completion without scheduler preemption, and SHALL report turn-budget exhaustion to the supervisor as a fault (§4).
@@ -123,3 +137,6 @@ The wire-crossing case, where a sender on one node holds a `Dormant` reference t
 6. An implementation SHALL publish an assumption manifest naming its profile, its authority position, and the clauses it assumes from its substrate (§7, §8).
 7. A federated implementation SHALL hold its subordinates to this contract and SHALL NOT dispatch their turns (§8).
 8. No implementation SHALL expose a user-addressable scheduling API (§1).
+9. An implementation SHALL provide the bounded control-plane event record, with wait-free, allocation-free, fabric-free writes, and no control-plane action SHALL depend on a record entry's acceptance (§9).
+10. Dispatch SHALL NOT generate message-fabric traffic on its own behalf (§9).
+11. A telemetry drain, where provided, SHALL be non-authoritative and demand-driven, and its failure SHALL affect visibility only (§9).
