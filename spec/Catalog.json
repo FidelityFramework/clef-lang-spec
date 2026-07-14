@@ -48,6 +48,7 @@
         "program-structure-and-execution",
         "atomic-operations",
         "synchronous-rpc-liveness",
+        "scheduler-contract",
         "platform-bindings",
         "platform-predicates",
         "clef-expr",

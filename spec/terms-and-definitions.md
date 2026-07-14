@@ -81,9 +81,13 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **arena** — a region whose entire contents are reclaimed as a unit when its owner (e.g. an actor) terminates.
 
-**actor** — a unit of concurrency with private state, a single logical thread, and no shared mutable state; communication is by message only. The Clef actor execution is realized by **Olivier** (the actor runtime) under **Prospero** (the supervisor).
+**actor** — a unit of concurrency with private state, a single logical thread, and no shared mutable state; communication is by message only. The Clef actor execution is realized by **Olivier** (the actor runtime) under **Prospero** (the supervisor), with dispatch by **Ariel** (the scheduler).
 
 **wait-for edge** — an edge from a caller to a callee that a synchronous reply suspends on; the relation whose acyclicity is deadlock-freedom. Defined in [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md).
+
+**scheduler** — the component that selects which ready actor executes next and delivers each resume; realized by **Ariel** under the contract supervision takes as premises: fairness, turn discipline, control-plane immunity, admission, and determinism. Defined in [Scheduler Contract](scheduler-contract.md).
+
+**turn** — the execution of an actor from one scheduling event (a resume) to its next suspension, completion, or fault; the unit of dispatch, run to completion. Defined in [Scheduler Contract](scheduler-contract.md).
 
 ## Verification
 
