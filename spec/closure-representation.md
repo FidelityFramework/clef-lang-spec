@@ -171,6 +171,17 @@ The flat closure is extended, not replaced, by several other representations. Ea
 
 Each of these is a flat closure first. A lazy value is null-free and position-independent for the same reason a plain closure is; a sequence's state machine is a settled struct for the same reason. The properties in §4 and §5 are inherited by the whole family because they are properties of the base representation, established once here.
 
+An extending representation adds its fields to the flat environment as one or more **slot classes**, and each slot class carries a transition discipline: a finite monotone automaton whose transitions occur at statically identified program points. The environment's mutation obligations are the product of its slot classes' automata; because each automaton is finite and each transition point is statically identified, the obligations quantify over enumerated structure only and remain quantifier-free (§11).
+
+| Slot class | Transition discipline | Specified in |
+|------------|-----------------------|--------------|
+| Memoization slots (`computed`, `value`) | Write-once at force | [Lazy Value Representation](lazy-representation.md) |
+| State-machine slots (`state`, `current`, internal state) | Captures read-only in MoveNext; internal state read-modify-write between yields; `current` written at yield; `state` written at yield and at exhaustion | [Seq Representation](seq-representation.md) |
+| Dependency references | Written only by the owning cell's emission | [Reactive Signals](reactive-signals.md), [Incremental Computation](incremental-computation.md) |
+| DU tag | Set by constructors, read by eliminators | [Discriminated Union Representation](discriminated-union-representation.md) |
+
+An extension chapter SHALL instantiate this schema for the slot classes it adds; it SHALL NOT restate the mutation rules the schema fixes.
+
 ## 8. Nested Named Functions vs Escaping Closures
 
 Clef distinguishes two categories of functions that capture variables. Only one needs a closure struct.
@@ -184,7 +195,7 @@ let makeAdder n =
     fun x -> x + n  // Anonymous lambda, may escape
 ```
 
-The lambda is a first-class value that can be returned, stored, or passed to a higher-order function. CCS creates a closure struct `{ code_ptr, n }` for it.
+The lambda is a first-class value that can be returned, stored, passed to a higher-order function, or carried as a discriminated-union payload; DU payload storage is an escape point for the closure ([Discriminated Union Representation §8.2](discriminated-union-representation.md)). CCS creates a closure struct `{ code_ptr, n }` for it.
 
 ### 8.2 Nested Named Functions (Parameter-Passing Model)
 
@@ -246,7 +257,13 @@ The closure representation is produced across three phases, consistent with the 
 11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
 12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.
 
-## 11. Related Chapters
+## 11. Proof Extraction at Closure Sites
+
+The flat representation is also a proof discipline. At every closure site the compiler extracts, without annotation, the judgments the representation makes finite. The capture set is enumerated (§3.2), so the closure's reachability frontier is exactly its field list. Its extent is a literal, fixed at compile time by the layout (§2.1, §5). Its release is a single site, chosen by the lifetime classification (§3.3). The memory-safety verification conditions a closure site generates therefore quantify over enumerated structure only: they are quantifier-free, and they discharge at the standing tiers of the decidable verification ladder ([terms and definitions](terms-and-definitions.md); [grade discipline](grade-discipline.md), where the escape classification discharges in the lattice family). An implementation SHALL derive these judgments from the representation itself; a closure site SHALL NOT require annotation to yield them.
+
+The judgments survive lowering because the lowered form carries the same structure. The MLIR witnessed from the graph preserves the enumerated frontier: the zipper elides only what the graph has already saturated ([Program Semantic Graph](program-semantic-graph.md)), and every cast the closure representation requires ([Backend Lowering Architecture §4.2](backend-lowering-architecture.md)) corresponds to an obligation the graph records. Integrity is therefore substantiated through lowering, not re-derived after it; this is the [preservation obligation through lowering](conformance.md) in its closure-specific form. The proof shape is that of region soundness and safe-for-space closure conversion; see Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997), and Shao and Appel, *Space-Efficient Closure Representations* (LFP '94).
+
+## 12. Related Chapters
 
 - [Lazy Value Representation](lazy-representation.md), [Seq Representation](seq-representation.md) - representations that extend the flat closure
 - [Reactive Signals](reactive-signals.md), [Observable Computation](observable-computation.md) - callbacks and continuations as flat closures

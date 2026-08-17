@@ -388,7 +388,7 @@ Escaping the defining scope does not imply the heap. A lazy value returned from 
 Memoization is a mutation-in-place property that interacts with this placement, because in-place update of the `computed` flag and the `value` slot requires a stable address:
 
 - A **scope-bounded** or **program-lifetime** lazy value already has a stable address (its `alloca` slot or its `memref.global`), so memoization writes directly to `value` at index `[1]` and sets `computed` at `[0]`.
-- Under concurrent access to a program-lifetime lazy value, a compare-and-swap on the `computed` flag resolves the race (one force wins), and a memory barrier makes the memoized `value` visible across threads.
+- Under concurrent access to a program-lifetime lazy value, the write-once obligation is discharged at compile time by the single-forcer discipline of §11: ownership establishes one semantic forcer, so the race is resolved in the proof before it is resolved in the code. Beneath that discharged proof, the target realization is a compare-and-swap on the `computed` flag (one force wins) and a memory barrier that makes the memoized `value` visible across threads.
 
 The current implementation (§9.1) uses pure thunk semantics and updates no state, so it is insensitive to placement. Memoizing semantics are placement-sensitive precisely because they mutate the struct in place.
 
@@ -454,6 +454,7 @@ Lazy.create (fun () -> expr)
 5. **Thunk Convention**: Thunks SHALL receive pointer to containing lazy struct
 6. **Lifetime-Driven Placement**: A lazy value's storage SHALL be placed by escape analysis in the storage whose lifetime covers it, per the four-point lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis): the stack when scope-bounded, a region when region-bounded, static storage (`memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap, a lazy value that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation. Lazy values SHALL NOT be placed on a GC-managed heap.
 7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
+8. **Single-Forcer Memoization**: A memoizing lazy value SHALL be forced under a single-forcer discipline: for each lazy value, exactly one semantic forcer performs the transition from unevaluated to computed. A lazy value whose force sites span threads or actor boundaries SHALL carry an ownership obligation discharged at compile time by establishing that single semantic forcer. This discipline keeps the write-once conditions on `computed` at `[0]` and `value` at `[1]` quantifier-free: each slot is written at one statically identified site, so the verification conditions quantify over enumerated structure only ([Closure Representation §11](closure-representation.md#11-proof-extraction-at-closure-sites)).
 
 ## 12. Implementation in CCS/Firefly Pipeline
 

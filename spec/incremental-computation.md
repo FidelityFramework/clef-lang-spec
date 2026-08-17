@@ -24,7 +24,7 @@ Clef implements `Incremental<'T>` as a compiler-known intrinsic type for depende
 | Cutoff (change detection) | No | No | No | Yes |
 | Propagation bound | Unbounded | N/A | N/A | Bounded by cutoff |
 
-Each position to the right provides the compiler with more information during lowering. An `Observable<'T>` is opaque: the compiler must assume every emission matters. An `Incremental<'T>` is transparent: the compiler knows the dependency graph, can reason about which downstream nodes are affected by a change, and can prove that unaffected subgraphs produce identical results.
+Each position to the right provides the compiler with more information during lowering. An `Observable<'T>` is opaque: the compiler must assume every emission matters. An `Incremental<'T>` is transparent: the compiler knows the dependency graph, can reason about which downstream nodes are affected by a change, and can prove that unaffected subgraphs produce identical results. The proof obligation discharges by environment closedness: a recompute function is a flat closure that reads only its enumerated captures, those captures are exactly its tracked dependencies, and a node whose enumerated inputs are unchanged therefore cannot observe a change, so suppressing its recomputation is observationally sound ([Closure Representation §5](closure-representation.md#5-representation-properties)).
 
 ### 1.1 Relationship to Lazy Values
 

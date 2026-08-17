@@ -522,6 +522,8 @@ let result =
 
 Escaping a scope does not by itself force this error. A value whose lifetime is statically known to be the whole program is placed in static storage and may be returned and held; only a value that escapes into a lifetime no covering class can satisfy is rejected (and on a no-heap target, "dynamic" is one such rejection).
 
+A closure-valued payload adds a constraint of its own. Constructing a DU value with a closure payload SHALL be an escape point for that closure ([closure-representation.md §3.3](closure-representation.md)): the block stores a reference to the closure, not a copy (§3.4, §9.1), so the closure environment's lifetime class SHALL dominate the storage class of every DU block that holds a reference to it. Escape analysis SHALL place the environment in a class whose lifetime covers each such block; a construction for which no covering class exists SHALL be rejected at compile time.
+
 ### 8.3 Recursive Structure Placement
 
 For recursive DUs, all nodes in a tree typically share one storage class: the region that covers the tree when it is region-bounded, or static storage when the whole tree is program-lifetime.
