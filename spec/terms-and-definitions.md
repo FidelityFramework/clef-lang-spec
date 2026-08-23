@@ -29,6 +29,8 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **Composer** — the compiler that lowers the saturated graph through its middle end to target backends. Distinct from CCS (the front end) and from any one backend.
 
+**target pathway** — a target-committing serialization pathway off the portable middle end; the point at which a target commitment is made and an artifact class is fixed. The LLVM pathway (CPU/MCU), the CIRCT pathway (FPGA), and the JSIR pathway (JavaScript) are target pathways. Defined in [Backend Lowering Architecture](backend-lowering-architecture.md).
+
 **Alex** — the Composer middle-end component that witnesses the saturated graph and lowers it to MLIR; the "Library of Alexandria" that holds the platform-resolving lowerings. Introduced in [Backend Lowering Architecture](backend-lowering-architecture.md).
 
 **Baker** — the saturation engine that settles the program graph into its saturated form, expanding constructs that have no single machine instruction.
@@ -59,13 +61,21 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **braid type** *(proposed; non-normative)* — a type that would decorate a tensor arrangement's crossing order, the non-abelian exchange of concurrent strands recorded as an element of the braid group. Its abelian projection, the writhe, is a single-generator quantity of the same kind the dimensional discipline already carries; the non-abelian remainder is the order-sensitive content the writhe discards. This is a proposed extension: the type universe as specified operates without reference to the braid word, and the discipline is the subject of a companion treatment, not a normative chapter of this specification. Only the writhe is available to normative text; no normative requirement in this specification depends on the non-abelian braid word.
 
+## Foreign boundaries
+
+**foreign boundary** — an interface at which values enter or leave Clef's type universe. Each boundary confines its own absence sentinels to its boundary conversions and admits values inward only through declared conversions. The C instance is defined in [FFI Boundary Semantics](ffi-boundary.md); the JavaScript instance in [JavaScript Boundary Semantics](javascript-boundary.md).
+
+**narrowing** — the sole elimination of a foreign dynamic value: a generated, schema-directed check converting the value to a declared Clef type, total over its input, returning `Result` with the failed premise identified on failure. Defined in [JavaScript Boundary Semantics §3.2](javascript-boundary.md).
+
+**boundary grade** — the capability coeffect recording contact with the foreign pair (`JsValue`, `JsRef<'T>`), carried in signatures and composed in the lattice family; grade zero is proven freedom from foreign contact. Defined in [JavaScript Boundary Semantics §4](javascript-boundary.md). Unrelated to the algebraic **grade** above.
+
 ## Numeric representation
 
 **representation** — the machine form chosen for a real value: a posit, an IEEE-754 float, or a fixed-point number. Selected from the value's range, per target. Defined in [Numeric Selection](numeric-selection.md).
 
-**numeric selection** — the compile-time function choosing a real value's representation from its analyzed dimensional range. The real-valued sibling of width inference.
+**numeric selection** — the compile-time function choosing a real value's representation from its analyzed dimensional range. The real-valued counterpart of width inference.
 
-**width inference** — the compile-time function sizing an integer from its value range. The integer sibling of numeric selection. Defined in [Width Inference](width-inference.md).
+**width inference** — the compile-time function sizing an integer from its value range. The integer counterpart of numeric selection. Defined in [Width Inference](width-inference.md).
 
 **regime** — a classification of a value's range into a representation family (e.g. near-unity-taper, wide-dynamic), the categorical output of selection prior to a concrete representation.
 
@@ -91,6 +101,6 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 ## Verification
 
-**tier** — a level of the decidable verification ladder. Tier 1 is the parametric "free" facts (dimensional and grade soundness); Tier 2 is quantifier-free linear obligations (integer `QF_LIA`, real `QF_LRA`) and bit-vector obligations (`QF_BV`); Tier 3 covers termination/probabilistic-bounded obligations; a relational/probabilistic concern beyond the decidable tiers is the separate top tier. Introduced across the verification chapters.
+**tier** — a level of the decidable verification hierarchy. Tier 1 is the parametric "free" facts (dimensional and grade soundness); Tier 2 is quantifier-free linear obligations (integer `QF_LIA`, real `QF_LRA`) and bit-vector obligations (`QF_BV`); Tier 3 covers termination/probabilistic-bounded obligations; a relational/probabilistic concern beyond the decidable tiers is the separate top tier. Introduced across the verification chapters.
 
 **seal** — an explicit developer commitment of a concrete representation at a site, turning the selection objective from a chooser into a coverage checker. Defined in [Numeric Selection §5](numeric-selection.md).

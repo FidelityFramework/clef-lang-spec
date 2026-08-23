@@ -83,6 +83,17 @@ A 64-bit platform always supports 32-bit operations.
 | `has_mmio` | `Expr<bool>` | Platform supports memory-mapped I/O |
 | `cache_line_size` | `Expr<int>` | Cache line size in bytes |
 
+### 3.5 Substrate Predicates
+
+Two predicates distinguish a managed substrate (a JavaScript isolate reached through the JSIR pathway) from an instruction-set platform. Platform libraries SHALL define them alongside the predicates of §3.1 through §3.4.
+
+| Predicate | Type | Meaning |
+|-----------|------|---------|
+| `has_shared_memory` | `Expr<bool>` | Concurrent execution contexts can share mutable memory |
+| `exact_int_width` | `Expr<int>` | Widest integer width whose arithmetic the platform's native integer representation carries exactly, without a wide-integer mechanism |
+
+On instruction-set platforms, `has_shared_memory` follows the threading model (true on the desktop and server platforms of §4.1; per target on embedded), and `exact_int_width` is the platform word width. On a JavaScript isolate, `has_shared_memory` is false unless the host enables shared buffers, and `exact_int_width` is 53, the exact-integer envelope of IEEE-754 binary64; widths beyond it require the documented wide-integer realization of [Width Inference §8](width-inference.md).
+
 ## 4. Platform Predicate Matrices
 
 ### 4.1 Desktop/Server Platforms
@@ -107,6 +118,23 @@ A 64-bit platform always supports 32-bit operations.
 | has_atomics_32 | varies | varies | false |
 | has_atomics_64 | false | false | false |
 | has_mmio | true | true | true |
+
+### 4.3 Managed-Substrate Platforms (JavaScript Substrate profile)
+
+The column below describes the JavaScript isolate class the JSIR pathway targets ([Backend Lowering Architecture](backend-lowering-architecture.md)). It is one platform class; a concrete platform library documents its own values ([Behavior Classification §2](behavior-classification.md)).
+
+| Predicate | JS_Isolate |
+|-----------|------------|
+| fits_u32 | true |
+| fits_u64 | impl-defined (true where a wide-integer realization is provided; [Width Inference §8](width-inference.md)) |
+| has_avx512 / has_avx2 / has_sse42 / has_neon / has_sve | false |
+| vector_width_max | 0 |
+| has_atomics_32 / has_atomics_64 / has_atomics_128 | false (impl-defined where the host enables shared buffers) |
+| has_cache_coherent | true (vacuous: no observable cache) |
+| has_mmio | false |
+| cache_line_size | 0 (not observable) |
+| has_shared_memory | false (impl-defined where the host enables shared buffers) |
+| exact_int_width | 53 |
 
 ## 5. Predicate Declaration in Platform Libraries
 
@@ -188,7 +216,7 @@ else scalar_impl()
 func.call @vectorAdd_avx2(%a, %b) : (memref<?xf64>, memref<?xf64>) -> memref<?xf64>
 ```
 
-Predicate resolution and dead-code elimination run in the portable middle end, so the surviving branch is expressed in a portable dialect (`func`, `memref`). The choice of vector implementation is settled here; the pointer representation of each `array<float>` argument is not, and is realized only in the backend leg selected for the platform.
+Predicate resolution and dead-code elimination run in the portable middle end, so the surviving branch is expressed in a portable dialect (`func`, `memref`). The choice of vector implementation is settled here; the pointer representation of each `array<float>` argument is not, and is realized only in the target pathway selected for the platform.
 
 ## 7. Predicate Implications
 

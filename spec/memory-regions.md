@@ -177,6 +177,12 @@ let wrong : Ptr<int, Stack, ReadWrite> = peripheralPtr
 
 > **DEFERRED**: Detailed lifetime verification rules will be specified in a future revision covering ownership and borrowing semantics.
 
+## Target Reachability
+
+The region types of this chapter name storage a target provides, and the platform descriptor lists the regions each target has ([Platform Bindings](platform-bindings.md)). A construct whose region the selected target does not provide SHALL be diagnosed at compile time when compiled for that target; reachability is carried as a lattice-family coeffect alongside escape classification ([Grade Discipline §4.1](grade-discipline.md)).
+
+On the JSIR pathway, no region of this chapter exists: the host garbage collector owns placement, every lifetime class of the [lifetime lattice](closure-representation.md) has a home, and `Ptr`, `Arena`, `Mmio`, and every region-typed construct SHALL be diagnosed as unavailable for the target (the CCS8030 pattern of [Platform Bindings](platform-bindings.md)). The lifetime lattice itself still classifies every value at design time on that pathway; only the storage classes of this chapter are absent.
+
 ## Grammar
 
 ```fsgrammar

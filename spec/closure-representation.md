@@ -38,7 +38,7 @@ Field Indices:
   [1..m] = captured values
 ```
 
-This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by walking a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.
+This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by traversing a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.
 
 ### 2.2 Capture Semantics
 
@@ -50,7 +50,7 @@ Captures are classified by the mutability of the source binding:
 | Mutable binding | By Reference | `ptr<T>` | Store pointer to stack slot |
 | Ref cell | By Value | `ref<T>` | Copy ref cell pointer |
 
-An immutable binding is copied because nothing can change it; every holder of the closure sees the same value regardless. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
+An immutable binding is copied because nothing can change it; every holder of the closure observes the same value regardless. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
 
 ### 2.3 Allocation Strategy
 
@@ -158,6 +158,16 @@ The layout in §2 is the conceptual representation. It is **not** encoded in a b
 
 Because every field is assigned at construction (§4), the encoding carries a complete value into lowering on any backend.
 
+### 6.4 JSIR-Pathway Realization
+
+> This section binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
+
+The JSIR pathway realizes the `(code_pointer, environment_pointer)` pair as a single host function value, under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md): a JavaScript function carries its code and its captured environment together, so no separate environment pointer is materialized, and invocation is direct application of the function value.
+
+The capture semantics of §2.2 SHALL be preserved observably. A mutable capture SHALL be realized so that every closure over the binding observes the same changing storage, which the host closure's captured binding provides directly; an immutable capture MAY be realized by sharing, since immutability makes a copy and a shared binding indistinguishable. The classification of §8 (escaping closures against nested named functions) applies unchanged: a nested named function that does not escape SHALL pass its captures as parameters on this pathway as on any other.
+
+The layout requirements of this chapter (deterministic offsets, cache alignment, the §3.3 allocation lattice) are requirements on layout-realizing pathways and do not bind on this pathway: the host garbage collector owns placement, and the environment's shape is the host closure's captured scope. The structural requirements (full initialization, no null or undefined capture, capture modes, classification) bind unchanged.
+
 ## 7. The Representation Family
 
 The flat closure is extended, not replaced, by several other representations. Each adds fields or structure to the base layout while keeping its properties.
@@ -256,10 +266,11 @@ The closure representation is produced across three phases, consistent with the 
 10. **Cache Alignment**: A small closure (≤64 bytes) SHOULD be aligned to a cache line.
 11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
 12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.
+13. **Pathway Scope**: Requirements 5, 8, 9, and 10 are requirements on layout-realizing pathways and bind pathways that realize memory layouts. On the JSIR pathway the closure SHALL be realized as a host function value per §6.4, with requirements 3, 4, 7, 11, and 12 binding unchanged.
 
 ## 11. Proof Extraction at Closure Sites
 
-The flat representation is also a proof discipline. At every closure site the compiler extracts, without annotation, the judgments the representation makes finite. The capture set is enumerated (§3.2), so the closure's reachability frontier is exactly its field list. Its extent is a literal, fixed at compile time by the layout (§2.1, §5). Its release is a single site, chosen by the lifetime classification (§3.3). The memory-safety verification conditions a closure site generates therefore quantify over enumerated structure only: they are quantifier-free, and they discharge at the standing tiers of the decidable verification ladder ([terms and definitions](terms-and-definitions.md); [grade discipline](grade-discipline.md), where the escape classification discharges in the lattice family). An implementation SHALL derive these judgments from the representation itself; a closure site SHALL NOT require annotation to yield them.
+The flat representation is also a proof discipline. At every closure site the compiler extracts, without annotation, the judgments the representation makes finite. The capture set is enumerated (§3.2), so the closure's reachability frontier is exactly its field list. Its extent is a literal, fixed at compile time by the layout (§2.1, §5). Its release is a single site, chosen by the lifetime classification (§3.3). The memory-safety verification conditions a closure site generates therefore quantify over enumerated structure only: they are quantifier-free, and they discharge at the standing tiers of the decidable verification hierarchy ([terms and definitions](terms-and-definitions.md); [grade discipline](grade-discipline.md), where the escape classification discharges in the lattice family). An implementation SHALL derive these judgments from the representation itself; a closure site SHALL NOT require annotation to yield them.
 
 The judgments survive lowering because the lowered form carries the same structure. The MLIR witnessed from the graph preserves the enumerated frontier: the zipper elides only what the graph has already saturated ([Program Semantic Graph](program-semantic-graph.md)), and every cast the closure representation requires ([Backend Lowering Architecture §4.2](backend-lowering-architecture.md)) corresponds to an obligation the graph records. Integrity is therefore substantiated through lowering, not re-derived after it; this is the [preservation obligation through lowering](conformance.md) in its closure-specific form. The proof shape is that of region soundness and safe-for-space closure conversion; see Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997), and Shao and Appel, *Space-Efficient Closure Representations* (LFP '94).
 

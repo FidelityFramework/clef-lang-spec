@@ -54,7 +54,7 @@ module Sys =
     val exit : code:int -> 'T
 ```
 
-The buffer parameter carries the bounded stack array whose bound the compiler knows, not a raw pointer. There is no `nativeptr<byte>` surface for an intrinsic argument. The interior mechanism that carries the buffer's address to the backend leg is not user-denotable; source code names only the array.
+The buffer parameter carries the bounded stack array whose bound the compiler knows, not a raw pointer. There is no `nativeptr<byte>` surface for an intrinsic argument. The interior mechanism that carries the buffer's address to the target pathway is not user-denotable; source code names only the array.
 
 ### Buffer and Register Surfaces
 
@@ -127,6 +127,10 @@ For bare-metal targets, intrinsics may:
 - Map to hardware registers
 - Generate inline assembly
 - Require target-specific configuration
+
+### JavaScript (JSIR Pathway)
+
+The `Sys` intrinsics have no realization on the JSIR pathway: an isolate has no file descriptors, no syscalls, and no process to exit. A program that reaches a `Sys` intrinsic when compiled for this pathway SHALL be diagnosed with CCS8030 (platform intrinsic not available for target). Console output and every other host service on the managed substrate are host APIs reached through generated bindings ([JavaScript Boundary Semantics §7](javascript-boundary.md)), not Layer 1 intrinsics; termination belongs to the host, not to the program.
 
 ---
 
@@ -223,10 +227,10 @@ The metadata flows from SemanticGraph to Alex:
 ```
 SemanticGraph node (with FFI metadata)
                 ↓
-Alex sees: "FFI call to gtk_window_new, CDecl, returns owned pointer"
+Alex reads: "FFI call to gtk_window_new, CDecl, returns owned pointer"
                 ↓
-Alex emits the portable call node; a backend leg emits the target-specific call
-with the correct ABI and ownership tracking (LLVM being one such leg)
+Alex emits the portable call node; a target pathway emits the target-specific call
+with the correct ABI and ownership tracking (LLVM being one such pathway)
 ```
 
 ### Active Patterns for Recognition
@@ -478,6 +482,21 @@ let platform: Expr<PlatformDescriptor> = <@
 @>
 ```
 
+### Managed-Substrate Descriptor (JSIR Pathway)
+
+> This subsection binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
+
+The record vocabulary of `PlatformDescriptor` presumes an instruction-set target: an architecture, a syscall convention, memory regions, a startup symbol. None of these has a value for the JavaScript isolate the JSIR pathway targets, and an implementation SHALL NOT fabricate them. The JSIR pathway's target SHALL instead be described by a managed-substrate descriptor recording, at minimum:
+
+1. the host environment class (a service-worker isolate, a browser, a server-side JavaScript runtime);
+2. the module system and export conventions that form the entry contract (the entry-point modes of [Program Structure and Execution](program-structure-and-execution.md));
+3. the host API surface that bindings are generated against, and its version ([JavaScript Boundary Semantics §7](javascript-boundary.md)); and
+4. the wide-integer realization ([Width Inference §8](width-inference.md)).
+
+The substrate predicates of [Platform Predicates §3.5 and §4.3](platform-predicates.md) are resolved from this descriptor the same way the instruction-set predicates are resolved from `PlatformDescriptor`.
+
+> **Not yet specified.** The concrete record shape of the managed-substrate descriptor.
+
 ### Compile-Time Resolution
 
 The platform descriptor is inspected at compile time:
@@ -485,7 +504,7 @@ The platform descriptor is inspected at compile time:
 1. **CCS** reads the platform descriptor from `Fidelity.Platform`
 2. For freestanding mode, **Intrinsic Elaboration** generates the `_start` wrapper
 3. The wrapper uses `Sys.emptyStringArray` and `Sys.exit` intrinsics
-4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a backend leg lowers them and supplies the entry glue. On the hosted x86-64 leg that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the bare-metal M33 leg has no linker entry flag and no `_start` (control arrives at the reset vector).
+4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a target pathway lowers them and supplies the entry glue. On the hosted x86-64 pathway that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the bare-metal M33 pathway has no linker entry flag and no `_start` (control arrives at the reset vector).
 
 The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 

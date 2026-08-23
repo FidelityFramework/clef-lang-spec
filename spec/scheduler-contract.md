@@ -77,6 +77,7 @@ Each implementation SHALL publish an assumption manifest partitioning the clause
 | MicroVM | §4, §5, §6 | vCPU progress and timer delivery against a quota named in the deployment specification |
 | Container | §4, §5, §6 | carrier-thread progress against a budget that is observable rather than declared |
 | Hosted (OS process, .NET fallback) | §4 as observed atomicity, §5, §6 per manifest | fairness of the substrate scheduler in full |
+| Isolate (managed JavaScript substrate, JSIR pathway) | §6 per manifest | §3 fairness and §4 turn atomicity from the single-threaded host event loop; §5 per manifest, with control-plane actions sharing the host's event loop and execution budgets |
 | Simulated | §3 through §6 by construction over scripted sources | nothing |
 
 > **Clef Note**: The determinism clause admits dispatch disciplines beyond mailbox order. A stabilization pass over the demanded, dirty fragment of a dependency graph, dispatched in dependency order, is a conforming implementation of this contract for the cold, pull-based side of the concurrency model. [Incremental Computation](incremental-computation.md) already places demand registration for actor-based nodes with the supervisor, and demand refines *ready*: an actor whose behavior is effect-free and whose outputs no consumer observes need not be dispatched at all.

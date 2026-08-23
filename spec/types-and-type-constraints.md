@@ -744,6 +744,8 @@ This null-freedom is enforced at multiple levels:
 2. **Type system**: No type satisfies the nullness constraint; the constraint itself is not supported.
 3. **Runtime**: All values have valid, non-null representations.
 
+The runtime statement holds of every Clef-typed value on every target pathway. On the JSIR pathway, `null` and `undefined` occur in the emitted artifact only at the boundary-representation and proven-erasure sites of [JavaScript Boundary Semantics §8](javascript-boundary.md) and [Option Operations Representation §2.1](option-operations-representation.md); no Clef-typed value holds either.
+
 **Representing Optional Values**:
 
 Where managed F# might use null to indicate absence, Clef uses `option<'T>`:

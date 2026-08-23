@@ -56,8 +56,8 @@ val sha1 : byte[] -> byte[]
 **Alex Witness Implementation:**
 - IntrinsicWitness pattern matches `SemanticKind.Intrinsic(Cryptography, "sha1")`
 - Witness emits the SHA-1 algorithm in portable dialects (`arith`, `memref`, `func`, `scf`, `index`) at the middle end; no target commitment
-- A backend leg realizes the portable form for its target: the LLVM dialect for a CPU/MCU leg, CIRCT for an FPGA leg, MLIR-AIE for an NPU leg
-- Alternatively, witness emits a portable `func.func` external declaration (`private`) for platform cryptography, which the CPU/MCU leg lowers to an `llvm.func` extern and links against the platform library
+- A target pathway realizes the portable form for its target: the LLVM dialect for a CPU/MCU pathway, CIRCT for an FPGA pathway, MLIR-AIE for an NPU pathway
+- Alternatively, witness emits a portable `func.func` external declaration (`private`) for platform cryptography, which the CPU/MCU pathway lowers to an `llvm.func` extern and links against the platform library
 
 **Example:**
 ```fsharp
@@ -117,7 +117,7 @@ let decoded = Cryptography.base64Decode "SGVsbG8="
 module Bits
 ```
 
-The Bits module provides byte order operations for network protocol handling. All operations are pure and lower to portable `arith` operations at the middle end; a backend leg may realize them as its target's byte-order intrinsic (the LLVM dialect's `llvm.intr.bswap` on a CPU/MCU leg).
+The Bits module provides byte order operations for network protocol handling. All operations are pure and lower to portable `arith` operations at the middle end; a target pathway may realize them as its target's byte-order intrinsic (the LLVM dialect's `llvm.intr.bswap` on a CPU/MCU pathway).
 
 ### 3.2 Byte Order Conversion
 
@@ -139,7 +139,7 @@ val htons : uint16 -> uint16
 - Witness queries platform quotation for byte order
 - Little-endian platforms: emits the byte swap in the portable `arith` form (shift, mask, or the two-byte gather), with no target commitment
 - Big-endian platforms: emits passthrough
-- A backend leg realizes the portable byte swap for its target: the LLVM dialect's `llvm.intr.bswap` for a CPU/MCU leg, an equivalent CIRCT construct for an FPGA leg
+- A target pathway realizes the portable byte swap for its target: the LLVM dialect's `llvm.intr.bswap` for a CPU/MCU pathway, an equivalent CIRCT construct for an FPGA pathway
 
 ```mlir
 // Middle end (portable arith), little-endian; swaps the two bytes of an i16:
@@ -150,7 +150,7 @@ val htons : uint16 -> uint16
 ```
 
 ```mlir
-// CPU/MCU backend leg realizes the portable swap as the LLVM intrinsic:
+// CPU/MCU target pathway realizes the portable swap as the LLVM intrinsic:
 %swapped = llvm.intr.bswap(%value) : i16
 ```
 
@@ -277,16 +277,16 @@ Alex generates appropriate code based on the platform:
 The IntrinsicWitness for Cryptography operations has two implementation strategies:
 
 1. **Inline witness** (preferred for freestanding):
-   - Witness emits the SHA-1/Base64 algorithms in portable dialects (`arith`, `memref`, `func`, `scf`, `index`); the backend leg realizes the portable form for its target
+   - Witness emits the SHA-1/Base64 algorithms in portable dialects (`arith`, `memref`, `func`, `scf`, `index`); the target pathway realizes the portable form for its target
    - No external dependencies
    - Larger binary size
    - Complete self-containment
 
 2. **External witness** (optional for console/desktop):
-   - Witness emits a portable `func.func` external declaration (`private`) for platform cryptography; the CPU/MCU leg lowers it to an `llvm.func` extern
+   - Witness emits a portable `func.func` external declaration (`private`) for platform cryptography; the CPU/MCU pathway lowers it to an `llvm.func` extern
    - Links against libcrypto (OpenSSL) or platform equivalent
    - Smaller binary
-   - External dependency (available only on a leg with an FFI boundary; a freestanding no-heap target has none)
+   - External dependency (available only on a pathway with an FFI boundary; a freestanding no-heap target has none)
 
 The choice is made via `.fidproj` configuration and flows through platform quotations:
 
@@ -329,7 +329,7 @@ IntrinsicWitness
     ↓
 MLIR Builder accumulates portable emissions
     ↓
-Backend leg (target commitment): LLVM dialect → Native Binary (CPU/MCU),
+Target pathway (target commitment): LLVM dialect → Native Binary (CPU/MCU),
                                  or CIRCT (FPGA), or MLIR-AIE (NPU)
 ```
 

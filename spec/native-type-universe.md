@@ -164,6 +164,8 @@ let checked = Checked.add System.Int32.MaxValue 1  // voption.None
  
 ```
 
+> **JSIR pathway** (JavaScript Substrate profile): the host number model is IEEE-754 binary64 with exact integers to 2⁵³. Integer realization on this pathway, including the wide-integer mechanism for widths above 53 bits and the preservation of fixed-width wrapping semantics, is specified in [Width Inference §8](width-inference.md). The full-word figures in this section are properties of layout-realizing pathways.
+
 ### 2.4 Floating Point Family
 
 | Type | F# Name | Size | MLIR Type | IEEE 754 |
@@ -572,6 +574,8 @@ for c in String.chars s do
 
 **Zero-Copy Slicing**: The fat pointer representation (pointer + length) enables zero-copy string slicing - substrings reference the same underlying bytes with adjusted pointer/length.
 
+> **JSIR pathway** (JavaScript Substrate profile): `string` is realized as a host string, whose internal encoding is UTF-16 code units. The observable semantics of this section bind unchanged: `String.byteLength` SHALL return the UTF-8 byte count, `String.chars` SHALL yield Unicode scalar values, and indexing SHALL be by codepoint. The fat-pointer layout and its cost figures are properties of layout-realizing pathways and do not bind on this pathway ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)).
+
 > **See**: Appendix E for encoding comparison with OCaml (Latin-1) and .NET (UTF-16).
 
 **API Changes (Null-Freedom Cascades)**:
@@ -703,6 +707,8 @@ option<'T>  (voption semantics)
 | **MLIR** | `!fidelity.option<T>` |
 
 **Stack-Only Guarantee**: Unlike heap-allocated options (cf. OCaml blocks, .NET reference types), Clef options are always stack-allocated with no GC involvement. This enables predictable memory layout for embedded targets and eliminates heap fragmentation from frequent option use.
+
+> **JSIR pathway** (JavaScript Substrate profile): the stack layout above is a property of layout-realizing pathways. On the JSIR pathway, `option<'T>` is realized erased or reified under a proof discipline, specified in [Option Operations Representation §2.1](option-operations-representation.md).
 
 > **See**: Appendix E for detailed OCaml/Rust comparison.
 

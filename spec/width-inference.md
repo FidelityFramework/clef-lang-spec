@@ -78,6 +78,9 @@ A genuine change of representation — narrowing a value to fewer bits than its 
 | FPGA (e.g. Arty A7-100T) | Registers / `seq.compreg` flip-flops sized to exact inferred width; shorter carry chains, less area. Posit or fixed-point selected per range. |
 | CPU | Inferred width rounded up to the nearest native integer size for arithmetic; the analyzed range still drives representation choice and overflow checking. |
 | NPU / GPU | Inferred width/representation informs tile/lane packing and accumulator selection. |
+| JavaScript (JSIR pathway) | Inferred widths at or below 32 bits realize as host numbers with integer semantics; widths in (32, 53] realize exactly as binary64-backed host numbers; widths above 53 require the pathway's documented wide-integer realization. Reals realize as binary64. |
+
+The JavaScript row rests on the host number model: IEEE-754 binary64, in which every integer of magnitude at most 2⁵³ is exact. Three consequences bind an implementation claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)). First, the wide-integer realization for widths above 53 bits (host `BigInt`, or a paired-word emulation) is implementation-defined and SHALL be documented ([Behavior Classification §2](behavior-classification.md)). Second, the no-narrowing clause of requirement 2 binds against that documented realization: a range that exceeds the exact envelope of the chosen realization SHALL be diagnosed under the coverage discipline of [Numeric Selection §2.1](numeric-selection.md), never silently realized in binary64. Third, the wrapping semantics of the fixed-width types ([Native Type Universe §2.3](native-type-universe.md)) SHALL be preserved observably, whatever realization carries them.
 
 Width inference is the *spatial* dimension of hardware lowering. It is necessary but not sufficient: a design may meet its width budget yet still violate timing through combinational depth, which a companion *pipeline* (temporal) inference addresses. The two are distinct analyses; this chapter specifies only the spatial one.
 
@@ -96,6 +99,7 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 5. **No silent default**: An unanalyzable range SHALL be reported as an error requesting annotation; the compiler SHALL NOT assume a default width.
 6. **Explicit conversion**: A representation change that loses information SHALL be explicit, SHALL record fidelity, and SHALL NOT be expressed as a polymorphic `'T -> Target` coercion.
 7. **No undefined overflow**: A conversion whose target cannot hold the source range SHALL be a compile-time error; runtime-narrowing conversions SHALL specify a rounding or saturation discipline.
+8. **JavaScript realization**: On the JSIR pathway, integer realization SHALL follow the JavaScript row of §8; the wide-integer mechanism SHALL be documented; a range exceeding the documented realization's exact envelope SHALL be diagnosed, not silently realized in binary64; fixed-width wrapping semantics SHALL be preserved observably.
 
 ## References
 

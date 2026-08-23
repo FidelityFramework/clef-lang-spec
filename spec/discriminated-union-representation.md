@@ -283,7 +283,7 @@ func.func @T.C.eliminate(%du: memref<?xi8>) -> P {
 }
 ```
 
-Key insight: elimination reinterprets the same storage bits under the case-specific layout. This is **transliteration** (same bits, different type interpretation), not translation. The concrete realization of that reinterpretation is a backend-leg concern: on the LLVM leg it is a `llvm.bitcast` to a case-specific `!llvm.struct` followed by `llvm.extractvalue` (see §10.2.1); another leg realizes the same field read its own way.
+Key insight: elimination reinterprets the same storage bits under the case-specific layout. This is **transliteration** (same bits, different type interpretation), not translation. The concrete realization of that reinterpretation is a backend-pathway concern: on the LLVM pathway it is a `llvm.bitcast` to a case-specific `!llvm.struct` followed by `llvm.extractvalue` (see §10.2.1); another pathway realizes the same field read its own way.
 
 ### 4.4 Multi-Field Case Eliminators
 
@@ -365,7 +365,7 @@ func.func @Number.IntVal.construct(%arena: memref<?xi8>, %val: i32) -> memref<?x
 }
 ```
 
-On the LLVM leg this lowers to a `llvm.bitcast` to `!llvm.struct<(i8, i32)>` followed by `llvm.insertvalue`/`llvm.store` (the mirror of §10.2.1); the `insertvalue`/`bitcast` forms belong to that leg.
+On the LLVM pathway this lowers to a `llvm.bitcast` to `!llvm.struct<(i8, i32)>` followed by `llvm.insertvalue`/`llvm.store` (the mirror of §10.2.1); the `insertvalue`/`bitcast` forms belong to that pathway.
 
 ---
 
@@ -600,7 +600,7 @@ At the portable middle-end level a DU value is a pointer into its storage block,
 %du : memref<?xi8>
 ```
 
-The `!llvm.ptr` form appears only after a backend leg (the LLVM/CPU/MCU leg) has been selected; it is a lowering of the portable form, not what the middle end emits. See §10.2.1 for the LLVM-leg realization.
+The `!llvm.ptr` form appears only after a target pathway (the LLVM/CPU/MCU pathway) has been selected; it is a lowering of the portable form, not what the middle end emits. See §10.2.1 for the LLVM-pathway realization.
 
 ### 10.2 Generated Functions
 
@@ -625,12 +625,12 @@ func.func @T.serialize(%writer: memref<?xi8>, %du: memref<?xi8>) -> i32
 func.func @T.deserialize(%reader: memref<?xi8>, %arena: memref<?xi8>) -> memref<?xi8>
 ```
 
-### 10.2.1 LLVM-Leg Realization
+### 10.2.1 LLVM-Pathway Realization
 
-After the LLVM backend leg is selected (CPU/MCU targets), the portable storage pointers lower to `!llvm.ptr` and the eliminator body realizes the case-specific interpretation with LLVM ops:
+After the LLVM target pathway is selected (CPU/MCU targets), the portable storage pointers lower to `!llvm.ptr` and the eliminator body realizes the case-specific interpretation with LLVM ops:
 
 ```mlir
-// LLVM leg only — after target commitment
+// LLVM pathway only — after target commitment
 func.func @Number.FloatVal.eliminate(%du: !llvm.ptr) -> f64 {
     // opaque !llvm.ptr: load the case-specific struct directly, no ptr bitcast
     %struct = llvm.load %du : !llvm.ptr -> !llvm.struct<(i8, i64)>
@@ -640,7 +640,20 @@ func.func @Number.FloatVal.eliminate(%du: !llvm.ptr) -> f64 {
 }
 ```
 
-A different leg realizes the same portable eliminator its own way (the FPGA/CIRCT leg as a field select over a hardware struct, for instance). The `llvm.bitcast` / `!llvm.ptr` forms belong to this leg, not to the middle end.
+A different pathway realizes the same portable eliminator its own way (the FPGA/CIRCT pathway as a field select over a hardware struct, for instance). The `llvm.bitcast` / `!llvm.ptr` forms belong to this pathway, not to the middle end.
+
+### 10.2.2 JSIR-Pathway Realization
+
+> This section binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
+
+The JSIR pathway realizes the generated-function surface of §10.2 over a host object in place of a storage block, under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md):
+
+1. A DU value SHALL be realized as a host object carrying a discriminant and the case payload.
+2. The discriminant value SHALL be the declaration-order case index of §2.2.1. This is the same index the §7.0 wire contract serializes, so a value's in-artifact discriminant and its wire tag agree by construction.
+3. `@T.tag` SHALL realize as a read of the discriminant, `@T.Cᵢ.eliminate` as reads of the payload, and `@T.Cᵢ.construct` as construction of the host object. No arena handle exists on this pathway: the host garbage collector owns placement, and every lifetime class of §3.1 has a home.
+4. Where a layout-realizing pathway elides the tag of a single-case union ([Native Type Universe §3.3](native-type-universe.md)), this pathway likewise realizes the value as its payload directly.
+5. The property names carrying the discriminant and the payload are implementation-defined and SHALL be documented ([Behavior Classification §2](behavior-classification.md)); the discriminant's value is fixed by item 2.
+6. Requirement 4 of §12 (tag integrity) binds emitted Clef code: the discriminant is written only by constructors. It does not extend to a host object that foreign code has held. A DU-shaped value returning from foreign code is foreign, and SHALL re-enter Clef only by narrowing ([JavaScript Boundary Semantics §3.2](javascript-boundary.md)).
 
 ### 10.3 Inlining Optimization
 
@@ -694,19 +707,19 @@ Storage: { tag: i8, slot: i64 }
          1 byte   8 bytes (holds both int64 and float64 bits)
 ```
 
-**Construction:** When the payload type differs from the slot type, the value is transliterated (same bits, reinterpreted) into the slot type before it is written into the field. In portable terms the constructor writes the payload field under the fixed slot layout; the reinterpretation itself has no portable op and is carried to the backend leg. On the LLVM leg it realizes as `arith.constant` followed by `llvm.bitcast` and `llvm.insertvalue`:
+**Construction:** When the payload type differs from the slot type, the value is transliterated (same bits, reinterpreted) into the slot type before it is written into the field. In portable terms the constructor writes the payload field under the fixed slot layout; the reinterpretation itself has no portable op and is carried to the target pathway. On the LLVM pathway it realizes as `arith.constant` followed by `llvm.bitcast` and `llvm.insertvalue`:
 
 ```mlir
-// FloatVal 3.14 construction — LLVM leg
+// FloatVal 3.14 construction — LLVM pathway
 %f = arith.constant 3.14 : f64
 %bits = llvm.bitcast %f : f64 to i64        // ← reinterpret into slot type
 %result = llvm.insertvalue %bits, %struct[1] : !llvm.struct<(i8, i64)>
 ```
 
-**Elimination:** Symmetric. Read the slot field, then reinterpret the raw bits as the payload type. On the LLVM leg:
+**Elimination:** Symmetric. Read the slot field, then reinterpret the raw bits as the payload type. On the LLVM pathway:
 
 ```mlir
-// FloatVal elimination — LLVM leg
+// FloatVal elimination — LLVM pathway
 %bits = llvm.extractvalue %struct[1] : i64   // ← raw slot bits
 %f = llvm.bitcast %bits : i64 to f64        // ← interpret as float
  
@@ -737,6 +750,8 @@ Storage: { tag: i8, slot: i64 }
 9. **Recursive Support**: DUs MAY contain cases with payloads of the same or other DU types.
 
 10. **Inlining Permitted**: Implementations MAY inline eliminators/constructors for optimization while preserving semantics.
+
+11. **JSIR-Pathway Realization**: On the JSIR pathway a union SHALL be realized per §10.2.2. Requirements 1 and 5 are requirements on layout-realizing pathways and bind pathways that realize memory layouts; the remaining requirements bind on every pathway, with placement discharged by the host garbage collector on this pathway.
 
 ---
 

@@ -84,7 +84,7 @@ The classification is visible and steerable at the call site. Three resolutions 
 [<RpcPriority(2)>]
 let response = inventory.PostAndReply (Query item)
 
-// 2. Refactor the leg to an asynchronous send, removing the wait-for edge.
+// 2. Refactor the call to an asynchronous send, removing the wait-for edge.
 inventory <! Query (item, replyTo)
 
 // 3. Opt the call out of the static guarantee into supervised execution.

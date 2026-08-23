@@ -321,7 +321,7 @@ This distinction determines whether the lowered code uses static dispatch (appli
 
 ### 8.1 CPU Target
 
-On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values. The `llvm.*` operations below are the CPU/MCU backend leg, not what the portable middle end emits. The middle end forms the stabilization control flow in portable dialects only (the staleness branch as `scf`/`cf`, the node struct and its fields as `memref` load and store), commits to no target, and hands that form to a backend leg. The LLVM leg shown here is one such target commitment; the NPU leg (§8.2) and GPU leg (§8.3) realize the same portable form differently. Read the block below as the LLVM leg's output after that commitment, not as middle-end output.
+On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values. The `llvm.*` operations below are the CPU/MCU target pathway, not what the portable middle end emits. The middle end forms the stabilization control flow in portable dialects only (the staleness branch as `scf`/`cf`, the node struct and its fields as `memref` load and store), commits to no target, and hands that form to a target pathway. The LLVM pathway shown here is one such target commitment; the NPU pathway (§8.2) and GPU pathway (§8.3) realize the same portable form differently. Read the block below as the LLVM pathway's output after that commitment, not as middle-end output.
 
 ```mlir
 // Stabilization check for a single node

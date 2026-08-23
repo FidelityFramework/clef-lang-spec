@@ -23,6 +23,8 @@ In managed F#, all types inherit from `System.Object` (aliased as `obj`). This e
 
 **Clef eliminates `obj` entirely.** There is no universal base type. The compiler SHALL reject any code that references `obj` or `System.Object`.
 
+The foreign pair of [JavaScript Boundary Semantics](javascript-boundary.md) (`JsValue`, `JsRef<'T>`) does not reintroduce a universal type, and this section's prohibition stands unchanged wherever that chapter is in force. The universal type's hazard is subsumption, the unmarked conversion that lets any value become the universal type silently; the pair participates in no subtyping relationship, its injection is explicit at declared boundary functions, and its only elimination is narrowing.
+
 ### Rationale
 
 | Managed F# Capability | Why It Requires `obj` | Clef Alternative |
@@ -331,9 +333,9 @@ Certain operations have direct hardware support that F# loops cannot match. CCS 
 
 ### Bit Manipulation Intrinsics
 
-The middle end emits each intrinsic as a target-agnostic operation. The LLVM-leg realization is the LLVM intrinsic shown below; other backend legs (CIRCT for FPGA, JSIR for JS) realize the same operation with their own target primitives.
+The middle end emits each intrinsic as a target-agnostic operation. The LLVM-pathway realization is the LLVM intrinsic shown below; other target pathways (CIRCT for FPGA, JSIR for JS) realize the same operation with their own target primitives.
 
-| Function | LLVM-leg realization | Description |
+| Function | LLVM-pathway realization | Description |
 |----------|---------------------|-------------|
 | `clz : uint32 -> int` | `llvm.ctlz.i32` | Count leading zeros |
 | `clz64 : uint64 -> int` | `llvm.ctlz.i64` | Count leading zeros (64-bit) |
@@ -344,11 +346,11 @@ The middle end emits each intrinsic as a target-agnostic operation. The LLVM-leg
 | `bswap : uint32 -> uint32` | `llvm.bswap.i32` | Byte swap |
 | `bswap64 : uint64 -> uint64` | `llvm.bswap.i64` | Byte swap (64-bit) |
 
-NORMATIVE: These functions SHALL lower to the target's native bit-manipulation primitive, not loop-based implementations. On the LLVM leg that primitive is the corresponding LLVM intrinsic shown above.
+NORMATIVE: These functions SHALL lower to the target's native bit-manipulation primitive, not loop-based implementations. On the LLVM pathway that primitive is the corresponding LLVM intrinsic shown above.
 
 ### Arithmetic Intrinsics
 
-| Function | LLVM-leg realization | Description |
+| Function | LLVM-pathway realization | Description |
 |----------|---------------------|-------------|
 | `mulhi : uint64 -> uint64 -> uint64` | (platform-specific) | High 64 bits of 128-bit product |
 | `addCarry : uint64 -> uint64 -> uint64 -> struct(uint64 * uint64)` | `llvm.uadd.with.overflow` | Add with carry in/out |
@@ -537,14 +539,14 @@ Clef Compiler Service (CCS) targets [native compilation via MLIR](backend-loweri
                       │
                       ▼ Portable dialects
 ┌─────────────────────────────────────────────────┐
-│  Backend Leg (target-committing)                │
-│  - LLVM leg: LLVM IR → CPU/MCU native binary    │
-│  - CIRCT leg: HW dialects → FPGA bitstream      │
-│  - JSIR leg: → JavaScript                        │
+│  Target Pathway (target-committing)             │
+│  - LLVM pathway: LLVM IR → CPU/MCU binary       │
+│  - CIRCT pathway: HW dialects → bitstream       │
+│  - JSIR pathway: → JavaScript module            │
 └─────────────────────────────────────────────────┘
 ```
 
-The MLIR optimization passes and everything above them stay portable; a target is committed only at the backend leg. LLVM is one leg, not the sole path.
+The MLIR optimization passes and everything above them stay portable; a target is committed only at the target pathway. LLVM is one pathway among several.
 
 ### Why IL Operations Are Not Stubbed
 
@@ -579,6 +581,8 @@ NORMATIVE: Clef has **no null values**. The `null` keyword and null checking ope
 - Pattern matching replaces null checks
 
 This is consistent with Clef's safety guarantees: no null pointer dereferences are possible because null cannot be expressed.
+
+On the JSIR pathway, `null` and `undefined` appear in the emitted JavaScript artifact only as boundary representations selected by generated code and as the proven `Option` erasure of [Option Operations Representation §2.1](option-operations-representation.md), per the confinement rule of [JavaScript Boundary Semantics §8](javascript-boundary.md). No Clef-typed value is `null` or `undefined` on any pathway.
 
 ### Removed IL Infrastructure
 

@@ -175,7 +175,9 @@ The following directives are valid in all files:
 
 ## Program Execution
 
-> **Clef Note**: Execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler: each value's storage is chosen at compile time by its lifetime class under the four-point lifetime lattice (scope-bounded to the stack, region-bounded to a region, program-lifetime to static storage, genuinely-dynamic to the heap), specified in [Closure Representation §3.3](closure-representation.md) and given its region-storage form in [Memory Regions](memory-regions.md). On a target without a heap, only the scope-bounded and program-lifetime classes have a home, and a value that classifies as dynamic is a compile-time lifetime error rather than a silent allocation.
+> **Clef Note**: On the native target pathways, execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler: each value's storage is chosen at compile time by its lifetime class under the four-point lifetime lattice (scope-bounded to the stack, region-bounded to a region, program-lifetime to static storage, genuinely-dynamic to the heap), specified in [Closure Representation §3.3](closure-representation.md) and given its region-storage form in [Memory Regions](memory-regions.md). On a target without a heap, only the scope-bounded and program-lifetime classes have a home, and a value that classifies as dynamic is a compile-time lifetime error rather than a silent allocation.
+>
+> On the JSIR pathway ([Backend Lowering Architecture](backend-lowering-architecture.md)), the artifact is a JavaScript module executed by a host runtime that supplies JIT compilation and garbage collection. The lifetime lattice still classifies every value at design time; the host collector realizes reclamation. The clauses of this chapter that presume a native binary are scoped to the native pathways; the JSIR-pathway entry contract is the module-export mode below.
 
 Execution of Clef code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
 
@@ -207,6 +209,8 @@ All definitions have observable initialization except for the following definiti
   - A use of a value that is defined in the same compilation unit and does not have observable initialization.
 
 If the execution environment supports concurrent execution of multiple threads, each static initializer runs as a mutual exclusion region. A static initializer runs only once, on the first thread that acquires entry to the mutual exclusion region.
+
+> **Clef Note (JSIR pathway)**: On the JSIR pathway the static initializer runs at module evaluation, once per host instantiation of the module. An isolate host MAY instantiate the module many times over a deployment's life and MAY restrict what module-evaluation code is permitted to do. "Once at program startup" therefore reads as "once per instantiation" on this pathway, in compilation order as on every other pathway, and a program SHALL NOT rely on the static initializer executing exactly once per logical deployment.
 
 For example, if the program accesses `data` in this example, the static initializer runs and the program prints "hello":
 
@@ -257,6 +261,7 @@ Clef supports multiple entry point modes, specified via `output_kind` in the pro
 | **Console** | `main` | Yes | Standard mode; libc provides `_start` which calls user's `main` |
 | **Freestanding (hosted ELF)** | `_start` | No | Hosted OS (Linux/ELF) without libc; compiler generates a `_start` wrapper that terminates via the exit syscall |
 | **Freestanding (bare-metal)** | reset vector | No | Bare metal (for example a thumbv8m/M33 target); the platform enters at the reset-vector entry, there is no `_start` and no exit syscall, and termination is a halt |
+| **Module export (JSIR pathway)** | exported bindings | No | The artifact is a JavaScript module; the host invokes exported handler functions and instantiates exported classes; there is no process entry and no exit code |
 | **Library** | None | Optional | Shared library with exported symbols |
 
 #### Freestanding Entry Point Generation
@@ -293,6 +298,16 @@ reset : unit -> unit                  // reset-vector entry; address recorded in
 ```
 
 > **Implementation Note**: `main`'s return value is the process exit code only where the platform has a process to exit. On a bare-metal target the return value has no OS recipient; a target descriptor MAY map it to a status register, an indicator, or nothing, and the entry does not return to any caller.
+
+#### Module-Export Entry (JSIR Pathway)
+
+> This subsection binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
+
+The JSIR pathway's artifact is a module, and its entry contract is the export convention of the host environment named by the managed-substrate descriptor ([Platform Bindings](platform-bindings.md)). The pathway SHALL emit the export glue, the analog of `_start` on this pathway: exported handler functions and exported classes derived from the program's declared entry surface. Control arrives when the host invokes an export, and each invocation is an entry; there is no single entry function, no `argc`/`argv`, and no exit code, since termination belongs to the host.
+
+The `EntryPoint` attribute's `array<string> -> int` shape does not apply on this pathway. A program compiled for this pathway declares its entry surface through the platform bindings of its host environment ([JavaScript Boundary Semantics §7](javascript-boundary.md)); values crossing inward at an entry invocation are foreign and are narrowed as at any boundary.
+
+> **Not yet specified.** The declaration form by which a program names its exported entry surface.
 
 #### Console Mode (libc)
 

@@ -198,7 +198,7 @@ The PSG node references the producer and the list of registered observer continu
 
 ### 7.1 CPU Target
 
-The CPU leg is one of several target legs the backend can select (alongside the CIRCT/FPGA and JS legs); it is the leg reached when the delivery context is a CPU or MCU. On it, emission lowers to a direct dispatch loop over the observer closures (no virtual dispatch, no managed callback). The loop structure and observer-array access are portable — the middle end expresses them in `scf`/`memref` and commits to no target:
+The CPU pathway is one of several target pathways the backend can select (alongside the CIRCT/FPGA and JS pathways); it is the pathway reached when the delivery context is a CPU or MCU. On it, emission lowers to a direct dispatch loop over the observer closures (no virtual dispatch, no managed callback). The loop structure and observer-array access are portable — the middle end expresses them in `scf`/`memref` and commits to no target:
 
 ```mlir
 // Emit value %v to all registered observers (portable middle-end form)
@@ -211,16 +211,16 @@ scf.for %i = %c0 to %n step %c1 {
 }
 ```
 
-Only the flat-closure invocation carries a construct with no portable form (a function address applied as data). On the LLVM leg specifically, the indirect call and the raw environment pointer realize as `llvm.*`:
+Only the flat-closure invocation carries a construct with no portable form (a function address applied as data). On the LLVM pathway specifically, the indirect call and the raw environment pointer realize as `llvm.*`:
 
 ```mlir
-// LLVM-leg realization of the flat-closure dispatch inside the loop body
+// LLVM-pathway realization of the flat-closure dispatch inside the loop body
 %obs_ptr = llvm.getelementptr %observer_ptrs[%i] : (!llvm.ptr, i64) -> !llvm.ptr
 %obs = llvm.load %obs_ptr : !llvm.ptr -> !llvm.ptr
 llvm.call %obs(%v) : (!result_type) -> ()
 ```
 
-Other legs realize the same indirect dispatch through their own lowering (a hardware-selected observer table on the CIRCT/FPGA leg, a closure object on the JS leg); the `scf`/`memref` loop above is shared across all of them.
+Other pathways realize the same indirect dispatch through their own lowering (a hardware-selected observer table on the CIRCT/FPGA pathway, a closure object on the JS pathway); the `scf`/`memref` loop above is shared across all of them.
 
 ### 7.2 Fusion into Incremental (Accelerator Path)
 

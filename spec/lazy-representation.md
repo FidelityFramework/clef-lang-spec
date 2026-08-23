@@ -116,9 +116,9 @@ func.func private @thunk_example(%env: memref<?xi64>) -> i64 {
 }
 ```
 
-A thunk with no captures (e.g., `lazy 42`) is still a `func.func`; its body reads nothing from the environment. The thunk's address is stored in the lazy struct as *data*, which has no portable operation. The middle end carries that conversion as a `builtin.unrealized_conversion_cast` (`func_type → index`) and defers the commitment to the backend leg, the same mechanism the flat closure uses for a function address (backend §4.2).
+A thunk with no captures (e.g., `lazy 42`) is still a `func.func`; its body reads nothing from the environment. The thunk's address is stored in the lazy struct as *data*, which has no portable operation. The middle end carries that conversion as a `builtin.unrealized_conversion_cast` (`func_type → index`) and defers the commitment to the target pathway, the same mechanism the flat closure uses for a function address (backend §4.2).
 
-The `llvm.func` / `llvm.mlir.addressof` form is one backend leg's realization of this thunk, not what the middle end emits. On the LLVM leg the closure-cast pass resolves the deferred casts into the target's pointer representation: the `func_type → index` cast becomes `llvm.ptrtoint`, and the `memref` capture read becomes a `getelementptr` + `load` in the target ABI. A different leg (CIRCT, SPIR-V, WebAssembly) resolves the same middle-end IR its own way.
+The `llvm.func` / `llvm.mlir.addressof` form is one target pathway's realization of this thunk, not what the middle end emits. On the LLVM pathway the closure-cast pass resolves the deferred casts into the target's pointer representation: the `func_type → index` cast becomes `llvm.ptrtoint`, and the `memref` capture read becomes a `getelementptr` + `load` in the target ABI. A different pathway (CIRCT, SPIR-V, WebAssembly) resolves the same middle-end IR its own way.
 
 ### 4.3 Alternative Considered: Parameter Passing
 
@@ -317,7 +317,7 @@ memref.store %b, %lazy[%c4] : memref<5xi64>
 // %lazy is the complete lazy value.
 ```
 
-The backend leg commits this to its ABI: on the LLVM leg the `memref` becomes an `!llvm.struct` with `insertvalue`/`store` at the same indices, and the deferred `func_type → index` cast becomes `llvm.ptrtoint` of the thunk's `llvm.func` address. That committed form is one leg's realization, not middle-end output.
+The target pathway commits this to its ABI: on the LLVM pathway the `memref` becomes an `!llvm.struct` with `insertvalue`/`store` at the same indices, and the deferred `func_type → index` cast becomes `llvm.ptrtoint` of the thunk's `llvm.func` address. That committed form is one pathway's realization, not middle-end output.
 
 ### 8.2 Force Operation
 
@@ -356,7 +356,7 @@ Force reads the `computed` flag, and either returns the cached value or calls th
 // %value is the forced result.
 ```
 
-The backend leg commits this: on the LLVM leg the `memref` reads become `extractvalue`/`load`, the `index → func_type` cast becomes `llvm.inttoptr`, and `func.call_indirect` becomes an indirect `llvm.call`. A different leg realizes the same middle-end IR its own way.
+The target pathway commits this: on the LLVM pathway the `memref` reads become `extractvalue`/`load`, the `index → func_type` cast becomes `llvm.inttoptr`, and `func.call_indirect` becomes an indirect `llvm.call`. A different pathway realizes the same middle-end IR its own way.
 
 ## 9. Memoization Strategy
 

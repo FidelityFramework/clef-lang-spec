@@ -150,7 +150,7 @@ The architecture uses a three-tier exposure model:
 
 **Level 1 (Default)**: Developers use standard F# type names.
 ```fsharp
-let x: int = 42  // CCS sees NTUint
+let x: int = 42  // CCS resolves NTUint
 let arr: array<int> = [| 1; 2; 3 |]
 ```
 
@@ -300,7 +300,7 @@ let linux_arm32: Expr<NTUResolutions> = <@
 
 ### 8.1 NTU to MLIR Type Mapping
 
-The middle end (Alex) emits only portable dialect types (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`) and commits to no target. Pointer-shaped NTU kinds map to the platform-sized `index` type, not to any target dialect. `NTUptr` in particular maps to `index` at the NTU level (Composer `TypeMapping.fs` maps `NTUptr`/`NTUfnptr` -> `TIndex`, which serializes as `index`). Target realization is a backend-leg concern: the LLVM leg lowers `index` to `!llvm.ptr` where a raw address is needed, the CIRCT/FPGA leg realizes it as a target-appropriate carrier, and constructs with no portable form (a function address taken as data, a raw environment pointer) are carried across the tier boundary as `builtin.unrealized_conversion_cast` and realized per leg.
+The middle end (Alex) emits only portable dialect types (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`) and commits to no target. Pointer-shaped NTU kinds map to the platform-sized `index` type, not to any target dialect. `NTUptr` in particular maps to `index` at the NTU level (Composer `TypeMapping.fs` maps `NTUptr`/`NTUfnptr` -> `TIndex`, which serializes as `index`). Target realization is a backend-pathway concern: the LLVM pathway lowers `index` to `!llvm.ptr` where a raw address is needed, the CIRCT/FPGA pathway realizes it as a target-appropriate carrier, and constructs with no portable form (a function address taken as data, a raw environment pointer) are carried across the tier boundary as `builtin.unrealized_conversion_cast` and realized per pathway.
 
 | NTU Type | MLIR Type (x86_64) | MLIR Type (ARM32) |
 |----------|-------------------|-------------------|
@@ -319,7 +319,7 @@ The middle end (Alex) emits only portable dialect types (`func`, `cf`, `scf`, `a
 | `NTUsize` | `index` | `index` |
 | `NTUdiff` | `index` | `index` |
 
-The `index` type is platform-sized: it resolves to a 64-bit value on x86_64 and a 32-bit value on ARM32 (and on thumbv8m/M33), so a single portable mapping carries the correct pointer width per target without the NTU level naming any concrete byte count. On a backend leg that needs a raw address rather than an index (the LLVM CPU/MCU leg), `index` is realized as `!llvm.ptr` during leg lowering. That realization is lossy and belongs to the leg, so it never appears in what the NTU or the middle end emits.
+The `index` type is platform-sized: it resolves to a 64-bit value on x86_64 and a 32-bit value on ARM32 (and on thumbv8m/M33), so a single portable mapping carries the correct pointer width per target without the NTU level naming any concrete byte count. On a target pathway that needs a raw address rather than an index (the LLVM CPU/MCU pathway), `index` is realized as `!llvm.ptr` during pathway lowering. That realization is lossy and belongs to the pathway, so it never appears in what the NTU or the middle end emits.
 
 ## 9. Conformance Requirements
 

@@ -88,7 +88,7 @@ MBS is the storage-facing form of a **durability coeffect** on the PSG, with thr
 - **atomic-write** — the value is written whole; no partial-write state is observable.
 - **sealed** — the value crosses the medium as ciphertext.
 
-Like the region, width, and representation coeffects, the durability coeffect is analyzed and carried in the middle end and committed by the target's backend leg, which selects the non-volatile medium, the atomic-write primitive, and the sealing capability. A target lacking non-volatile storage or a sealing capability is a capability failure at binding.
+Like the region, width, and representation coeffects, the durability coeffect is analyzed and carried in the middle end and committed by the target pathway, which selects the non-volatile medium, the atomic-write primitive, and the sealing capability. A target lacking non-volatile storage or a sealing capability is a capability failure at binding.
 
 ## 8. Relationship to Other Features
 

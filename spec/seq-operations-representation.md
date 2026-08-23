@@ -160,8 +160,8 @@ let mapped = Seq.map mapper innerSeq
 The wrapper creation **copies both `innerSeq` and `mapper` by value** into the wrapper struct:
 
 ```mlir
-// LLVM backend leg — committed dialect. NOT middle-end output; the middle end
-// emits this construction over portable memref/arith, and the LLVM leg commits
+// LLVM target pathway — committed dialect. NOT middle-end output; the middle end
+// emits this construction over portable memref/arith, and the LLVM pathway commits
 // the struct access to the target ABI (Backend Lowering Architecture §4.2).
 // Create MapSeq wrapper - COPIES both values
 %undef = llvm.mlir.undef : !map_seq_type
@@ -200,9 +200,9 @@ Both iterations work because each `for` expression copies `doubled` into its own
 When invoking the mapper/predicate, the closure is extracted from the wrapper and invoked per the flat closure convention:
 
 ```mlir
-// LLVM backend leg — committed dialect. NOT middle-end output; the middle end
+// LLVM target pathway — committed dialect. NOT middle-end output; the middle end
 // carries the closure extraction and indirect call over portable dialects, and
-// the LLVM leg commits them (Backend Lowering Architecture §4.2).
+// the LLVM pathway commits them (Backend Lowering Architecture §4.2).
 // In MapMoveNext:
 // 1. Extract mapper closure (value copy in struct)
 %mapper = llvm.extractvalue %wrapper[4] : !map_seq_type -> !closure_type
@@ -358,7 +358,7 @@ Unlike transformers, `Seq.fold` does **not** create a wrapper sequence. It immed
 let sum = Seq.fold (fun acc x -> acc + x) 0 source
 ```
 
-**Implementation** on the LLVM backend leg (committed dialect, not middle-end output). The middle end emits the loop over portable `scf`/`memref`/`arith` and carries the closure over portable dialects; the LLVM leg commits the `alloca`/`getelementptr`/`load`/`store` and the indirect `call` to the target ABI, per [Backend Lowering Architecture §4.2](../backend-lowering-architecture.md):
+**Implementation** on the LLVM target pathway (committed dialect, not middle-end output). The middle end emits the loop over portable `scf`/`memref`/`arith` and carries the closure over portable dialects; the LLVM pathway commits the `alloca`/`getelementptr`/`load`/`store` and the indirect `call` to the target ABI, per [Backend Lowering Architecture §4.2](../backend-lowering-architecture.md):
 ```mlir
 func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
     // Allocate source on stack for mutation

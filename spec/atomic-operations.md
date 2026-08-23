@@ -15,7 +15,7 @@ Clef follows a **layered exposure model** for concurrency primitives:
 |-------|----------|-----------|----------|
 | Application | Most developers | Actors, channels | Sequential consistency (implicit) |
 | Library | Framework implementers | `Atomic` module | Full ordering control |
-| Runtime | Fidelity internals | Portable atomic encoding, realized per backend leg | Platform-specific |
+| Runtime | Fidelity internals | Portable atomic encoding, realized per target pathway | Platform-specific |
 
 Application developers use actors and channels. Library developers use the `Atomic` module when implementing lock-free data structures. The complexity of memory ordering is contained to library implementations.
 
@@ -348,7 +348,7 @@ Atomic operations are CCS (Clef Compiler Service) intrinsics:
                 NativeType.TStruct [tvar; env.Globals.BoolType])))
 ```
 
-Alex emits a portable atomic encoding that preserves the memory-ordering annotation and commits to no target. Each backend leg then realizes it: the LLVM leg maps to LLVM atomic instructions with the corresponding ordering, the thumbv8m leg to `ldar`/`stlr` and the exclusive-monitor loop, and other legs to their own atomic primitives.
+Alex emits a portable atomic encoding that preserves the memory-ordering annotation and commits to no target. Each target pathway then realizes it: the LLVM pathway maps to LLVM atomic instructions with the corresponding ordering, the thumbv8m pathway to `ldar`/`stlr` and the exclusive-monitor loop, and other pathways to their own atomic primitives.
 
 ## Grammar
 

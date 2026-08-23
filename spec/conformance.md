@@ -74,6 +74,8 @@ A profile is used where a requirement is fully normative for the targets that ne
 
 A chapter or a section assigned to a profile states that assignment. Its requirements are normative for an implementation that claims the profile and do not apply to one that does not. The **Freestanding Substrate** profile carries the requirements a target must meet when it provides the services a hosting environment would otherwise supply — persistence ([Modular Blob Storage](modular-blob-storage.md)), the storage regions that back it ([Memory Regions](memory-regions.md)), and the scheduling and memory management the target owns in the absence of an operating system. A hosted implementation that delegates these to its environment does not claim the profile, and the profile's requirements do not bind it.
 
+The **JavaScript Substrate** profile carries the requirements that bind an implementation providing the JSIR target pathway ([Backend Lowering Architecture](backend-lowering-architecture.md)): the foreign-boundary semantics of [JavaScript Boundary Semantics](javascript-boundary.md), the JSIR-pathway realization sections of the representation chapters, and the integer realization policy of [Width Inference §8](width-inference.md). An implementation that provides no JavaScript pathway does not claim the profile, and the profile's requirements do not bind it.
+
 ## 8. Limits of conformance
 
 This specification does not require that a conforming implementation:

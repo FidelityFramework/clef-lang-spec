@@ -9,7 +9,7 @@ status: normative
 
 ## 1. Overview
 
-Numeric selection is the **real-valued sibling** of [Width Inference](width-inference.md). Width inference sizes an *integer* from the bit count its value range requires; numeric selection chooses the *representation* of a *real* — whether a value is best carried as a posit, an IEEE-754 float, or a fixed-point number — from that value's dimensional range. The two are halves of one discipline: representation follows from analyzed range, never from a target type name, and an unanalyzable range is a reported error, never a silent default.
+Numeric selection is the **real-valued counterpart** of [Width Inference](width-inference.md). Width inference sizes an *integer* from the bit count its value range requires; numeric selection chooses the *representation* of a *real* — whether a value is best carried as a posit, an IEEE-754 float, or a fixed-point number — from that value's dimensional range. The two are halves of one discipline: representation follows from analyzed range, never from a target type name, and an unanalyzable range is a reported error, never a silent default.
 
 The objective is a single, deterministic, compile-time function: for a real value with range `[a, b]` on a target offering a set of representations `R`, select the representation that minimizes worst-case relative error over the range. This is the objective sketched in [Width Inference §4](width-inference.md), made sound here by two side-conditions the bare form requires; the present chapter specifies it in full, including those side-conditions, the tiered provenance model for the range input, the unobservable-range contract split on dimensionedness, the capability-coeffect treatment of performance, the concrete/parameterized representation scope split, and the quire pass that realizes exact accumulation.
 
@@ -67,7 +67,7 @@ A consequence of correct posit modeling: **posits taper toward `1.0`, not toward
 
 ## 3. The Tiered Authority Model
 
-The range input `[a, b]` has exactly three provenances. These are **not** three selection algorithms — they are three provenances and bindingness levels of the *one* objective's input. All three feed the same selector and produce identical lowering: the pipeline treats every range claim identically regardless of provenance. The three tiers map onto the Level 1 / Level 2 / Level 3 inference ladder used throughout Clef (see [Incremental Computation §12](incremental-computation.md) and [Width Inference §5](width-inference.md)).
+The range input `[a, b]` has exactly three provenances. These are **not** three selection algorithms — they are three provenances and bindingness levels of the *one* objective's input. All three feed the same selector and produce identical lowering: the pipeline treats every range claim identically regardless of provenance. The three tiers map onto the Level 1 / Level 2 / Level 3 inference hierarchy used throughout Clef (see [Incremental Computation §12](incremental-computation.md) and [Width Inference §5](width-inference.md)).
 
 | Tier | Range source | Inference Level | Developer writes |
 |---|---|---|---|
@@ -96,7 +96,7 @@ The developer writes a concrete representation; the compiler runs selection *in 
 3. **Lower-tier claims become consistency obligations, not inputs to the selected range.** When a lower tier also produced a claim, the compiler checks containment `R_lower ⊆ R_binding` (within a tolerance; see §11). If the *observed* dataflow range `R₁` is not contained in a higher tier's declared range, that is a **diagnostic** — the dataflow observed values the domain library or seal claimed impossible (the real-valued analogue of integer overflow, a genuine bug signal). The diagnostic does **not** change the binding range.
 4. There is no empty-intersection state, because there is no intersection. Disagreement is always *binding-range-wins, lower-claim-flagged*, which makes composition total and decidable.
 
-This mirrors the Level-1/2/3 ladder (inferred → bounded → explicit, each level authoritative over the one below) as **monotone override with disagreement-witnessing**, not as a lattice meet.
+This mirrors the Level-1/2/3 hierarchy (inferred → bounded → explicit, each level authoritative over the one below) as **monotone override with disagreement-witnessing**, not as a lattice meet.
 
 ## 4. The `Fidelity.Physics` Mechanism (design sketch)
 
@@ -137,7 +137,7 @@ let gravForce (m1: float<kg>) (m2: float<kg>) (r: float<m>) : float<N> =
 
 The compiler infers `N` for free; the **range comes from Tier 2**, precisely because Tier 1 dataflow cannot lower-bound `r`. This is a Tier 2 success that depends on a library that is planned, not built.
 
-> **ML activation tuning.** A `Fidelity.ML` sibling ships an asymmetric posit configuration (asymmetric es/regime, exponent bias shifted to center precision on the activation mode, narrow range ≈ `[10⁻¹⁴, 10¹]`) so an ML author obtains the tuned representation without hand-deriving it. **The asymmetry is supplied as input, not as a second objective.** Rather than replacing §2's symmetric worst-case argmin with a distribution-weighted (expected-error) objective in the general selector, `Fidelity.ML` feeds the existing selector a **range already skewed to the activation density** (the narrow, bias-shifted interval above): the symmetric argmin run over that skewed range naturally selects the asymmetric, bias-shifted configuration, because the range endpoints it scores already sit where the distribution's mass is. This keeps the general selector single-objective and exact (Requirement 4), and confines the distribution knowledge to the Tier-2 library that owns it. A genuinely distribution-*weighted* objective — integrating expected error against an activation density rather than scoring a skewed range's worst case — remains a possible future refinement scoped strictly to the ML domain library (§14), but is not required for the shipped behavior.
+> **ML activation tuning.** A `Fidelity.ML` companion library ships an asymmetric posit configuration (asymmetric es/regime, exponent bias shifted to center precision on the activation mode, narrow range ≈ `[10⁻¹⁴, 10¹]`) so an ML author obtains the tuned representation without hand-deriving it. **The asymmetry is supplied as input, not as a second objective.** Rather than replacing §2's symmetric worst-case argmin with a distribution-weighted (expected-error) objective in the general selector, `Fidelity.ML` feeds the existing selector a **range already skewed to the activation density** (the narrow, bias-shifted interval above): the symmetric argmin run over that skewed range naturally selects the asymmetric, bias-shifted configuration, because the range endpoints it scores already sit where the distribution's mass is. This keeps the general selector single-objective and exact (Requirement 4), and confines the distribution knowledge to the Tier-2 library that owns it. A genuinely distribution-*weighted* objective — integrating expected error against an activation density rather than scoring a skewed range's worst case — remains a possible future refinement scoped strictly to the ML domain library (§14), but is not required for the shipped behavior.
 
 ## 5. Sealing and Reverse Selection
 
@@ -211,7 +211,7 @@ ML routing follows from this split: the Tier-2 library supplies the narrow range
 
 Numeric selection rides the same Program Semantic Graph coeffect frame that width inference uses for integers. The pattern to replicate, with honest cost annotations:
 
-1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a sibling `RepresentationSelection` coeffect beside the width-inference coeffect, computed during the same elaboration. *(Cheap: a new field and a new producer.)*
+1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a peer `RepresentationSelection` coeffect beside the width-inference coeffect, computed during the same elaboration. *(Cheap: a new field and a new producer.)*
 2. **Abstract sentinel at type-lowering.** Just as platform-word integers lower to an abstract width sentinel resolved at narrowing, reals lower to an abstract real/float sentinel resolved by a single `selectRepresentation` choke point into `posit<n, es, bias>`, IEEE `f32`/`f64`, or fixed-point. *(Moderate: a new sentinel and a new resolver; this hook does not exist for reals today.)*
 3. **Single resolver choke point**, analogous to integer narrowing.
 4. **Hard error on unobservability**, inherited and split on dimensionedness (§6).
@@ -227,11 +227,11 @@ Numeric selection rides the same Program Semantic Graph coeffect frame that widt
 - **Transcendentals** (`sqrt`, `log`, `exp`, `sin`) — the physics use cases need them.
 - **A terminating widening over a continuous lattice** — the integer monotone-widening fixpoint does not transfer; real interval widening needs an explicit **widening-with-thresholds** operator (`∇`) to guarantee termination. The thresholds SHALL be the dynamic-range boundaries `±dynrange(r)` of the target's concrete format set: when an interval loop variable expands past a threshold, the widening snaps it to that format boundary, so the analysis terminates in a number of steps bounded by the (finite) count of format boundaries rather than ascending a continuous chain. This couples termination to the same per-target format set that the §2 objective and §7 capability gate already range over — the widening introduces no thresholds of its own.
 
-This is a new abstract interpreter of research-grade weight, materially harder than the integer one it rides. "Same traversal" means the same graph walk and carriage, not the same transfer functions.
+This is a new abstract interpreter of research-grade weight, materially harder than the integer one it rides. "Same traversal" means the same graph traversal and carriage, not the same transfer functions.
 
 ### 9.2 The third reading of one PSG traversal
 
-Width inference is the *spatial* reading (bits per value); pipeline/combinational-depth inference is the *temporal* reading (chained operations per register boundary). Numeric selection is the *third* reading of the same PSG traversal: it consumes the dimensional range and selects a representation. As in §9.1, "same traversal" is the graph walk and carriage, not the transfer functions.
+Width inference is the *spatial* reading (bits per value); pipeline/combinational-depth inference is the *temporal* reading (chained operations per register boundary). Numeric selection is the *third* reading of the same PSG traversal: it consumes the dimensional range and selects a representation. As in §9.1, "same traversal" is the graph traversal and carriage, not the transfer functions.
 
 ## 10. The Preservation Chain and the Quire Pass
 
@@ -301,14 +301,14 @@ Warning: posit<32, es=2> dynamic range [1e-36, 1e36] does NOT cover the full
   Consider: float64 (covers the full range) or scaling to AU (fits posit range)
 ```
 
-The "rescale to AU" suggestion is itself a dimensional operation (1 AU ≈ 1.5 × 10¹¹ m; re-dimensioning brings the range into posit32 bounds). New diagnostic codes form a numeric-selection family (siblings of the width-inference and FPGA codes) and SHALL include at least: **coverage-empty** (`R_cov = ∅`), **near-zero degeneracy** (a range straddling zero with no representation resolving it under the ULP floor), **bare-source-unbounded-at-the-dimensioning-seam** (§6.1), **tier disagreement** (`R_lower ⊄ R_binding`, §3.4), **suboptimal seal** (§5), and **quire capability failure** (§10.2).
+The "rescale to AU" suggestion is itself a dimensional operation (1 AU ≈ 1.5 × 10¹¹ m; re-dimensioning brings the range into posit32 bounds). New diagnostic codes form a numeric-selection family (peers of the width-inference and FPGA codes) and SHALL include at least: **coverage-empty** (`R_cov = ∅`), **near-zero degeneracy** (a range straddling zero with no representation resolving it under the ULP floor), **bare-source-unbounded-at-the-dimensioning-seam** (§6.1), **tier disagreement** (`R_lower ⊄ R_binding`, §3.4), **suboptimal seal** (§5), and **quire capability failure** (§10.2).
 
 ## 12. Relationship to Other Features
 
-- **Width Inference** — numeric selection is the **real-valued sibling**: width inference sizes integers from their value range; numeric selection chooses the representation of reals from their dimensional range, via the same coeffect frame. The unified objective is stated in both chapters; see [Width Inference §4](width-inference.md).
+- **Width Inference** — numeric selection is the **real-valued counterpart**: width inference sizes integers from their value range; numeric selection chooses the representation of reals from their dimensional range, via the same coeffect frame. The unified objective is stated in both chapters; see [Width Inference §4](width-inference.md).
 - **Dimensional Type System** — the dimensional range is the principal input; see [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md). The dimension establishes the *kind*; the range establishes the *representation*.
 - **Native Type Universe** — selection refines the IEEE-default treatment of `float`/`float32`, which remain the bare lowering targets for wide or unobservable ranges (§6.1); see [Native Type Universe](native-type-universe.md).
-- **Incremental Computation** — the tiered authority model reuses the Level-1/2/3 inference ladder; see [Incremental Computation §12](incremental-computation.md).
+- **Incremental Computation** — the tiered authority model reuses the Level-1/2/3 inference hierarchy; see [Incremental Computation §12](incremental-computation.md).
 - **Negative types and reversibility** *(non-normative)* — a typed reversibility contract (negative types) is **orthogonal** to representation selection: it checks *structurally* and is representation-agnostic, so IEEE and posit alike satisfy it. Representation selection makes no promise of numerical reversibility; it provisions the precision envelope within which a reversible computation's residual stays bounded, and the quire's exact accumulation extends that horizon. A symplectic integrator typed via negative types and lowered with the quire is a client of both disciplines; that composition lives in a `Fidelity.Numerics` library, not in this chapter.
 
 ## 13. Normative Requirements

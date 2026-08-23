@@ -425,7 +425,7 @@ SeqStateMachine of {
 ```
 
 This explicit structure enables:
-- SSAAssignment to walk block nodes and assign SSAs normally
+- SSAAssignment to traverse block nodes and assign SSAs normally
 - CCSTransfer to witness structure without synthesis
 - Clear separation between semantic analysis and code generation
 
@@ -448,7 +448,7 @@ After saturation, the following additional invariants SHALL hold:
 1. **Synthetic completeness**: All constructs requiring runtime structure have explicit nodes
 2. **Block structure**: State machine blocks are explicit, traversable nodes
 3. **No deferred synthesis**: Code generators need not build structure during emission
-4. **SSA assignability**: All nodes can have SSAs assigned by walking structure
+4. **SSA assignability**: All nodes can have SSAs assigned by traversing structure
 
 ## 13. Enrichment
 

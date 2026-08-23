@@ -349,7 +349,7 @@ Application(Application(Var(greet), ["Hello"]), ["World"])
 This invariant means:
 - Fully-applied calls compile to direct multi-argument calls
 - No intermediate closures are created for fully-applied curried functions
-- Code generation sees all arguments at once
+- Code generation receives all arguments at once
 
 **Partial Application**: When a curried function is partially applied, the Application node contains only the supplied arguments, and the result type reflects the remaining curry:
 

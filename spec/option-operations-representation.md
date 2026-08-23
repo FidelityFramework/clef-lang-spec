@@ -36,6 +36,19 @@ option<'T>  (voption semantics)
 
 **Note**: Option has 2 cases, so the minimum tag is `i8` (1 byte). Platform policy MAY use larger tags for alignment efficiency on word-aligned architectures. The tag is NEVER `i1` (bit) because bits are not addressable and DU tags are case indices, not booleans.
 
+### 2.1 JSIR-Pathway Realization
+
+> This section binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
+
+The layout above is a commitment of layout-realizing pathways. On the JSIR pathway, under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md), `option<'T>` is realized in one of two forms, selected per instantiation at compile time:
+
+1. **Erased**: `Some x` is realized as the realization of `x`, and `None` as `undefined`. The erased form SHALL be selected only where the implementation proves that `undefined` cannot denote a `Some` payload: the payload type's realization SHALL NOT include `undefined` among its values, and a nested `option` SHALL be reified at every nesting level the proof cannot discharge.
+2. **Reified**: a host object carrying the §2 tag semantics (`None` = 0, `Some` = 1) and the payload. The reified form is always permitted.
+
+The selection is a compile-time property of each instantiation, settled before emission and read at emission; it SHALL NOT vary at runtime. The observable semantics of §3 and §4 (operation results, lazy defaults, vacuous truth) bind unchanged under either form.
+
+Erasure is an interior representation choice, not a boundary conversion. Absence crossing the JavaScript boundary is converted under [JavaScript Boundary Semantics §5](javascript-boundary.md), and an erased `None` that reaches an outbound boundary position is emitted as that position's selected representation, which need not be `undefined`.
+
 ## 3. Operation Classification
 
 ### 3.1 Primitive Operations (Alex Witnesses Directly)
@@ -333,13 +346,14 @@ Option operations are extremely lightweight:
 
 ## 6. Normative Requirements
 
-1. **Stack Allocation**: Option values SHALL always be stack-allocated (voption semantics)
-2. **Tag Encoding**: `None` = 0, `Some` = 1; tag width per platform policy (minimum `i8`)
-3. **No Null**: `None` is NOT represented as null pointer; it is a valid struct with tag=0
+1. **Stack Allocation**: On a pathway that realizes memory layouts, option values SHALL always be stack-allocated (voption semantics)
+2. **Tag Encoding**: On a pathway that realizes memory layouts, `None` = 0, `Some` = 1; tag width per platform policy (minimum `i8`)
+3. **No Null**: `None` SHALL NOT be represented as a null pointer; on a layout-realizing pathway it is a valid struct with tag=0, and on the JSIR pathway an erased `None` is `undefined` per §2.1, never `null`
 4. **Decomposition**: Option HOFs SHALL be decomposed by Baker to primitive operations
 5. **Lazy Defaults**: `defaultWith` and `orElseWith` SHALL only evaluate thunk when needed
 6. **Vacuous Truth**: `Option.forall` on `None` SHALL return `true`
-7. **Tag Is Not Boolean**: Tag MUST be at least `i8`, NEVER `i1`, because tags are case indices, not truth values
+7. **Tag Is Not Boolean**: On a pathway that realizes memory layouts, tag MUST be at least `i8`, NEVER `i1`, because tags are case indices, not truth values
+8. **JSIR-Pathway Realization**: On the JSIR pathway, `option<'T>` SHALL be realized erased or reified per §2.1, with the erased form selected only under the §2.1 proof; requirements 4, 5, and 6 bind on every pathway
 
 ## 7. Relationship to Result
 

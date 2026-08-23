@@ -125,7 +125,7 @@ Four widths arise in connection with a multivector, at four nested stages. Confo
 | Specification | $\beta$ is $2^n$ bits | This chapter |
 | Host | Mask storage, Cayley sign cache, QF_BV query width | Implementation, §3.3.2 |
 | MLIR | $\lvert\beta\rvert$ values at portable dialect types, carrying inferred widths | [Width Inference](width-inference.md), §5.2 |
-| Backend leg | The physical realization of each width | The leg, §5.5 |
+| Target pathway | The physical realization of each width | The pathway, §5.5 |
 
 $\beta$ is present on the Program Semantic Graph, is read by CCS during inference and by Alex during lowering, and is absent from the emitted MLIR. The boundary holds because §3.7 makes an unresolvable support an error and not a runtime fallback, so every $\beta$ is statically determined and nothing carries it past emission.
 
@@ -224,16 +224,16 @@ Generating the geometric product enumerates pairs $(A, B)$ with $A \in \beta_a$ 
 
 Where a value is declared with a wider support than the analysis derives, the compiler emits `CLEF9625` as an advisory and packs to the derived support.
 
-### 5.5 Leg realization
+### 5.5 Pathway realization
 
-The backend leg realizes the widths of §5.2. The same emitted MLIR is realized differently per leg, and neither this chapter nor the annotation records the difference.
+The target pathway realizes the widths of §5.2. The same emitted MLIR is realized differently per pathway, and neither this chapter nor the annotation records the difference.
 
-| Leg | Realization of a $w$-bit inferred coefficient |
+| Pathway | Realization of a $w$-bit inferred coefficient |
 |---|---|
 | LLVM (CPU, MCU) | Rounded up to a native integer or float size for arithmetic. The analyzed range still governs representation choice and overflow checking. |
 | CIRCT (FPGA) | Exactly $w$ flip-flops. A multivector's coefficients may carry as many distinct widths as they have distinct ranges, each narrowing its own carry chain. Posit or fixed-point per range. |
 
-Arbitrary width is the intent in both cases, realized exactly on the CIRCT leg and rounded on the LLVM leg. Component count $\lvert\beta\rvert$ is invariant across legs. Only the per-coefficient realization varies.
+Arbitrary width is the intent in both cases, realized exactly on the CIRCT pathway and rounded on the LLVM pathway. Component count $\lvert\beta\rvert$ is invariant across pathways. Only the per-coefficient realization varies.
 
 ## 6. Negative grade
 
@@ -258,7 +258,7 @@ A formal negative grade SHALL cancel before elaboration completes. A residual ne
 11. **Separate discharge.** The group-family and lattice-family constraints SHALL be discharged as independent queries. An implementation SHALL NOT issue a single combined query over both variable sets.
 12. **Component width independence.** The representation of each coefficient of a multivector SHALL be selected from that coefficient's analyzed range. An implementation SHALL NOT impose a single representation across a multivector's components in the absence of a range that justifies it.
 13. **Stage separation.** The blade support SHALL NOT appear in emitted MLIR or in the generated program. A conformance requirement SHALL NOT be stated in terms of a host type, an MLIR type, or a device resource, and a figure belonging to one of the four stages of §3.3.1 SHALL NOT be presented as governing another.
-14. **Leg invariance.** The component count $\lvert\beta\rvert$ SHALL be identical across backend legs for a given program. Only the per-coefficient realization of §5.5 varies by leg.
+14. **Pathway invariance.** The component count $\lvert\beta\rvert$ SHALL be identical across target pathways for a given program. Only the per-coefficient realization of §5.5 varies by pathway.
 
 ## 8. Open items
 
