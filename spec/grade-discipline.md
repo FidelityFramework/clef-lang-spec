@@ -154,8 +154,13 @@ The host row is contingent on two things that are scheduled to change: the machi
 | <code>a .&#124; b</code> | as `a * b`, restricted to $A \subseteq B$ or $B \subseteq A$ |
 | `grade<k> a` | $\beta_{\text{out}} = \{\, A \in \beta_a : |A| = k \,\}$ |
 | `~a`, `-a` | $\beta_{\text{out}} = \beta_a$ |
+| complement (dual) | $\beta_{\text{out}} = \{\, \{1..n\} \setminus A : A \in \beta_a \,\}$ |
+| `a ∨ b` (regressive product) | complement both operands, apply the `^` rule, complement the result; grade image $p + q - n$ where non-negative |
+| $k$-ary join $\wedge(a_1, \ldots, a_k)$ | fold of the `^` rule over the $k$ operand masks, computed over the hyperedge's source set with no intermediate node ([Program Hypergraph](program-hypergraph.md)) |
 
 On masks, symmetric difference is XOR. Addition is a bitwise OR. The product is an OR-reduction of $A \oplus B$ over the set bits of the two operand masks, bounded by $4^n$ bit operations and computable in $n\,2^n$ by an XOR-convolution. Every rule is a quantifier-free bitvector operation over a fixed-width bitvector and discharges in QF_BV. The bound is a compile-time cost and depends on no host or target word size.
+
+The complement is the combinatorial right complement, defined on index sets, so it exists in a degenerate algebra where the pseudoscalar has no inverse. On the mask it is an involutive permutation of bit positions, index $i$ to index $(2^n - 1) \oplus i$, fixed at algebra declaration; signs do not affect support. The regressive product's rule follows from the complement identity and stays in QF_BV. The $k$-ary join is definable as a fold of the binary rule because the outer product is associative; it is stated for the hyperedge form directly so that no intermediate node is introduced; a binarized join would type intermediate nodes that carry no geometric identity.
 
 No grade-indexed product table is required. Knowing that two operands are grade $p$ and grade $q$ leaves $|A \oplus B| = p + q - 2|A \cap B|$ undetermined, so a grade-indexed support would require a $(n{+}1)^2$ table of reachable grades to recover what the blade rule computes directly.
 
@@ -200,6 +205,8 @@ The annotation disciplines fall into two families. The group family (dimensional
 
 The two families range over disjoint sets of constraint variables. They are therefore discharged as two independent queries, and the composite cost is the sum of the two. An implementation SHALL NOT combine them into a single query: QF_BV is not stably infinite, so the classical Nelson-Oppen combination result does not license the combination, and no combination is needed because the variable sets do not meet.
 
+The two families above are the families this chapter's constraints occupy. Further annotation disciplines range over their own disjoint variable sets (enumeration sorts for memory dimensions discharge in QF_UF under the DTS treatment), and the rule extends unchanged: families are discharged as independent queries, and a hyperedge constraint whose fields span families SHALL decompose into per-family projections before discharge ([Program Hypergraph §4](program-hypergraph.md)).
+
 ## 5. Layout and lowering
 
 Blade support fixes the number of coefficients a multivector carries. It does not fix their widths.
@@ -232,8 +239,11 @@ The target pathway realizes the widths of §5.2. The same emitted MLIR is realiz
 |---|---|
 | LLVM (CPU, MCU) | Rounded up to a native integer or float size for arithmetic. The analyzed range still governs representation choice and overflow checking. |
 | CIRCT (FPGA) | Exactly $w$ flip-flops. A multivector's coefficients may carry as many distinct widths as they have distinct ranges, each narrowing its own carry chain. Posit or fixed-point per range. |
+| JSIR (JavaScript) | Binary64 host numbers per [Width Inference §8](width-inference.md): exact at or below 53 bits, the documented wide-integer realization above. Posit and fixed-point are software realizations on this pathway, available only as documented library forms. |
 
-Arbitrary width is the intent in both cases, realized exactly on the CIRCT pathway and rounded on the LLVM pathway. Component count $\lvert\beta\rvert$ is invariant across pathways. Only the per-coefficient realization varies.
+Arbitrary width is the intent on the pathways that realize layouts, achieved exactly on the CIRCT pathway and by rounding on the LLVM pathway; the JSIR pathway is binary64-bounded. Component count $\lvert\beta\rvert$ is invariant across pathways. Only the per-coefficient realization varies.
+
+The quire is not a native capability of the JSIR pathway. An accumulation whose exactness obligation the quire pass targets (§5.3) is, on that pathway, a capability question under the gate of [Numeric Selection §7](numeric-selection.md): a documented software realization or a diagnosed capability failure, never a silent binary64 fallback.
 
 ## 6. Negative grade
 
@@ -265,7 +275,8 @@ A formal negative grade SHALL cancel before elaboration completes. A residual ne
 - The parametricity claim of §2.4 requires discharge against the representation layer.
 - The multivector-derivative convention is unsettled, so the parity behaviour of a derivative node is specified only as the support over-approximation. See the amendment note for the Decidable by Construction paper.
 - The language server surface described in the PHG paper's §6.1 (grade resolution display, sparsity profile) is not specified here and is tracked separately.
-- The interaction between blade support and the BAREWire schema discipline at process boundaries is unspecified. A packed multivector's wire layout depends on its support, and two peers must agree on it. [NTU Dimensional Architecture §7.3](ntu-dimensional-architecture.md#73-barewire-contract-verification) raises the same question for resolved widths, and the resolution is likely the same.
+- The interaction between blade support and the BAREWire schema discipline at process boundaries is unspecified. A packed multivector's wire layout depends on its support, and two peers must agree on it. [NTU Dimensional Architecture §7.3](ntu-dimensional-architecture.md#73-barewire-contract-verification) raises the same question for resolved widths, and the resolution is likely the same. The intended resolution is containment against a declared mask (PHG paper §8.9): the schema declares the support, a sender's derived support lies within the declaration, widening to the declared mask is sound in the containment direction of §3.2, and a derived support exceeding the declaration is diagnosed at the producing endpoint.
+- The sandwich product's grade preservation holds for versor operands and not for arbitrary even multivectors, and versor-ness (an even element whose product with its own reversion is a scalar) is a value-level property that neither parity nor the blade mask carries. The candidate carrier is a nominal versor type whose constructors (bivector exponentials, products of unit vectors, checked normalization) are the discharge sites. Tracked with the metatheory agenda of the PHG paper §8.3; until it is settled, a sandwich typed through the binary rules of §3.4 carries the sound over-approximate support, not the theorem-narrow one.
 
 ## References
 

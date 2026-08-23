@@ -12,6 +12,8 @@ status: normative
 
 The [Program Semantic Graph (PSG)](https://arxiv.org/abs/2603.17627) is the unified intermediate representation produced by CCS (Clef Compiler Service). It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
 
+The PSG's binary edges generalize to directed hyperedges of arbitrary source arity in the [Program Hypergraph](program-hypergraph.md); every valid PSG is a valid PHG under the single-source embedding, and every discipline of this chapter applies unchanged to binary hyperedges. Constraints that are genuinely multi-way are specified there.
+
 ### 1.1 Architectural Heritage
 
 The PSG draws on the **nanopass** tradition established in Standard ML and Scheme compiler research. Where traditional compilers make large, monolithic transformations between representations, nanopass architecture decomposes compilation into many small, single-purpose passes, each doing one thing well.

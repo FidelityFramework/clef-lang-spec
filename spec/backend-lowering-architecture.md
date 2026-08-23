@@ -32,7 +32,7 @@ F# Source → CCS (Clef Compiler Service) → PSG → Alex → MLIR (portable di
                                                    commits to no target        commits to one target
 ```
 
-The tier boundary is *portable-versus-target-specific*, not *MLIR-versus-LLVM*. LLVM is one target pathway among several: an LLVM serializer handles CPU and MCU targets, a CIRCT path handles FPGA targets, and a JSIR serializer handles the JavaScript target. CIRCT and JSIR are also MLIR, but they are *target-specific* MLIR, so they live in the backend for the same reason the LLVM serializer does. What separates the tiers is the commitment, not the technology. The artifact class is part of the pathway's commitment: a native binary from the LLVM pathway, a bitstream from the CIRCT pathway, a JavaScript module from the JSIR pathway.
+The tier boundary is *portable-versus-target-specific*. While LLVM is the first target we built for, it is one target pathway among several: for instance, an LLVM serializer handles CPU, WASM and MCU targets, a CIRCT path handles FPGA targets, an MLIR-AIE path handles NPU tile-array targets, and a JSIR serializer handles the JavaScript target. CIRCT, MLIR-AIE, and JSIR are also MLIR, but they are *target-specific* MLIR, so they live in the backend for the same reason the LLVM serializer does. What separates the tiers is the commitment, not the technology. The artifact class is part of the pathway's commitment: a native binary from the LLVM pathway, a bitstream from the CIRCT pathway, an NPU binary from the MLIR-AIE pathway, a JavaScript module from the JSIR pathway.
 
 A target commitment is lossy. Whatever a program's semantics carries that the chosen target's model cannot express is destroyed the moment the commitment is made, and no other target pathway can recover it. The middle end's job is therefore *information preservation*: it holds full semantic content in a form every pathway can still read, so each backend commits from complete information. Emitting an `llvm.*` operation in the middle end is a category error rather than a stylistic one, because it commits to LLVM and forecloses every other pathway. The same is true of a CIRCT hardware operation in the middle end.
 
@@ -49,7 +49,7 @@ The middle end emits only portable dialects:
 | `memref` | Memory and layout | `memref.alloca`, `memref.global`, `memref.load`, `memref.store` |
 | `index` | Target-word integers | `index.constant`, `index.casts` |
 
-These dialects lower to any target pathway: LLVM, CIRCT, JSIR, SPIR-V, WebAssembly.
+These dialects lower to any target pathway: LLVM, CIRCT, MLIR-AIE, JSIR, SPIR-V, WebAssembly.
 
 ### 2.2 Constructs With No Portable Representation
 
@@ -212,4 +212,4 @@ The JSIR pathway takes no `word_size`: it realizes no byte layouts (§4.5), and 
 6. **Deferred cast resolution**: a target pathway SHALL resolve the `func_type ↔ index` and `index → memref` closure casts into its own pointer representation; for the LLVM pathway this resolution SHALL run after standard dialect conversions and before `--reconcile-unrealized-casts`
 7. **Platform configuration flow**: `fidproj` platform settings, including `word_size`, SHALL inform all lowering decisions; pointer and word width SHALL be taken from the selected target's `word_size` and SHALL NOT be assumed to be 64-bit
 8. **Carrier realization**: a target pathway SHALL realize the portable storage carriers and their access operations in its own value model, MAY read the Program Semantic Graph's type structure during that realization, and SHALL preserve every structural requirement the representation chapters state; the layout figures of the representation chapters SHALL bind only pathways that realize memory layouts (§4.5)
-9. **Artifact class**: the artifact class a pathway produces is part of its commitment: a native binary on the LLVM pathway, a bitstream on the CIRCT pathway, a JavaScript module on the JSIR pathway
+9. **Artifact class**: the artifact class a pathway produces is part of its commitment: a native binary on the LLVM pathway, a bitstream on the CIRCT pathway, an NPU binary on the MLIR-AIE pathway, a JavaScript module on the JSIR pathway

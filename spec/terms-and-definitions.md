@@ -29,7 +29,7 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **Composer** — the compiler that lowers the saturated graph through its middle end to target backends. Distinct from CCS (the front end) and from any one backend.
 
-**target pathway** — a target-committing serialization pathway off the portable middle end; the point at which a target commitment is made and an artifact class is fixed. The LLVM pathway (CPU/MCU), the CIRCT pathway (FPGA), and the JSIR pathway (JavaScript) are target pathways. Defined in [Backend Lowering Architecture](backend-lowering-architecture.md).
+**target pathway** — a target-committing serialization pathway off the portable middle end; the point at which a target commitment is made and an artifact class is fixed. The LLVM pathway (CPU/MCU), the CIRCT pathway (FPGA), the MLIR-AIE pathway (NPU tile arrays), and the JSIR pathway (JavaScript) are target pathways. Defined in [Backend Lowering Architecture](backend-lowering-architecture.md).
 
 **Alex** — the Composer middle-end component that witnesses the saturated graph and lowers it to MLIR; the "Library of Alexandria" that holds the platform-resolving lowerings. Introduced in [Backend Lowering Architecture](backend-lowering-architecture.md).
 
@@ -43,7 +43,7 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **Program Semantic Graph (PSG)** — the graph carrying a program's structure and its design-time facts (dimensions, ranges, grades, coeffects, escape classes) as annotations, preserved through lowering. Defined in [Program Semantic Graph](program-semantic-graph.md).
 
-**Program Hypergraph (PHG)** — the PSG extended with hyperedges that bind multiple nodes at once, for constraints that are genuinely multi-way (e.g. co-location on a hardware tile, the join of several geometric elements) and that a set of pairwise edges would assert strictly more weakly.
+**Program Hypergraph (PHG)** — the PSG extended with hyperedges that bind multiple nodes at once, for constraints that are genuinely multi-way (e.g. co-location on a hardware tile, the join of several geometric elements) and that a set of pairwise edges would assert strictly more weakly. Defined in [Program Hypergraph](program-hypergraph.md).
 
 **coeffect** — context a computation requires, carried as codata on the graph beside the value (as distinct from an effect a computation produces). Representation selection, memory residency, and the quire allocation are carried as coeffects.
 
