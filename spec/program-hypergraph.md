@@ -50,12 +50,12 @@ Hyperedge constraints SHALL be discharged in the same solver families as the nod
 
 A hyperedge is an analysis-time structure. It participates in saturation and constraint discharge; it is not a query target for code generation.
 
-1. A hyperedge's consequence SHALL reach emission in exactly one of two forms: as saturated annotations on the nodes it governs, read as codata during lowering ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)), or as a reified operation or attribute set that carries the annotation into the emitted IR itself.
+1. A hyperedge's consequence SHALL reach emission in exactly one of two forms: as saturated annotations on the nodes it governs, read as codata during lowering ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)), or as a reified annotation, an attribute set on emitted operations that a later pass consumes.
 2. The emission traversal SHALL NOT query the hyperedge set. The zipper elides only what the graph has already saturated ([Closure Representation §11](closure-representation.md)); its context is positional, and every semantic fact it consumes is node-local codata or reified structure.
 3. A backend pass that consumes a multi-way constraint (a partitioner consuming co-location constraints, a tile-assignment pass) SHALL consume the reified annotation, not the graph hyperedge.
 4. The stage separation of [Grade Discipline §3.3.1](grade-discipline.md) applies to every hyperedge annotation: present on the PHG, read during lowering, absent from emitted MLIR except where reified deliberately under item 1.
 
-> **Clef Note**: The two forms of item 1 are one rule with two carriers. Node-local codata serves an annotation whose consequence is local (a settled support, an escape class). Reification serves an annotation whose consequence must survive into the IR as joint structure: a $k$-ary geometric operation in a dialect that carries grade as an operation attribute, or a co-location annotation on the operations a partitioner groups. In both carriers the traversal that emits code remains local, and the hypergraph remains behind the emission boundary.
+> **Clef Note**: The two forms of item 1 are one rule with two carriers. Node-local codata serves an annotation whose consequence is consumed at emission (a settled support directing sparse generation, an escape class directing placement). Reification serves an annotation a backend pass must still consume after emission: the co-location annotation on the operations a partitioner groups is the standing instance. A $k$-ary geometric operation needs neither carrier to survive emission: its joint structure is consumed by generation, which emits the sparse arithmetic directly ([Grade Discipline §5.3](grade-discipline.md)). In both carriers the traversal that emits code remains local, and the hypergraph remains behind the emission boundary.
 
 ## 6. Domain Instances
 
@@ -77,7 +77,7 @@ A hyperedge is an analysis-time structure. It participates in saturation and con
 4. **Termination**: Hyperedge saturation SHALL be monotone and SHALL terminate.
 5. **No pairwise weakening**: A multi-way constraint SHALL NOT be discharged, approximated, or diagnosed as the conjunction of its pairwise projections.
 6. **Per-family discharge**: A hyperedge constraint spanning solver families SHALL decompose into per-family projections before discharge; no combined query SHALL be issued.
-7. **Emission transport**: A hyperedge's consequence SHALL reach emission only as saturated node-local codata or as a reified operation or attribute set; the emission traversal SHALL NOT query the hyperedge set; a backend pass SHALL consume reified annotations only.
+7. **Emission transport**: A hyperedge's consequence SHALL reach emission only as saturated node-local codata or as a reified annotation (an attribute set on emitted operations); the emission traversal SHALL NOT query the hyperedge set; a backend pass SHALL consume reified annotations only.
 8. **Diagnosis**: An undischargeable hyperedge constraint SHALL be diagnosed at design time under [Conformance §5](conformance.md).
 
 ## 8. Related Chapters
