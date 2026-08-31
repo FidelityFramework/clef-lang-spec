@@ -614,6 +614,28 @@ type PatternBindingAnalysis = {
 }
 ```
 
+#### 14.3.5 Escape and Lifetime Classification
+
+Escape analysis classifies each value against the four-point lifetime lattice and records the classification as a coeffect the allocation-emitting passes read. The classification, its lattice, and the no-heap discipline are specified in [Closure Representation §3.3](closure-representation.md); as a design-time property it is subject to the [preservation obligation through lowering](conformance.md).
+
+#### 14.3.6 Platform Binding Resolution
+
+Platform binding resolution maps each platform intrinsic application to the target symbol and calling convention declared for the selected target ([Platform Bindings](platform-bindings.md)), computed once before emission.
+
+#### 14.3.7 Carried-Property Coeffects
+
+Several chapters state properties that ride the PSG as coeffects and are committed at target binding. This section is their index; each is specified where cited:
+
+| Coeffect | Specified in |
+|---|---|
+| Region reachability | [Memory Regions](memory-regions.md), [Grade Discipline §4.1](grade-discipline.md) |
+| Width | [Width Inference](width-inference.md) |
+| Representation selection | [Numeric Selection](numeric-selection.md) |
+| Durability (survives-power-loss, atomic-write, sealed) | [Modular Blob Storage §7](modular-blob-storage.md) |
+| Chained, replayable | [Namespace Storage §5](namespace-storage.md) |
+
+Where a coeffect carries a property this specification requires, proof obligations over that property ride the graph with it, in the manner of [Modular Blob Storage §5.2](modular-blob-storage.md), and discharge is governed by the [diagnostic and preservation obligations](conformance.md).
+
 ### 14.4 Demand-Driven Computation
 
 **NORMATIVE**: Coeffect analyses SHOULD be demand-driven.
@@ -624,6 +646,9 @@ type PatternBindingAnalysis = {
 | Mutable bindings | Mutability analysis |
 | Match expressions | Pattern binding analysis |
 | Any bindings | SSA assignment |
+| Closures, captured or escaping values | Escape and lifetime classification |
+| Platform intrinsic applications | Platform binding resolution |
+| Durable values (Freestanding Substrate profile) | Durability coeffect carriage |
 
 This principle ("only pay for what you use") ensures compilation efficiency.
 

@@ -30,6 +30,8 @@ The following memory regions are defined:
 
 `Sram` and `Flash` are also the *static storage* of the [lifetime lattice](closure-representation.md): a value whose lifetime is the whole program (constructed once, held to program end, never freed) is placed in `Sram` when mutable or `Flash` when immutable, as a program-lifetime global rather than a heap allocation. A fixed-address `Peripheral` register is already a program-lifetime global of this kind; a program-lifetime closure, list, or record is the same, and lives in the same static storage. This is what lets a target without a heap still hold a value that outlives its constructing scope.
 
+The lattice extends one rung past the process on targets that claim the Freestanding Substrate profile: [Modular Blob Storage](modular-blob-storage.md) persists values that outlive a program run, and [Namespace Storage](namespace-storage.md) layers names and history above it. Both are placed through the regions of this chapter — sealed records in non-volatile storage, working sets in bounded RAM — and both carry their durability as a coeffect committed at target binding.
+
 ### Stack
 
 Stack-allocated values have automatic lifetime bounded by their lexical scope.
@@ -100,6 +102,8 @@ Arena.reset &arena  // Position back to 0
 - Cache-friendly locality
 - Scope-bounded lifetime
 - Backing memory comes from the stack, from static storage (`Sram`/`Flash`), or, where the target has one, from the heap. A target without a heap backs arenas with stack or static storage only.
+
+The `{ Base, Capacity, Position }` layout states the allocation discipline as checkable facts: every allocation advances `Position` by the requested (aligned) size, and `Position` never exceeds `Capacity`. An implementation's allocation emission is subject to the [preservation and diagnostic obligations](conformance.md) over exactly these facts.
 
 ### Peripheral
 
@@ -175,7 +179,9 @@ let wrong : Ptr<int, Stack, ReadWrite> = peripheralPtr
 
 ## Lifetime Constraints
 
-> **DEFERRED**: Detailed lifetime verification rules will be specified in a future revision covering ownership and borrowing semantics.
+Lifetime verification in Clef is coeffect discipline carried on the Program Semantic Graph, with no ownership or borrowing annotations in the source language. The normative floor is in place: every value is classified against the four-point lifetime lattice by escape analysis ([Closure Representation §3.3](closure-representation.md)), placement follows the classification, a classification with no home on the selected target is diagnosed at compile time, and the classification is subject to the preservation and introduction obligations of [Conformance §6](conformance.md).
+
+The rules that remain to be specified are the **lifetime orderings**: that a region outlives every value placed in it, and that every use of a value falls within its region's extent. These are orderings over the lattice, decidable facts stated and discharged as proof obligations that ride the PSG with the escape coeffect ([Program Semantic Graph §14.3](program-semantic-graph.md)). A future revision of this chapter SHALL state the ordering rules and their obligation forms; the mechanism is fixed as coeffect-and-obligation discipline, and no ownership or borrowing vocabulary is planned.
 
 ## Target Reachability
 
