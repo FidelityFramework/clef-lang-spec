@@ -95,7 +95,7 @@ Like the region, width, and representation coeffects, the durability coeffect is
 - [Memory Regions](memory-regions.md) — the sealed medium, the index, and the secure working region are distinct regions with distinct access kinds; MBS storage is placed by region and lifetime.
 - [Closure Representation](closure-representation.md) — the lifetime lattice's program-lifetime point places the store's own structure; MBS extends persistence one rung further, to lifetimes that outlive the process.
 - [Credential Authority](credential-authority.md) — the layer that mints, derives, and delegates the credentials MBS persists.
-- **Server-scale generalization** — an open-namespace document store is the same durability coeffect over an open set of objects, with the filesystem layers built up. It is future work; MBS is the closed, fixed-slot floor beneath it.
+- [Namespace Storage](namespace-storage.md) — the layer above: names, history, and growth as an append-only ledger checkpointed into sealed segments, all stored as MBS records. Its §7 carries the server-scale generalization; MBS is the closed, fixed-slot floor beneath both.
 
 ## 9. Normative Requirements
 

@@ -168,8 +168,8 @@ This desugaring to nested lambdas provides continuation semantics as notation. T
 
 | Pattern | Compilation Strategy |
 |---------|---------------------|
-| Sequential effects (async, state) | Preserve continuations (DCont dialect) |
-| Parallel pure (validated, reader) | Compile to data flow (Inet dialect) |
+| Sequential effects (async, state) | Preserve continuations (DCont regime; `ContStateMachine` on the PSG, [DCont Representation](dcont-representation.md) §6) |
+| Parallel pure (validated, reader) | Compile to data flow (Inet regime) |
 
 ### Normative Requirements
 
