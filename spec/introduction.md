@@ -33,7 +33,7 @@ CCS is not an extension or plugin to FCS. It is a separate compiler frontend wit
 | Aspect | FCS (Standard F#) | CCS (Clef) |
 |--------|-------------------|------------------|
 | **Type Universe** | BCL types (`System.String`, `System.Int32`) | Native representations (same syntax, native semantics) |
-| **String Literals** | `System.String` (UTF-16, GC-managed) | `string` with native semantics (UTF-8, fat pointer) |
+| **String Literals** | `System.String` (UTF-16, GC-managed) | `string` with native semantics (UTF-8, a `memref<?xi8>` view) |
 | **Option Types** | Reference type, nullable | `option<'T>` with value semantics, stack-allocated, non-nullable |
 | **SRTP Resolution** | .NET method tables | Native witness hierarchy |
 | **Base Type** | `System.Object` (`obj`) | None - no universal base type |
@@ -66,7 +66,7 @@ CCS produces a PSG with native types attached and full symbol information preser
 
 ### Normative Requirements
 
-NORMATIVE: CCS SHALL resolve `string` to native semantics (UTF-8 fat pointer), not `System.String`.
+NORMATIVE: CCS SHALL resolve `string` to native semantics (a UTF-8 `memref<?xi8>` view whose length is its dimension), not `System.String`.
 
 NORMATIVE: CCS SHALL resolve `option<'T>` to value semantics (stack-allocated, non-nullable), not reference semantics.
 
@@ -421,9 +421,9 @@ Clef uses the same syntax as standard F#, but types have native semantics:
 
 | F# Syntax | Standard F# | Clef |
 |-----------|-------------|-----------|
-| `string` | `System.String` (UTF-16) | UTF-8 fat pointer |
+| `string` | `System.String` (UTF-16) | UTF-8 `memref<?xi8>` view |
 | `option<'T>` | Reference type, nullable | `voption<'T>`, stack-allocated, non-nullable |
-| `array<'T>` | `System.Array` | Fat pointer `{ptr, len}` |
+| `array<'T>` | `System.Array` | `memref<?xT>` view (buffer and extent) |
 | `int` | Fixed 32-bit | Platform word size |
 
 > **See**: [Native Type Mappings](native-type-mappings.md) for the complete type mapping specification.

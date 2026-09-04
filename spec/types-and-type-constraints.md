@@ -227,18 +227,18 @@ ty [ , ... , ]
 
 A type of the form `ty []` is a _single-dimensional array_ type, and a type of the form `ty[ , ... , ]` is a _multidimensional array type_. For example, `int[,,]` is an array of integers of rank 3.
 
-> **Clef Note**: Arrays in Clef use a fat pointer representation, NOT `System.Array`:
+> **Clef Note**: An array in Clef is a `memref<?xT>` view, NOT `System.Array`. In an aggregate it occupies two words, a base `index` into its buffer and an `index` extent:
 >
 > ```
 > array<'T>
 > ┌─────────────────┬─────────────────┐
-> │ ptr: *T         │ len: usize      │
+> │ base: index     │ extent: index   │
 > └─────────────────┴─────────────────┘
 >      1 word            1 word        = 2 words (header)
 >                                      + len * sizeof<'T> (elements)
 > ```
 >
-> Elements are laid out contiguously with natural alignment. Bounds checking is always performed (no unsafe indexing by default). Empty arrays have `len = 0` with a valid pointer - arrays are never null.
+> Elements are laid out contiguously with natural alignment. Bounds checking is always performed (no unsafe indexing by default). An empty array has extent 0 over a valid buffer; arrays are never null.
 
 > Note: The type `int[][,]` in F# is the same as the type `int[,][]` in C# although the dimensions are swapped. This ensures consistency with other postfix type names in F# such as `int list list`.
 
@@ -675,7 +675,7 @@ of the type variable.
 | **Static Type** | **Structural Category** | **Notes** |
 |-----------------|------------------------|-----------|
 | Abstract types  | Abstract | Must be inherited; no direct instantiation |
-| All array types | Fat pointer | `{ptr, len}` representation |
+| All array types | `memref<?xT>` view | buffer and extent; no header |
 | Class types     | Reference | Pointer to allocated data; may have declared base type |
 | Enum types      | Integral | Same representation as underlying type |
 | Exception types | Record-like | Structured error information |

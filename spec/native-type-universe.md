@@ -17,7 +17,7 @@ This document specifies the native type universe for Clef, the F# native compile
 
 1. **Familiar Design-Time Experience**: Use F# type names (`string`, `option`, `int`), not foreign alternatives
 2. **Absolute Null-Freedom**: Everything is `voption<'T>` - no null values anywhere
-3. **Null-Freedom Cascades Through APIs**: Sentinel values become `voption` returns
+3. **Null-Freedom Cascades Through APIs**: Magic return values (`-1`, null, a throw) become `voption` returns
 4. **Leverage Existing F# Machinery**: Reuse FSharp.Core where possible
 5. **Spec Before Scaffold**: Document before implementing
 
@@ -46,7 +46,7 @@ Everything else is derived from these primitives.
 | User Writes | Underlying Implementation | Notes |
 |-------------|--------------------------|-------|
 | `option<'T>` | `voption<'T>` | Stack-allocated, non-null |
-| `string` | UTF-8 fat pointer | `{ptr: *u8, len: usize}` |
+| `string` | UTF-8 `memref<?xi8>` | The buffer is the value; the byte length is the memref dimension |
 | `int` | Platform word | `nativeint` semantics |
 
 ---
@@ -121,7 +121,7 @@ let x = if 1 <> 0 then "yes" else "no"
 
 **Design Decisions**:
 
-1. **`int` = platform word**: Follows native compilation conventions (Rust, C), not F#'s 32-bit default. Array indexing and pointer arithmetic use platform word naturally. This aligns with Rust's `isize`/`usize` philosophy.
+1. **`int` = platform word**: Follows native compilation conventions (Rust, C), not F#'s 32-bit default. Array indexing and arena-relative `index` arithmetic use the platform word naturally. This aligns with Rust's `isize`/`usize` philosophy.
 
 2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), Clef integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
 
@@ -224,7 +224,7 @@ type char = (* Unicode scalar value *)
 **Design Decision (RESOLVED)**: Characters are UTF-32 codepoints (4 bytes), not UTF-16 code units.
 
 **Rationale**:
-1. **String encoding is UTF-8**: Clef strings are UTF-8 fat pointers (see Part 4.1)
+1. **String encoding is UTF-8**: Clef strings are UTF-8 `memref<?xi8>` views (see Part 4.1)
 2. **Iteration yields codepoints**: When iterating over a UTF-8 string, each `char` is a decoded Unicode scalar value
 3. **No surrogate pairs**: Unlike UTF-16, a single `char` always represents a complete character
 4. **Consistency with Rust**: Rust's `char` is also a 32-bit Unicode scalar value
@@ -269,16 +269,16 @@ let triple : int * string * float = (1, "x", 3.14)
 **Memory Layout**:
 ```
 Tuple: int * string (64-bit platform)
-┌─────────────┬─────────────────────────────┐
-│ int (word)  │ string (ptr + len = 2 words)│
-└─────────────┴─────────────────────────────┘
-     8 bytes           16 bytes              = 24 bytes total
+┌─────────────┬─────────────────────────────────────┐
+│ int (word)  │ string (memref<?xi8> view: 2 words) │
+└─────────────┴─────────────────────────────────────┘
+     8 bytes                 16 bytes                 = 24 bytes total
 ```
 
 | Property | Value |
 |----------|-------|
 | **Structural typing** | `int * string` ≡ `int * string` regardless of context |
-| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static (Sram/Flash) when program-lifetime; heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
+| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static when program-lifetime (the platform's declared program-lifetime space, cited by name from the platform description: rodata/data on an ELF target, flash/SRAM on an MCU, constant memory on a GPU, initialised BRAM on an FPGA); heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
 | **Alignment** | Natural alignment (largest field alignment) |
 | **Nesting** | `(a * b) * c` ≠ `a * (b * c)` (different memory layouts) |
 | **MLIR** | `tuple<index, memref<?xi8>>` |
@@ -336,7 +336,7 @@ Record: Person (64-bit platform)
 |----------|-------|
 | **Nominal typing** | `Person` ≠ `{ Name: string; Age: int }` (different types) |
 | **Field order** | Declaration order determines memory layout |
-| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static (Sram/Flash) when program-lifetime; heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
+| **Allocation** | Chosen by lifetime class: stack when scope-bounded; arena when region-bounded; static when program-lifetime (the platform's declared program-lifetime space, cited by name from the platform description: rodata/data on an ELF target, flash/SRAM on an MCU, constant memory on a GPU, initialised BRAM on an FPGA); heap only where one exists and the lifetime is genuinely dynamic. Escaping the defining scope does not by itself imply heap or arena; a program-lifetime escape goes to static storage. See [Closure Representation §3.3](closure-representation.md#33-escape-analysis). |
 | **Alignment** | Natural alignment per field, struct alignment = max field alignment |
 | **MLIR** | `memref<Exi8>` — record layout settled at saturation, fields at literal offsets (`name` a `memref<?xi8>` view, `age` an `index`) |
 
@@ -448,7 +448,7 @@ type Result<'T, 'E> = Ok of 'T | Error of 'E
 ```fsharp
 type Message =
     | Ping                              // Tag only: 1 byte + padding
-    | Data of payload: array<byte>      // Tag + fat pointer: 24 bytes on x86-64 (1 tag + 7 pad + 2 platform words); 12 bytes on thumbv8m
+    | Data of payload: array<byte>      // Tag + memref<?xi8> view: 24 bytes on x86-64 (1 tag + 7 pad + 2 platform words); 12 bytes on thumbv8m
     | Error of code: int * msg: string  // Tag + int + string: 1 + 7 + 8 + 16 = 32 bytes
  
 ```
@@ -491,17 +491,19 @@ type Tree<'T> = Leaf of 'T | Node of left: Tree<'T> * value: 'T * right: Tree<'T
 
 | Property | Value |
 |----------|-------|
-| **Recursion** | Pointer indirection for recursive field |
-| **Nil/Leaf** | May be optimized to null pointer (special case) |
-| **Cons/Node** | Allocated in arena or stack |
+| **Recursion** | The recursive field is an `index` (arena link): an arena-relative offset into the arena buffer the value lives in. Every link word carries VC-LINK, `0 <= i < extent(arena)` or `i` = the sentinel's index, quantifier-free (QF_LIA over literals), discharged at saturation before witnessing |
+| **Nil (nullary case)** | The zero-slot sentinel: exactly one program-lifetime, immutable node per element type, tag `Nil`, links indexing itself, payload zero-initialised static data that no operation reads. It resides in the platform's declared immutable program-lifetime space, cited by name from the platform description (a `Resides` edge): rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA. Never a null; the emptiness test is the literal comparison `tag = Nil` |
+| **Cons/Node/Leaf** | Ordinary tagged node, a flat aggregate with a settled layout, placed in an arena by the lifetime lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis) |
 
 ```
 Cons cell: List<int>
-┌──────────┬─────────┬──────────┬────────────────────┐
-│ Tag (i8) │ padding │ head: T  │ tail: ptr<List<T>> │
-└──────────┴─────────┴──────────┴────────────────────┘
-   1 byte    7 bytes   8 bytes        8 bytes         = 24 bytes
+┌──────────┬─────────┬──────────┬──────────────────────────┐
+│ Tag (i8) │ padding │ head: T  │ tail: index (arena link) │
+└──────────┴─────────┴──────────┴──────────────────────────┘
+   1 byte    7 bytes   8 bytes            8 bytes           = 24 bytes
 ```
+
+> **Layout obligations**: VC-LINK on every link word, VC-GUARD (the discriminant test, `tag = Cons` or `height ≠ 0`, dominates every read of a payload slot on the saturated graph), and the sentinel's residence and immutability are quantifier-free at saturation over the graph's literals: QF_LIA plus a dominance check, no quantifiers. The AVL balance invariant of [§5.4](#54-map) and [§5.5](#55-set) and the list algebra of [§5.3](#53-list) are schema lemmas proven once per recipe shape, never a per-program fixpoint. Every link is always a valid node, so no algorithm over a recursive union has an absence branch: recursion terminates at the sentinel, and a link load is one `memref.load` of an `index`.
 
 **Pattern Matching Compilation**:
 
@@ -529,7 +531,7 @@ switch (shape.tag) {
 
 ## Part 4: Reference Types
 
-> **Principle**: Reference types use fat pointers (pointer + length). No null pointers - empty is represented by length 0.
+> **Principle**: Reference types are `memref` views: the buffer is the value and its length is the view's dimension. No null; empty is a view of dimension 0.
 >
 > **CCS Resolution**: See the CCS specification for compiler-level type resolution.
 
@@ -540,22 +542,22 @@ let greeting : string = "Hello, World!"
 let empty : string = ""
 ```
 
-**Memory Layout** (UTF-8 fat pointer):
+**Memory Layout** (`memref<?xi8>`, UTF-8):
 ```
-string
-┌─────────────────┬─────────────────┐
-│ ptr: *u8        │ len: usize      │
-└─────────────────┴─────────────────┘
-     8 bytes           8 bytes       = 16 bytes (64-bit)
+string = memref<?xi8>
+┌────┬────┬────┬─────┬──────┐
+│ b0 │ b1 │ b2 │  …  │ bn-1 │   the UTF-8 bytes: the buffer is the value
+└────┴────┴────┴─────┴──────┘
+  dimension n = byte length, carried by the view; there is no separate length field
 ```
 
-> **Platform word**: The pointer and `usize` are each one platform word. The byte figures above are the x86-64 instance (8-byte word, 16-byte header). On thumbv8m/M33 the word is 4 bytes, so the header is 8 bytes.
+> **Platform word**: Inside an aggregate (a tuple slot, a record field, a union payload) the view occupies two platform words, its buffer and its dimension: 16 bytes on x86-64 (8-byte word), 8 bytes on thumbv8m/M33 (4-byte word). The bytes themselves are placed by the lifetime lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis); a string literal is program-lifetime and immutable, so it resides in the platform's declared immutable program-lifetime space (rodata on an ELF target, flash on an MCU).
 
 | Property | Value |
 |----------|-------|
 | **Encoding** | UTF-8 (NOT UTF-16) |
-| **Length semantics** | Byte count, not character count |
-| **Empty string** | `{ ptr: valid, len: 0 }` - NOT null |
+| **Length semantics** | Byte count (the memref dimension), not character count |
+| **Empty string** | A view of dimension 0 over a valid buffer; never a null. `String.isEmpty` is the literal comparison `memref.dim = 0` |
 | **MLIR** | `memref<?xi8>` |
 
 **Why UTF-8?**
@@ -572,9 +574,9 @@ for c in String.chars s do
  
 ```
 
-**Zero-Copy Slicing**: The fat pointer representation (pointer + length) enables zero-copy string slicing - substrings reference the same underlying bytes with adjusted pointer/length.
+**Zero-Copy Slicing**: A substring is a `memref.subview` of the same buffer with an adjusted offset and dimension; no bytes are copied.
 
-> **JSIR pathway** (JavaScript Substrate profile): `string` is realized as a host string, whose internal encoding is UTF-16 code units. The observable semantics of this section bind unchanged: `String.byteLength` SHALL return the UTF-8 byte count, `String.chars` SHALL yield Unicode scalar values, and indexing SHALL be by codepoint. The fat-pointer layout and its cost figures are properties of layout-realizing pathways and do not bind on this pathway ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)).
+> **JSIR pathway** (JavaScript Substrate profile): `string` is realized as a host string, whose internal encoding is UTF-16 code units. The observable semantics of this section bind unchanged: `String.byteLength` SHALL return the UTF-8 byte count, `String.chars` SHALL yield Unicode scalar values, and indexing SHALL be by codepoint. The `memref<?xi8>` layout and its cost figures are properties of layout-realizing pathways and do not bind on this pathway ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)).
 
 > **See**: Appendix E for encoding comparison with OCaml (Latin-1) and .NET (UTF-16).
 
@@ -582,7 +584,7 @@ for c in String.chars s do
 
 | BCL Pattern | Clef Pattern | Rationale |
 |-------------|------------------|-----------|
-| `s.IndexOf(c)` → `-1` | `String.indexOf c s` → `voption<int>` | No sentinel values |
+| `s.IndexOf(c)` → `-1` | `String.indexOf c s` → `voption<int>` | No magic return values |
 | `s.Substring(i, len)` throws | `String.slice i len s` → `voption<string>` | No exceptions |
 | `s.[i]` throws | `String.tryItem i s` → `voption<char>` | Bounds-safe |
 | `s.Split(...)` → `string[]` | `String.split ... s` → `array<string>` | Native array |
@@ -595,23 +597,22 @@ let numbers : array<int> = [| 1; 2; 3; 4; 5 |]
 let empty : array<int> = [| |]
 ```
 
-**Memory Layout** (fat pointer):
+**Memory Layout** (`memref<?xT>`):
 ```
-array<'T>
-┌─────────────────┬─────────────────┐
-│ ptr: *T         │ len: usize      │
-└─────────────────┴─────────────────┘
-     8 bytes           8 bytes       = 16 bytes (header)
-                                     + len * sizeof<'T> (elements)
+array<'T> = memref<?xT>
+┌──────┬──────┬──────┬─────┬────────┐
+│ e0   │ e1   │ e2   │  …  │ en-1   │   the elements: the buffer is the value, n * sizeof<'T> bytes, contiguous
+└──────┴──────┴──────┴─────┴────────┘
+  dimension n = length, carried by the view; there is no separate length field
 ```
 
-> **Platform word**: The pointer and `usize` are each one platform word, so the header is 2 words. The 16-byte figure is the x86-64 instance; on thumbv8m/M33 (4-byte word) the header is 8 bytes.
+> **Platform word**: Inside an aggregate the view occupies two platform words, its buffer and its dimension: 16 bytes on x86-64, 8 bytes on thumbv8m/M33 (4-byte word). The elements reside in the buffer, placed by the lifetime lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis).
 
 | Property | Value |
 |----------|-------|
 | **Element layout** | Contiguous, naturally aligned |
-| **Bounds checking** | Always (no unsafe indexing by default) |
-| **Empty array** | `{ ptr: valid, len: 0 }` - NOT null |
+| **Bounds checking** | Always (no unsafe indexing by default): every access is guarded by `0 <= i < memref.dim` |
+| **Empty array** | A view of dimension 0 over a valid buffer; never a null. `Array.isEmpty` is the literal comparison `memref.dim = 0` |
 | **MLIR** | `memref<?xT>` |
 
 **Monomorphized Layout**: Unlike uniform representations that box generic elements, Clef arrays are monomorphized - `array<int>` stores unboxed integers contiguously. Sequential access is cache-optimal (8 `int64` or 16 `int32` values per 64-byte cache line).
@@ -641,11 +642,11 @@ These operations are fundamental to the array type and are emitted directly by C
 | `Array.create` | `int -> 'T -> array<'T>` | Allocate n elements, all set to value |
 | `Array.init` | `int -> (int -> 'T) -> array<'T>` | Allocate n elements, initialized by function |
 | `Array.copy` | `array<'T> -> array<'T>` | Create a copy of the array |
-| `Array.length` | `array<'T> -> int` | Return the length of the array |
+| `Array.length` | `array<'T> -> int` | Return the length of the array (the memref dimension) |
 | `Array.get` | `array<'T> -> int -> 'T` | Get element at index (bounds-checked) |
 | `Array.set` | `array<'T> -> int -> 'T -> unit` | Set element at index (bounds-checked) |
 | `Array.tryItem` | `int -> array<'T> -> voption<'T>` | Safe indexed access returning voption |
-| `Array.isEmpty` | `array<'T> -> bool` | Return true if array has zero length |
+| `Array.isEmpty` | `array<'T> -> bool` | Return true if the dimension is zero |
 
 **Allocation Semantics**: Arrays are allocated in the current memory region (stack arena or actor arena). The allocation strategy is determined by the memory region context, not by the Array function.
 
@@ -658,10 +659,11 @@ let roSpan : ReadOnlySpan<byte> = ReadOnlySpan(bytes)
 
 **Memory Layout** (borrowed view):
 ```
-Span<'T>
-┌─────────────────┬─────────────────┐
-│ ptr: *T         │ len: usize      │
-└─────────────────┴─────────────────┘
+Span<'T> = memref<?xT> view with a dynamic offset
+┌──────────┬──────────┬─────┬────────────┐
+│ e[off]   │ e[off+1] │  …  │ e[off+n-1] │   a window into the source buffer: nothing owned, nothing copied
+└──────────┴──────────┴─────┴────────────┘
+  offset off and dimension n carried by the view
 ```
 
 | Property | Value |
@@ -669,7 +671,7 @@ Span<'T>
 | **Ownership** | Borrowed (does not own memory) |
 | **Lifetime** | Must not outlive source |
 | **Stack only** | Cannot be stored in heap structures |
-| **MLIR** | Same as array header (no ownership) |
+| **MLIR** | `memref<?xT>` with a dynamic offset, a `memref.subview` of the source (no ownership) |
 
 **Zero-Copy Views**: Spans provide borrowed views into arrays, strings, and memory regions without allocation. The stack-only constraint prevents lifetime escape (similar to Rust's slice borrowing). Maps directly to MLIR `memref` with dynamic offset.
 
@@ -703,7 +705,7 @@ option<'T>  (voption semantics)
 |----------|-------|
 | **Tag values** | `None` = 0, `Some` = 1 |
 | **Stack allocated** | Always (never heap) |
-| **Null-freedom** | `None` is tag 0, NOT null pointer |
+| **Null-freedom** | `None` is tag 0; never a null |
 | **MLIR** | `memref<Exi8>` — `{tag, payload}`, stack-placed ([Option Operations](option-operations-representation.md)) |
 
 **Stack-Only Guarantee**: Unlike heap-allocated options (cf. OCaml blocks, .NET reference types), Clef options are always stack-allocated with no GC involvement. This enables predictable memory layout for embedded targets and eliminates heap fragmentation from frequent option use.
@@ -783,25 +785,26 @@ let empty : int list = []
 
 **Memory Layout** (cons cells):
 ```
-list<'T>
-┌────────────────────┬─────────────────────┐
-│ head: 'T           │ tail: ptr<list<'T>> │
-└────────────────────┴─────────────────────┘
-     sizeof<'T>            platform word
-                          (8 bytes x86-64,
-                           4 bytes thumbv8m)
+list<'T>  (tagged node: Empty | Cons)
+┌──────────┬─────────┬────────────────────┬──────────────────────────┐
+│ tag: i8  │ padding │ head: 'T           │ tail: index (arena link) │
+└──────────┴─────────┴────────────────────┴──────────────────────────┘
+  1 byte   to align       sizeof<'T>             platform word
+                                                (8 bytes x86-64,
+                                                 4 bytes thumbv8m)
 ```
 
-> **Platform word**: The `tail` pointer is one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
+> **Platform word**: `tail` is an `index` (arena link), an arena-relative offset into the arena buffer the list lives in: one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33. It carries VC-LINK, `0 <= i < extent(arena)`, with `i = 0` the sentinel at offset 0 of that arena, discharged at saturation before witnessing. A link load is one `memref.load` of an `index`.
 
 | Property | Value |
 |----------|-------|
-| **Empty list** | Special tag, no allocation |
-| **Immutable** | Always (structural sharing) |
-| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
+| **Empty list** | Index `0`: the sentinel at offset 0 of every hosting arena, a copy of one program-lifetime, immutable sentinel image per element type, tag `Empty`, `tail` = 0, payload zero-initialised static data never read (VC-GUARD: `tag = Cons` dominates every read of `head` on the saturated graph). It resides in the platform's declared immutable program-lifetime space, cited by name from the platform description (a `Resides` edge): rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA. No allocation per use |
+| **isEmpty** | Literal comparison `tag = Empty`, one load + one compare; never a null check |
+| **Immutable** | Always; structural sharing between persistent values is index aliasing within one arena. The sentinel resides `ReadOnly`: a store through it is CCS8020 at compile time, and consing onto it produces a fresh arena node |
+| **Allocation** | Arena or stack, or the platform's declared program-lifetime space for program-lifetime values (immutable or mutable, cited by name from the platform description as for the sentinel above); not GC heap |
 | **MLIR** | `index` — link to an arena-placed cons cell ([List Operations](list-operations-representation.md)) |
 
-**Arena Allocation**: List cons cells are allocated in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap), providing better cache locality and batch deallocation at scope end. The immutable structure enables structural sharing as in OCaml. On a heap-free target a cons cell whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
+**Arena Allocation**: List cons cells are allocated in arenas, or in the platform's declared program-lifetime space for program-lifetime values, cited by name from the platform description (rodata/data on an ELF target, flash/SRAM on an MCU, constant memory on a GPU, initialised BRAM on an FPGA; not GC heap), providing better cache locality and batch deallocation at scope end. The immutable structure enables structural sharing as in OCaml. On a heap-free target a cons cell whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 **When to Use**:
 - Pattern matching on head/tail
@@ -823,20 +826,21 @@ let empty : Map<int, string> = Map.empty
 **Memory Layout** (AVL tree nodes):
 ```
 Map<'K, 'V>  (AVL tree node)
-┌────────────────────┬────────────────────┬─────────────────────┬─────────────────────┬──────────┐
-│ key: 'K            │ value: 'V          │ left: ptr<Map>      │ right: ptr<Map>     │ height: i8│
-└────────────────────┴────────────────────┴─────────────────────┴─────────────────────┴──────────┘
-     sizeof<'K>           sizeof<'V>          platform word        platform word        1 byte
+┌────────────────────┬────────────────────┬───────────────────────────┬───────────────────────────┬────────────┐
+│ key: 'K            │ value: 'V          │ left: index (arena link)  │ right: index (arena link) │ height: i8 │
+└────────────────────┴────────────────────┴───────────────────────────┴───────────────────────────┴────────────┘
+     sizeof<'K>           sizeof<'V>             platform word               platform word            1 byte
 ```
 
-> **Platform word**: `left` and `right` are each one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
+> **Platform word**: `left` and `right` are each an `index` (arena link), an arena-relative offset into the arena buffer the tree lives in: one platform word each, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33. Each carries VC-LINK, `0 <= i < extent(arena)`, with `i = 0` the sentinel at offset 0 of that arena, discharged at saturation before witnessing. A link load is one `memref.load` of an `index`.
 
 | Property | Value |
 |----------|-------|
-| **Empty map** | Null pointer (no allocation) |
-| **Structure** | Self-balancing AVL tree |
-| **Immutable** | Always (structural sharing on update) |
-| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
+| **Empty map** | Index `0`: the sentinel at offset 0 of every hosting arena, a copy of one program-lifetime, immutable sentinel image per instantiation `Map<'K, 'V>`, `height = 0`, `left` and `right` = 0, `key` and `value` zero-initialised static data that no operation reads (VC-GUARD: `height ≠ 0` dominates every read of `key`/`value` on the saturated graph). It resides in the platform's declared immutable program-lifetime space, cited by name from the platform description (a `Resides` edge): rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA. No allocation per use |
+| **isEmpty** | Literal comparison `height = 0`, one load + one compare; never a null check |
+| **Structure** | Self-balancing AVL tree. Every link is a valid node; insert, lookup, rotate and rebalance read `left`/`right` unconditionally and recursion terminates at the sentinel (`height = 0`), so no operation has an absence branch |
+| **Immutable** | Always; structural sharing on update is index aliasing within one arena. The sentinel resides `ReadOnly`: a store through it is CCS8020 at compile time, and `Map.add` on the sentinel produces a fresh arena node |
+| **Allocation** | Arena or stack, or the platform's declared program-lifetime space for program-lifetime values (immutable or mutable, cited by name from the platform description as for the sentinel above); not GC heap |
 | **Key constraint** | `'K : comparison` |
 | **MLIR** | `index` — link to an arena-placed node ([Map Representation](map-representation.md)) |
 
@@ -864,20 +868,21 @@ let empty : Set<string> = Set.empty
 **Memory Layout** (AVL tree nodes):
 ```
 Set<'T>  (AVL tree node)
-┌────────────────────┬─────────────────────┬─────────────────────┬──────────┐
-│ value: 'T          │ left: ptr<Set>      │ right: ptr<Set>     │ height: i8│
-└────────────────────┴─────────────────────┴─────────────────────┴──────────┘
-     sizeof<'T>          platform word        platform word        1 byte
+┌────────────────────┬───────────────────────────┬───────────────────────────┬────────────┐
+│ value: 'T          │ left: index (arena link)  │ right: index (arena link) │ height: i8 │
+└────────────────────┴───────────────────────────┴───────────────────────────┴────────────┘
+     sizeof<'T>             platform word               platform word            1 byte
 ```
 
-> **Platform word**: `left` and `right` are each one platform word, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33.
+> **Platform word**: `left` and `right` are each an `index` (arena link), an arena-relative offset into the arena buffer the tree lives in: one platform word each, 8 bytes on x86-64 and 4 bytes on thumbv8m/M33. Each carries VC-LINK, `0 <= i < extent(arena)`, with `i = 0` the sentinel at offset 0 of that arena, discharged at saturation before witnessing. A link load is one `memref.load` of an `index`.
 
 | Property | Value |
 |----------|-------|
-| **Empty set** | Null pointer (no allocation) |
-| **Structure** | Self-balancing AVL tree |
-| **Immutable** | Always (structural sharing on update) |
-| **Allocation** | Arena or stack, or static storage (Sram/Flash) for program-lifetime values (not GC heap) |
+| **Empty set** | Index `0`: the sentinel at offset 0 of every hosting arena, a copy of one program-lifetime, immutable sentinel image per element type, `height = 0`, `left` and `right` = 0, `value` zero-initialised static data that no operation reads (VC-GUARD: `height ≠ 0` dominates every read of `value` on the saturated graph). It resides in the platform's declared immutable program-lifetime space, cited by name from the platform description (a `Resides` edge): rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA. No allocation per use |
+| **isEmpty** | Literal comparison `height = 0`, one load + one compare; never a null check |
+| **Structure** | Self-balancing AVL tree. Every link is a valid node; insert, lookup, rotate and rebalance read `left`/`right` unconditionally and recursion terminates at the sentinel (`height = 0`), so no operation has an absence branch |
+| **Immutable** | Always; structural sharing on update is index aliasing within one arena. The sentinel resides `ReadOnly`: a store through it is CCS8020 at compile time, and `Set.add` on the sentinel produces a fresh arena node |
+| **Allocation** | Arena or stack, or the platform's declared program-lifetime space for program-lifetime values (immutable or mutable, cited by name from the platform description as for the sentinel above); not GC heap |
 | **Element constraint** | `'T : comparison` |
 | **MLIR** | `index` — link to an arena-placed node ([Set Representation](set-representation.md)) |
 
@@ -913,8 +918,8 @@ let apply : ('a -> 'b) -> 'a -> 'b = fun f x -> f x
 |------|----------------|
 | **Known call site** | Direct call (no indirection) |
 | **Inline function** | Inlined at call site (fsil default) |
-| **First-class value** | Function pointer or closure |
-| **Captures environment** | Closure struct |
+| **First-class value** | A function value (`func.constant`) or a closure pair `(fn, env)` |
+| **Captures environment** | The closure pair `(fn, env)`: `fn` a function value, `env` a `memref<Exi8>` ([Closure Representation §6.3](closure-representation.md)) |
 
 ### 6.2 Closure Representation
 
@@ -937,11 +942,11 @@ env: ┌─────────────────────┐
 
 | Property | Value |
 |----------|-------|
-| **Environment** | Struct containing captured values |
-| **Invocation** | `fn_ptr(env, args...)` |
+| **Environment** | `memref<Exi8>` holding the captured values at literal offsets settled at saturation |
+| **Invocation** | `func.call_indirect %fn(%env, args...)`; `fn` and `env` are two SSA values, never packed ([Closure Representation §6.1](closure-representation.md)) |
 | **MLIR** | `(fn, env)`: a function value `(memref<Exi8>, args...) -> ret` and `memref<Exi8>` ([Closure Representation §6.3](closure-representation.md)) |
 
-**Closure Allocation**: Closures are allocated on stack or in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap). Small closures (<64 bytes) fit within one cache line for efficient invocation. On a heap-free target a closure whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
+**Closure Allocation**: The environment is allocated on stack or in an arena, or in the platform's declared program-lifetime space for program-lifetime values, cited by name from the platform description (rodata/data on an ELF target, flash/SRAM on an MCU, constant memory on a GPU, initialised BRAM on an FPGA; not GC heap); `fn` is a `func.constant` and is never stored as data. Small closures (<64 bytes) fit within one cache line for efficient invocation. On a heap-free target a closure whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 ### 6.3 Inline Semantics (fsil Absorption)
 
@@ -971,7 +976,9 @@ let add5 = add 5  // Partial application
 
 **Representation**: Creates a closure capturing applied arguments:
 ```
-add5 = { fn_ptr: add_impl, env: { x = 5 } }
+add5 = (fn, env)
+fn:  func.constant @add_impl
+env: { x = 5 } : memref<Exi8>
 ```
 
 **Currying Optimization** (fsil): Fully-applied curried calls compile to direct multi-argument calls (no intermediate closures). Partial application creates flat closures capturing applied arguments. Higher-order uses like `List.map f` are typically inlined at call sites.
@@ -1005,10 +1012,10 @@ ref<'T>
 | Property | Value |
 |----------|-------|
 | **Representation** | Single-field mutable record |
-| **Allocation** | Stack, arena, or static storage (Sram/Flash) for program-lifetime values (not GC) |
+| **Allocation** | Stack, arena, or the platform's declared mutable program-lifetime space for program-lifetime values, cited by name from the platform description (data on an ELF target, SRAM on an MCU; not GC) |
 | **MLIR** | `memref<1xT>` |
 
-**Stack/Arena Allocation**: Refs are allocated on stack or in arenas, or in static storage (Sram/Flash) for program-lifetime values (not GC heap), eliminating allocation pressure in loops and providing predictable memory behavior for embedded targets. On a heap-free target a ref whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
+**Stack/Arena Allocation**: Refs are allocated on stack or in arenas, or in the platform's declared mutable program-lifetime space for program-lifetime values (data on an ELF target, SRAM on an MCU; not GC heap), eliminating allocation pressure in loops and providing predictable memory behavior for embedded targets. On a heap-free target a ref whose lifetime classifies as genuinely dynamic is a compile-time lifetime error, not a silent heap allocation.
 
 ### 7.2 Mutable Bindings
 
@@ -1144,18 +1151,18 @@ Arena<[<Measure>] 'lifetime>
 ```
 Arena<'lifetime>
 ┌─────────────────┬─────────────────┬─────────────────┐
-│ Base: nativeint │ Capacity: int   │ Position: int   │
+│ Base: index     │ Capacity: index │ Position: index │
 └─────────────────┴─────────────────┴─────────────────┘
      8 bytes           8 bytes           8 bytes       = 24 bytes (64-bit)
 ```
 
-> **Platform word**: Each field is one platform word, so the struct is 3 words. The 24-byte total is the x86-64 instance; on thumbv8m/M33 (4-byte word) the struct is 12 bytes. `Base` here is an internal compiler field, not a user-denotable pointer.
+> **Platform word**: Each field is one platform word, so the struct is 3 words. The 24-byte total is the x86-64 instance; on thumbv8m/M33 (4-byte word) the struct is 12 bytes. `Base` here is an internal compiler field, never user-denotable.
 
 | Property | Value |
 |----------|-------|
 | **CCS Type** | Intrinsic with NTUCompound(3) |
 | **Lifetime param** | Measure type for tracking |
-| **Allocation** | Stack-backed, static-backed (Sram/Flash), or heap-backed where a heap exists |
+| **Allocation** | Stack-backed, static-backed (the platform's declared program-lifetime space: data/rodata on an ELF target, SRAM/flash on an MCU), or heap-backed where a heap exists |
 | **MLIR** | Three-word struct with InsertValue/ExtractValue |
 
 **CCS Intrinsic Operations**:
@@ -1290,7 +1297,7 @@ Script files (`.clefx`) follow the same type semantics as compiled modules:
 
 ```fsharp
 // script.clefx
-let greeting : string = "Hello"  // string with native UTF-8 fat pointer semantics
+let greeting : string = "Hello"  // string as a UTF-8 memref<?xi8> view
 let maybe : int option = Some 42  // voption<int>, non-null
  
 ```
@@ -1310,7 +1317,7 @@ val it : int = 8  // Reflects target, not host
 
 **Platform-Specific Types**:
 - `nativeint`/`unativeint` size reflects target platform
-- Pointer types respect target architecture
+- `index` width and the `Ptr<'T, 'Region, 'Access>` handle width reflect the target architecture
 - Type layouts follow target ABI
 
 ---
@@ -1377,7 +1384,7 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 |--------------|-----------------|-----------|
 | 63-bit tagged int | Full word `nativeint` | No GC tag needed (compile-time safety) |
 | Latin-1 char | UTF-32 codepoint | Modern Unicode support |
-| Byte-sequence string | UTF-8 fat pointer | Text correctness + Rust interop |
+| Byte-sequence string | UTF-8 `memref<?xi8>` view | Text correctness + Rust interop |
 | Boxed option (sometimes) | Always stack `voption` | Null-freedom guarantee |
 | Runtime type tagging | Compile-time only | No runtime overhead |
 
@@ -1411,9 +1418,9 @@ This tagging allows integers to remain "unboxed" (stored directly without heap a
 ### CCS Type Resolution
 
 CCS (Clef Compiler Service) resolves types to native representations at the source:
-- `string` → UTF-8 fat pointer
+- `string` → UTF-8 `memref<?xi8>`
 - `option<'T>` → `voption` (stack-allocated)
-- `array<'T>` → fat pointer with native element layout
+- `array<'T>` → `memref<?xT>` with native element layout
 - `int` → platform word
 
 ---
@@ -1431,11 +1438,11 @@ OCaml contemplates direct memory layout in ways F#/.NET never does:
 | **Products/Sums/Functions as primitives** | Foundation | Type universe axioms (Part 1) |
 | **Value-oriented structural assembly** | Core principle | Records/tuples laid out contiguously |
 | **Deterministic tag layout for DUs** | Directly usable | Tag = 0,1,2... in declaration order |
-| **Fat pointer concept** | Directly usable | `{ptr, len}` for strings/arrays |
-| **No null philosophy** | Core principle | Everything representable without sentinel values |
+| **Explicit-length string block** | Adapted | The length travels with the value: in OCaml's block header, in Clef as the dimension of the `memref<?xi8>` / `memref<?xT>` view |
+| **No null philosophy** | Core principle | Everything representable without null or magic values |
 | **Unboxed by default** | Core principle | No implicit heap allocation |
 
-These concepts form the bedrock of Clef's type universe. The structural assembly semantics, deterministic tag assignment, and fat pointer model are adopted with minimal modification.
+These concepts form the bedrock of Clef's type universe. The structural assembly semantics, deterministic tag assignment, and explicit-length model are adopted with minimal modification.
 
 ### E.2 What OCaml Lacks (SET ASIDE)
 
@@ -1519,7 +1526,7 @@ Clef introduces memory regions unknown to both OCaml and Rust:
 
 Clef's type universe represents a synthesis:
 
-1. **From OCaml**: Products, sums, functions as primitives; value-oriented assembly; fat pointers; no null
+1. **From OCaml**: Products, sums, functions as primitives; value-oriented assembly; explicit-length views; no null
 2. **Set Aside from OCaml**: GC tagging overhead; desktop assumptions; runtime discrimination
 3. **From Rust**: Deterministic cleanup; ownership tracking (adapted to coeffects); RAII semantics
 4. **Fidelity Original**: Memory regions; access kinds; cache hierarchy awareness; processor-specific optimization

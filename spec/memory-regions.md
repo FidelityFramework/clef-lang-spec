@@ -59,7 +59,9 @@ Arena-allocated values are bulk-allocated and freed together.
 **Type Definition**:
 ```fsharp
 // Arena<[<Measure>] 'lifetime> - CCS intrinsic type
-// Layout: NTUCompound(3) = { Base: nativeint, Capacity: int, Position: int }
+// Layout: NTUCompound(3) = { Base: index, Capacity: index, Position: index }
+//   Base and Capacity are the arena's buffer as a memref<?xi8> view (base index into the declared
+//   space, extent); Position is the bump cursor. No field is an address.
  
 ```
 
@@ -75,7 +77,7 @@ let aligned = Arena.allocAligned &arena 64 16  // 64 bytes, 16-byte aligned
 
 // Query and reset
 let remaining = Arena.remaining arena
-Arena.reset &arena  // Position back to 0
+Arena.reset &arena  // Position back to the arena's floor (0, or the sentinel slot; see Floor below)
  
 ```
 
@@ -87,7 +89,7 @@ Arena.reset &arena  // Position back to 0
 | `alloc` | `Arena<'lifetime> byref -> int -> Ptr<byte, Arena, ReadWrite>` | Bump allocate bytes |
 | `allocAligned` | `Arena<'lifetime> byref -> int -> int -> Ptr<byte, Arena, ReadWrite>` | Aligned allocation |
 | `remaining` | `Arena<'lifetime> -> int` | Query remaining capacity |
-| `reset` | `Arena<'lifetime> byref -> unit` | Reset position to 0 |
+| `reset` | `Arena<'lifetime> byref -> unit` | Reset position to the arena's floor (see Floor below) |
 
 **Lifetime Parameter**: The `'lifetime` measure parameter enables future lifetime tracking. Currently documentation-level; compiler enforcement planned.
 
@@ -104,6 +106,8 @@ Arena.reset &arena  // Position back to 0
 - Backing memory comes from the stack, from static storage (`Sram`/`Flash`), or, where the target has one, from the heap. A target without a heap backs arenas with stack or static storage only.
 
 The `{ Base, Capacity, Position }` layout states the allocation discipline as checkable facts: every allocation advances `Position` by the requested (aligned) size, and `Position` never exceeds `Capacity`. An implementation's allocation emission is subject to the [preservation and diagnostic obligations](conformance.md) over exactly these facts.
+
+**Floor.** An arena that hosts nodes of a collection type ([List Operations §5.2](list-operations-representation.md), [Map Representation §2.2](map-representation.md), [Set Representation §2.2](set-representation.md)) carries the sentinel of that type at offset 0, copied from the type's program-lifetime sentinel image when the arena is created. The arena's **floor** is the size of that slot, taken as the largest sentinel slot among the node types the arena hosts; every sentinel image is all-zero (tag `Empty` is case 0, `height` is 0, links are 0, payload slots are zero), so one slot at offset 0 serves every hosted type. `Position` begins at the floor, `alloc` never returns an index below it, and `reset` returns `Position` to the floor, never to 0. These are literal facts of the arena's saturated layout, and they are what the collection chapters' VC-RO obligations rest on: every store into a node lies at or above the floor by construction, and no runtime index value need be reasoned about. An arena that hosts no such type has floor 0.
 
 ### Peripheral
 

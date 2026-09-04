@@ -168,7 +168,7 @@ This desugaring to nested lambdas provides continuation semantics as notation. T
 
 | Pattern | Compilation Strategy |
 |---------|---------------------|
-| Sequential effects (async, state) | Saturate through the suspension recipe — segments at cuts, a frame, a delimiter edge — and witness as `scf.index_switch` over a discriminant ([DCont Representation](dcont-representation.md) §2, §5, §6) |
+| Sequential effects (async, state) | Saturate through the suspension recipe (segments at cuts, a frame, a delimiter edge) and witness as `scf.index_switch` over a discriminant ([DCont Representation](dcont-representation.md) §2, §5, §6) |
 | Parallel pure (validated, reader) | Compile to data flow (Inet regime) |
 
 ### Normative Requirements
@@ -197,8 +197,8 @@ NORMATIVE: Quotation-based metaprogramming SHALL NOT require runtime evaluation.
 | `uint32` | `u32` | 4 bytes | Unsigned 32-bit |
 | `int64` | `i64` | 8 bytes | Signed 64-bit |
 | `uint64` | `u64` | 8 bytes | Unsigned 64-bit |
-| `nativeint` | `isize` | Platform word | Signed pointer-sized |
-| `unativeint` | `usize` | Platform word | Unsigned pointer-sized |
+| `nativeint` | `isize` | Platform word | Signed; width is the `Pointer` dimension of [NTU Types §2.3](ntu-types.md) |
+| `unativeint` | `usize` | Platform word | Unsigned; width is the `Pointer` dimension of [NTU Types §2.3](ntu-types.md) |
 
 ### Floating Point Types
 
@@ -212,7 +212,7 @@ NORMATIVE: Quotation-based metaprogramming SHALL NOT require runtime evaluation.
 | F# Syntax | Native Representation | Size | Notes |
 |-----------|----------------------|------|-------|
 | `char` | `i32` | 4 bytes | UTF-32 codepoint (Unicode scalar value) |
-| `string` | `{ptr: *u8, len: usize}` | 16 bytes | UTF-8 fat pointer |
+| `string` | `memref<?xi8>` | Byte length is the memref's dimension | UTF-8 buffer; the buffer is the value (see [Strings](#strings)) |
 
 ## Composite Types
 
@@ -244,7 +244,7 @@ type Point = { X: float; Y: float }
 
 ### Discriminated Unions
 
-[Discriminated unions use tagged representation](discriminated-union-representation.md):
+A discriminated-union value is a `memref<Exi8>` view of its `{tag, payload}` storage block, with E settled at saturation ([Discriminated Union Representation §3](discriminated-union-representation.md)). A payload that is itself arena-resident (a recursive case, a collection) is linked by a bounded `index`, never by an address:
 
 ```fsharp
 type Option<'T> = None | Some of 'T
@@ -261,7 +261,7 @@ type Option<'T> = None | Some of 'T
 |----------|-------|
 | Tag size | `i8` for ≤256 variants |
 | Tag values | 0, 1, 2... in declaration order |
-| Payload | Size of largest variant |
+| Payload | Size of largest variant; an arena-resident payload is an `index` link carrying VC-LINK (`0 <= i < extent(arena)`), never an address |
 
 ### Single-Case Unions (Newtypes)
 
@@ -285,9 +285,9 @@ Structs use natural alignment based on their largest field:
 | `i16`, `u16` | 2 bytes |
 | `i32`, `u32`, `f32` | 4 bytes |
 | `i64`, `u64`, `f64` | 8 bytes |
-| pointer | Platform word alignment: 8 bytes on 64-bit, 4 bytes on thumbv8m/32-bit |
+| `index` (arena link), `memref` descriptor word | Platform word alignment: 8 bytes on 64-bit, 4 bytes on thumbv8m/32-bit |
 
-Pointer alignment follows the [Pointer width dimension](ntu-types.md); it is the platform word, not a fixed 8 bytes.
+Word alignment follows the `Pointer` width dimension of [NTU Types §2.3](ntu-types.md); it is the platform word, not a fixed 8 bytes.
 
 ### Explicit Alignment
 
@@ -379,43 +379,53 @@ NORMATIVE: The compiler MAY emit warnings when intrinsics fall back to software 
 
 ### Arrays
 
-Arrays use fat pointer representation:
+An array is a `memref<?xT>` view: the element buffer is the value, and its length is the memref's dimension. There is no header struct and no separate length word.
 
 ```fsharp
 let numbers : array<int> = [| 1; 2; 3 |]
 ```
 
-**Layout**:
+**Layout** (the buffer; `memref<?xT>` at saturation):
 ```
-Header (16 bytes):
-┌─────────────────┬─────────────────┐
-│ ptr: *T         │ len: usize      │
-└─────────────────┴─────────────────┘
-
-Elements (contiguous):
+array<'T>   memref<?xT>
 ┌─────┬─────┬─────┐
-│ [0] │ [1] │ [2] │
+│ [0] │ [1] │ [2] │   contiguous, naturally aligned; extent = length
 └─────┴─────┴─────┘
 ```
 
+| Property | Value |
+|----------|-------|
+| Value | The `memref<?xT>` view; `Array.length` is `memref.dim` |
+| Element layout | Contiguous, naturally aligned; monomorphized, elements are never boxed |
+| Placement | Stack, arena, or the platform's declared program-lifetime space, selected by the lifetime lattice of [Closure Representation §3.3](closure-representation.md) |
+| Bounds checking | Always; no unsafe indexing by default ([Native Type Universe §4.2](native-type-universe.md)) |
+| Empty array | A view of extent 0; never a null |
+| Null | Not representable |
+
+The view's descriptor (base, offset, extent, stride) is a lowering artifact of the target pathway, not a Clef value; no Clef operation observes it.
+
 ### Strings
 
-Strings use UTF-8 fat pointer representation:
+A string is a `memref<?xi8>` view of its UTF-8 byte buffer: the buffer is the value, and its byte length is the memref's dimension. There is no separate length header.
 
-**Layout**:
+**Layout** (the buffer; `memref<?xi8>` at saturation):
 ```
-┌─────────────────┬─────────────────┐
-│ ptr: *u8        │ len: usize      │
-└─────────────────┴─────────────────┘
-16 bytes (64-bit platform)
+string   memref<?xi8>
+┌────┬────┬────┬─────┐
+│ b0 │ b1 │ b2 │ ... │   UTF-8 bytes; extent = byte length
+└────┴────┴────┴─────┘
 ```
 
 | Property | Value |
 |----------|-------|
 | Encoding | UTF-8 |
-| Length | Byte count (not character count) |
-| Empty string | `{ptr: valid, len: 0}` |
+| Length | Byte count (not character count); `String.byteLength` is `memref.dim` |
+| Slicing | A `memref.subview` of the same buffer; zero-copy |
+| Placement | A literal is program-lifetime and immutable: it resides in the platform's declared immutable program-lifetime space, cited by name from the platform description (rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA), emitted as a `memref.global`. A constructed string is placed by the lifetime lattice of [Closure Representation §3.3](closure-representation.md) |
+| Empty string | A view of extent 0; never a null |
 | Null | Not representable |
+
+The view's descriptor is a lowering artifact of the target pathway, not a Clef value; no Clef operation observes it. On the JSIR pathway `string` is a host string and this layout does not bind ([Native Type Universe §4.1](native-type-universe.md)).
 
 ## Parameterized Types
 
@@ -448,18 +458,35 @@ let result : Result<int, string> = Ok 42
 
 ### List
 
-Lists use cons cell representation:
+A list value is the `index` of its first node in the arena that holds the list. A node is a flat aggregate with a settled layout, a `memref<Exi8>` view at saturation ([List Operations Representation §5](list-operations-representation.md)):
 
 ```fsharp
 let numbers : int list = [1; 2; 3]
 ```
 
-**Layout** (per cons cell):
+**Layout** (per node):
 ```
-┌─────────────────┬─────────────────────┐
-│ head: 'T        │ tail: ptr<list<'T>> │
-└─────────────────┴─────────────────────┘
+list<'T> node   memref<Exi8>
+┌──────────────────────┬─────────────────┬──────────────────────────┐
+│ tag: i8 (Empty|Cons) │ head: 'T        │ tail: index (arena link) │
+└──────────────────────┴─────────────────┴──────────────────────────┘
 ```
+
+| Property | Value |
+|----------|-------|
+| Value | `index`: the arena-relative offset of the first node |
+| Placement | Arena selected by the lifetime lattice of [Closure Representation §3.3](closure-representation.md) |
+| `tail` | `index` into the arena buffer the list lives in (an arena-relative offset), never an address; a link load is one `memref.load` of an `index` |
+| Link obligation | VC-LINK: `0 <= tail < extent(arena)`, quantifier-free over graph literals, discharged at saturation before witnessing; `0` is the sentinel |
+| Empty list | The sentinel node at offset 0 of the arena: `tag = Empty`, `tail = 0` (its own index), `head` zero-initialised and never read. `List.empty` is the index literal `0` and allocates nothing |
+| Sentinel image | Exactly one program-lifetime, immutable image per element type, copied to offset 0 of every arena that hosts the type; it resides in the platform's declared immutable program-lifetime space, cited by name from the platform description through a `Resides` edge ([Program Hypergraph §6](program-hypergraph.md)): rodata on an ELF target, flash on an MCU, constant memory on a GPU, initialised BRAM on an FPGA. Every arena that hosts `list<'T>` nodes carries a copy at offset 0, initialised when the arena is created |
+| Sentinel immutability | The slot `[0, sizeof(node))` is `ReadOnly` ([Access Kinds](access-kinds.md)); a store through it is the compile-time diagnostic CCS8020. `cons` onto the sentinel places a fresh arena node whose tail is 0; the sentinel is never mutated in place |
+| `isEmpty` | The literal comparison `tag = Empty` (one load, one compare), equivalently `index = 0`; never a null check |
+| Guard obligation | VC-GUARD: the `tag = Cons` test dominates every read of `head` on the saturated graph; a dominance check, no quantifiers |
+| Structural sharing | Index aliasing within one arena |
+| Null | Not representable |
+
+Every `tail` is a valid node: operations read `tail` unconditionally and recursion terminates at the sentinel. Layout obligations (VC-LINK, VC-GUARD, sentinel residence and immutability) are quantifier-free at saturation over the graph's literals; the list algebra is a schema lemma proven once per recipe shape, never a per-program fixpoint.
 
 ## Function Types
 
@@ -481,7 +508,7 @@ Functions capturing environment use [closure representation](closure-representat
 let makeAdder n = fun x -> x + n
 ```
 
-**Form** — two SSA values, never packed ([Closure Representation §6.3](closure-representation.md)):
+**Form**: two SSA values, never packed ([Closure Representation §6.3](closure-representation.md)):
 ```
 fn:  func.constant @makeAdder_lambda : (memref<Exi8>, int) -> int
 env: ┌─────────────────────┐
@@ -490,6 +517,8 @@ env: ┌─────────────────────┐
 ```
 
 ## MLIR Type Mappings
+
+The middle end emits these portable forms; a target pathway lowers them ([Backend Lowering Architecture](backend-lowering-architecture.md)). No row is a pointer: a buffer is a `memref` view, and a link between arena-resident nodes is a bounded `index` carrying VC-LINK.
 
 | F# Type | MLIR Type |
 |---------|-----------|
@@ -501,12 +530,18 @@ env: ┌─────────────────────┐
 | `float` | `f64` |
 | `float32` | `f32` |
 | `char` | `i32` |
-| `string` | `memref<?xi8>` |
-| `option<'T>` | `memref<Exi8>` — `{tag, payload}`, stack-placed ([Option Operations](option-operations-representation.md)) |
+| `string` | `memref<?xi8>`; byte length is the dimension |
+| `array<'T>` | `memref<?xT>`; length is the dimension |
+| `option<'T>` | `memref<Exi8>`: `{tag, payload}`, stack-placed ([Option Operations](option-operations-representation.md)) |
+| `Result<'T, 'E>` | `memref<Exi8>`: `{tag, payload}` as a two-case union |
+| `list<'T>` | `index`: arena link to the first node, itself a `memref<Exi8>` ([List](#list); [List Operations Representation §5](list-operations-representation.md)) |
+| `Map<'K, 'V>` | `index`: arena link to the root node, itself a `memref<Exi8>` ([Map Representation §2](map-representation.md)) |
+| `Set<'T>` | `index`: arena link to the root node, itself a `memref<Exi8>` ([Set Representation §2](set-representation.md)) |
 | Tuple | `tuple<...>` |
 | Record | `memref<Exi8>` (settled layout) |
-| DU | `memref<Exi8>` (`{tag, payload}`) |
-| Function | `(A) -> B` — a `func` value |
+| DU | `memref<Exi8>` (`{tag, payload}`); an arena-resident payload is an `index` link |
+| Function | `(A) -> B`: a `func` value |
+| Closure | `(fn, env)`: a `func` value `(memref<Exi8>, A) -> B` and an environment `memref<Exi8>`, never packed ([Closure Representation §6.3](closure-representation.md)) |
 
 ## Why IL Infrastructure Is Removed from CCS
 
@@ -569,7 +604,7 @@ The original FCS contains IL-based operations for loop optimization, null handli
 | `TOp.ILAsm` (arithmetic) | MLIR arith dialect ops | Alex code generation |
 | `TOp.ILCall` (method calls) | MLIR func.call / platform bindings | Alex code generation |
 | Loop optimization | MLIR SCF dialect transforms | MLIR optimization passes |
-| String length/concat | Native string fat pointer ops | Alex code generation |
+| String length/concat | `memref` view operations: `memref.dim` for length, a buffer copy for concatenation | Alex code generation |
 | Integer conversions | MLIR arith.extsi/extui/trunci | Alex type lowering |
 | Null handling | Not needed - Clef has no null | See below |
 
@@ -581,7 +616,7 @@ NORMATIVE: Clef has **no null values**. The `null` keyword and null checking ope
 - Option types (`voption`) replace nullable references
 - Pattern matching replaces null checks
 
-This is consistent with Clef's safety guarantees: no null pointer dereferences are possible because null cannot be expressed.
+This is consistent with Clef's safety guarantees: no null dereference is possible because null cannot be expressed.
 
 On the JSIR pathway, `null` and `undefined` appear in the emitted JavaScript artifact only as boundary representations selected by generated code and as the proven `Option` erasure of [Option Operations Representation §2.1](option-operations-representation.md), per the confinement rule of [JavaScript Boundary Semantics §8](javascript-boundary.md). No Clef-typed value is `null` or `undefined` on any pathway.
 

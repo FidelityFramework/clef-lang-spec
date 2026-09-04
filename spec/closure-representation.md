@@ -58,7 +58,7 @@ A closure's environment is placed in the storage whose lifetime covers it, chose
 
 1. **[On the stack](memory-regions.md)**, when its lifetime is bounded by the enclosing scope.
 2. **In a region**, when it escapes the enclosing scope but lives within a region's lifetime.
-3. **In static storage**, the [`Sram`](memory-regions.md) region for a mutable environment or [`Flash`](memory-regions.md) for an immutable one, when its lifetime is the whole program (constructed once, held to program end, never freed).
+3. **In static storage**, when its lifetime is the whole program (constructed once, held to program end, never freed): the platform's declared mutable program-lifetime space for a mutable environment, or its declared immutable program-lifetime space for an immutable one, each cited by name from the platform description (on an MCU the [`Sram`](memory-regions.md) and [`Flash`](memory-regions.md) regions; rodata and data sections on an ELF target; constant memory on a GPU; initialised BRAM on an FPGA).
 4. **On the heap**, when its extent is genuinely dynamic.
 
 The classification and placement are chosen at compile time by escape analysis (§3.3). A target without a heap admits only the stack and static placements; a closure that classifies as dynamic there is a lifetime error, not a silent heap allocation. Static placement uses the same program-lifetime storage that a fixed-address register (`Peripheral`) or a linker-carved buffer already occupies: a program-lifetime closure is a global, and it lives where the other globals live.

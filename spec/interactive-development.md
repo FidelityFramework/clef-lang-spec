@@ -404,7 +404,7 @@ Clef uses a parallel toolchain rather than extending managed F# tooling:
 
 The toolchains are parallel rather than plugins because:
 
-1. **Type resolution fundamentally differs**: CCS resolves `string` to native UTF-8 fat pointer semantics; FCS resolves to `System.String`. These cannot be reconciled at runtime.
+1. **Type resolution fundamentally differs**: CCS resolves `string` to a native UTF-8 `memref<?xi8>` view; FCS resolves to `System.String`. These cannot be reconciled at runtime.
 
 2. **SRTP resolution differs**: CCS resolves SRTP against native type witnesses; FCS resolves against BCL method tables.
 

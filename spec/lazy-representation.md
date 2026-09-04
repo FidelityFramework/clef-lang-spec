@@ -367,7 +367,7 @@ A lazy value is a flat closure, so its storage is placed by the same four-point 
 
 1. **Scope-bounded**: on the stack (`memref.alloca`), reclaimed when the enclosing scope exits.
 2. **Region-bounded**: in a [region](memory-regions.md) whose lifetime covers it, when it escapes the scope but lives within a region's lifetime.
-3. **Program-lifetime**: in static storage (the [`Sram`](memory-regions.md) region for a mutable lazy value or [`Flash`](memory-regions.md) for an immutable one), emitted as a `memref.global`, when it is constructed once and held for the life of the program with no free.
+3. **Program-lifetime**: in static storage, emitted as a `memref.global`, when it is constructed once and held for the life of the program with no free: the platform's declared mutable program-lifetime space for a mutable lazy value, or its declared immutable program-lifetime space for one that is never written (on an MCU the [`Sram`](memory-regions.md) and [`Flash`](memory-regions.md) regions; the data and rodata sections on an ELF target; constant memory on a GPU).
 4. **Dynamic**: on the heap, when its extent is genuinely dynamic.
 
 Escaping the defining scope does not imply the heap. A lazy value returned from a function and held for the program's life has a statically knowable, program-long lifetime and belongs in static storage, in the same sense a fixed-address register or a linker-carved buffer is a global. On a target with no allocator, only the scope-bounded and program-lifetime placements have a home; a lazy value that classifies as dynamic there is a compile-time lifetime error, not a silent heap allocation.

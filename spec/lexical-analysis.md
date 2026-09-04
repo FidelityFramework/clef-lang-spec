@@ -193,7 +193,7 @@ by using the text of the keyword itself.
 
 String literals may be specified for two types:
 
-- Unicode strings, type `string` (NativeStr; UTF-8 fat pointer per [Native Type Mappings](native-type-mappings.md))
+- Unicode strings, type `string` (NativeStr; a UTF-8 `memref<?xi8>` view per [Native Type Mappings](native-type-mappings.md))
 - Unsigned byte arrays, type `byte[]`
 
 Literals may also be specified by using C#-like verbatim forms that interpret `\` as a literal character

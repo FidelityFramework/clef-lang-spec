@@ -119,7 +119,7 @@ let hello() =
 
 `inline` applies to the scope-bounded class. Mark a function `inline` when it:
 1. Fills a scope-bounded stack buffer (a bounded stack array)
-2. Returns a reference, view, or fat pointer (like `string`) over that buffer
+2. Returns a view (like `string`, a `memref<?xi8>`) over that buffer
 3. Has a caller that needs the returned value to remain valid past the call
 
 This pattern is common in platform libraries (e.g., `Console.readln`) where the implementation detail of stack buffering should be transparent to application code. A value that instead needs to outlive every caller is not a candidate for inlining: it classifies as program-lifetime and is placed in static storage, or as region-bounded and placed in an arena.
