@@ -652,7 +652,7 @@ Lazy.create (fun () -> expr)
 The behavior of the `Lazy` type ensures that expression `expr` is evaluated on demand in
 response to a `Lazy.force` operation on the lazy value.
 
-> **Clef Note**: In Clef, `Lazy<'T>` is implemented as an extension of the flat closure architecture. The lazy struct contains a computed flag, value slot, thunk code pointer, and inlined captures. Forcing uses the thunk calling convention where the thunk receives a pointer to its containing struct. See [Lazy Value Representation](lazy-representation.md) for complete specification.
+> **Clef Note**: In Clef, `Lazy<'T>` is implemented as an extension of the flat closure architecture. A lazy value is the two-value pair `(thunk, env)`; the environment contains a computed flag, a value slot, and inlined captures, and no function address is stored in it. Forcing calls the thunk with the environment. See [Lazy Value Representation](lazy-representation.md) for complete specification.
 >
 > Key properties:
 > - No garbage collector involvement

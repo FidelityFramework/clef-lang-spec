@@ -132,7 +132,7 @@ let private gtk_init_ptr =
 ```
 
 **Code Generation:**
-The middle end emits portable dialects only: an external `func.func` declaration for the symbol, and the symbol address carried as a `builtin.unrealized_conversion_cast` (a function address is data with no portable form). Each target pathway realizes that cast: the LLVM pathway (CPU/MCU) lowers the declaration to an `llvm.func` and the address to an `llvm.mlir.addressof`; other pathways realize it in their own terms.
+The middle end emits portable dialects only: an external `func.func` declaration for the symbol, and the symbol as a `func.constant` referencing that declaration — a first-class function value in the portable dialect, with no cast. Each target pathway realizes it through its standard lowerings: the LLVM pathway (CPU/MCU) lowers the declaration to an `llvm.func` and the constant to an `llvm.mlir.addressof`, which is the address the C side receives; other pathways realize it in their own terms. The conversion of a function value to an address is therefore a pathway commitment made at the extern boundary, never a middle-end operation.
 
 ### 3.3 FnPtr.invoke
 

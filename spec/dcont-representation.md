@@ -5,147 +5,182 @@ category: Representation
 status: normative
 ---
 
-> **Normative specification for the delimited-continuation operation surface, its target
-> lowerings, and the cooperative scheduling that suspend/resume realizes on a
+> **Normative specification for delimited continuations as a saturated aggregate on the
+> Program Semantic Graph, the frame they resume into, the standard-dialect form the
+> witness emits, and the cooperative scheduling that suspend/resume realizes on a
 > single-core target in Clef compilation.**
 
 ## 1. Overview
 
-Delimited continuations are the substrate under `async { }`, actor `receive`, and every synchronous suspension point. This chapter specifies them the way a dialect specifies an abstraction: as a **transportable operation surface** — `cont.new`, `cont.suspend`, `cont.resume`, and their memory ops — that is target-neutral, together with the lowerings that carry that surface to concrete backends. The point of the surface is precisely that it does not commit to a lowering: the same continuation ops travel unchanged while the backend is chosen per target.
+Delimited continuations are the substrate under `async { }`, actor `receive`, and every synchronous suspension point. This chapter specifies them as **graph structure**: a computation-expression region is elaborated by the suspension recipe (§2) into segments and a frame, its delimiter is the boundary of the subgraph the builder's extent defines, and the whole is settled at saturation before any code exists. What the witness emits is standard dialects only — a discriminant, a byte frame with static views, function values, and `scf.index_switch` (§5). There is no continuation operation surface, and no continuation dialect, above the witness boundary ([Backend Lowering Architecture §2.1](backend-lowering-architecture.md)).
 
-The surface has **two destinations, and both reach the native-CPU target pathway through LLVM** — they are not rival architectures but two shapes of the one native lowering. LLVM here is the CPU/MCU target pathway specifically ([Backend Lowering Architecture](backend-lowering-architecture.md) §2), not a universal backend: continuation lowering commits to LLVM coroutine intrinsics because that pathway targets a native call stack, whereas target pathways without a continuation ABI (a hardware target such as CIRCT/FPGA) are not continuation destinations. The two destinations are:
+This position supersedes an earlier framing of this chapter in which a target-neutral operation surface (`cont.new` / `cont.suspend` / `cont.resume`) was the normative object and each target supplied a lowering pass over it. That framing followed the dialect-level encoding of the WAMI work (§References). It is retired for the reason the [Program Hypergraph](program-hypergraph.md) states generally: the semantics ride in the graph, the judgments discharge over its literals, and what reaches MLIR is the settled decomposition. A `cont`-style vocabulary may still exist **below** the boundary as transliteration for a target that natively hosts continuations (§5.2); the front end does not emit it.
 
-- **LLVM coroutines** (§5.1) — `cont.suspend`/`resume` lower to `llvm.coro.*` intrinsics, which the LLVM coroutine passes split into a resumable frame. This is the general destination on the native-CPU pathway.
-- **Stack switching** (§5.2) — on a target exposing first-class suspend/resume as a primitive, the ops lower to it directly. This was always the same LLVM destination reached through the coroutine ABI; the stack-switching primitive is how the coroutine's suspend/resume is realized where the target provides it natively.
+The delimited continuation is one instance of the general environment object of [Closure Representation](closure-representation.md): the closure environment, the continuation frame, and the actor state cell are three instances of one node, placed by one fold-in rule. Everything the flat-closure chapter establishes — the finiteness lemma, the enumerated capture set, deterministic layout, the lifetime lattice — is inherited here, and the frame's obligations quantify over enumerated structure for the same reason a closure's do ([Closure Representation §11](closure-representation.md)).
 
-Under the §5.1 lowering (the freestanding pathway, [Backend Lowering Architecture](backend-lowering-architecture.md) §5), the coroutine frame is the resumable state that a `seq` expression already uses ([Sequence Expression Representation](seq-representation.md)) — the same struct, generalized to capture the **delimited remainder** rather than only loop-local state (§4). No separate scheduler runtime is introduced. Whether the resume semantics also constitute the entire scheduler is a separate, target-cardinality question, addressed in §7: on a **single-core** target the suspend/resume semantics **are** the cooperative scheduler, because there is one thread of control to hand back and forth. That reduction turns on the core count, not on the pathway being freestanding, and the same continuation surface lowers unchanged to hosted and multi-core targets.
+## 2. The Suspension Recipe
 
-The choice among destinations is a per-call-site lowering decision, not a change to the operation surface or its semantics. The transportability is the design: a front end emits the continuation ops once, and each target supplies a lowering pass — the same discipline the framework applies to platform bindings and device sources elsewhere.
+Elaboration carries the continuation as a recipe in the sense of the [Program Semantic Graph](program-semantic-graph.md) saturation discipline: fan-out elaborates the region into structure; fold-in settles what that structure literally is.
 
-## 2. The Continuation Operation Surface
+**Fan-out: segments at cuts.** A computation-expression region is split at its suspension points. Each `let!` / `do!` (and each construct that lowers to one: an actor `receive`, the reply wait of a [synchronous RPC](synchronous-rpc-liveness.md)) is a **cut**. The code between two cuts is a **segment**; the code from the last cut to the builder's return is the final segment. The **delimiter** is structure: the boundary of the subgraph the builder's extent defines. No operation carries it, so the ill-formed shapes an operation encoding admits cannot arise — there is no op result for a continuation to self-reference, and no region boundary for a live value to cross. Reset is where the region ends, by construction.
 
-The normative object of this chapter is the operation surface, not any one lowering. A delimited continuation is expressed by these target-neutral operations (naming after the standard coroutine-intrinsic ABI; the surface is what a front end emits and what every target lowering consumes):
+**Per-segment liveness.** For each cut, the **live-across set** is the set of bindings live on the path from that suspension point to the region's end. These become frame slots. The frame is not a new object: it is the environment node of [Closure Representation](closure-representation.md), carrying the state-machine slot class fixed in [Closure Representation §7](closure-representation.md) — captures read-only across resumptions, internal state read-modify-write between cuts, the in-flight value and the discriminant written at each cut.
 
-| Operation | Role |
-|-----------|------|
-| `cont.new @f : !cont<τ>` | create a continuation from a function; `τ` is the suspend/resume value type |
-| `cont.suspend (%v) : (τ) -> ()` | suspend, passing `%v` to whoever resumed the continuation |
-| `cont.resume %k, %v` | resume `%k`, delivering `%v`; a handler receives control if `%k` suspends again |
-| `cont.alloc` / `cont.store` / `cont.load` | reserve a slot for a continuation, stash a suspended one, reload it |
-| `cont.is_done %k` | whether `%k` has run to its delimiter |
+**Resumption sources are an edge class.** The frame's awaited delivery is one edge with four members today: I/O completion, mailbox delivery, interrupt, DMA completion. The constructs of §1 differ only in that edge. One recipe serves all of them.
 
-Clef developers do not write these operations; they write `async { }`, actor behaviors, and computation expressions whose `let!` desugars to continuation capture (see [Native Type Mappings](native-type-mappings.md), the DCont/Inet routing table). An `async` `let!`, an actor `receive`, and a synchronous RPC ([synchronous-rpc-liveness](synchronous-rpc-liveness.md)) each lower the front-end syntax to one `cont.suspend`; their resume trigger differs (I/O completion, message arrival, reply delivery) but the operation surface is identical. The surface is transportable: it fixes *what* a continuation is (create, suspend, resume, and the memory that carries a suspended one), and each target supplies *how* by a lowering pass (§5).
+**Fold-in settles three things, all literal at saturation.**
+
+| Settled | Rule |
+|---|---|
+| **State count** | the number of cuts, literally: a region with *N* cuts folds to a discriminant over *N*+2 values — not-started, one per cut, done |
+| **Frame layout** | slot assignment by interference colouring over segment liveness: two live-across values whose lifetimes do not overlap share a slot; the result is a byte frame with literal extent and literal offsets |
+| **Placement** | by the lifetime lattice of [Closure Representation §3.3](closure-representation.md): a continuation that does not escape its delimiter lives on the stack; one that does (a mailbox holding suspended receives, a stored future) lives in a region whose lifetime covers it; the escape class is read at fold-in, the same read the closure forms make |
+
+**Nested delimiters resolve statically.** In the saturated graph every suspension point carries an edge to its delimiter by construction: fan-out created the cut inside exactly one builder extent, and the edge records that extent. An inner `async` inside an actor `receive` yields two extents, and each cut belongs to the extent that cut it. The compiled program contains no prompt tag and performs no dynamic search for a matching reset, on any target.
 
 ## 3. Relationship to Sequence Expressions and Closures
 
-The continuation surface joins a family of resumable-computation representations, each extending the flat-closure architecture of [Closure Representation](closure-representation.md):
+The continuation frame joins the family of resumable-computation representations, each an instance of the environment node of [Closure Representation §7](closure-representation.md):
 
 | Form | Suspends to | Captured state | Resumed by |
 |------|-------------|----------------|------------|
-| `seq { }` ([seq](seq-representation.md)) | yield a value outward | loop-local internal state | caller pulling `MoveNext` |
-| **delimited continuation** (this chapter) | await a value inward | the delimited remainder | `cont.resume` with a value |
+| `seq { }` ([seq](seq-representation.md)) | yield a value outward | loop-local internal state | the caller's pull |
+| **delimited continuation** (this chapter) | await a value inward | the delimited remainder | delivery on the resumption edge |
 | `Observable` / `Incremental` | (opaque, push-driven) | subscriber closure | emission / staleness |
 
-The relationship is a lowering fact, not a definitional one: on the freestanding target the coroutine frame a continuation lowers to (§5.1) is the same resumable-computation struct `seq` already uses. What it adds is the **capture set** — the values live across a `cont.suspend`, i.e. the delimited remainder up to the continuation's origin, not only loop-local state. This is the `seq` "captures vs internal state" split ([seq §3.2](seq-representation.md)) with the capture set computed at each suspension point. The surface of §2 does not name a struct; §5.1 does, as one destination.
+`seq { }` is the **degenerate case** of this recipe: every resumption source is the caller's pull, and `yield` is the cut. Its form — the pair `(moveNext, {state, current, captures, internal_state})` — is a compiled one-shot delimited continuation: `state` is the discriminant, `current` the in-flight value, the captures and internal state the live-across slots, and `MoveNext` is resume with a narrowed signature. The suspension recipe generalizes the resumption edge and keeps the representation ([Sequence Expression Representation §5](seq-representation.md)).
 
-## 4. Suspended-Continuation State (target-neutral)
+## 4. Suspended-Continuation State
 
-Independent of lowering, a suspended continuation carries the state the surface of §2 implies: which suspension point it paused at, the value in flight, and everything live across the suspension. A conforming lowering SHALL realize this state; §5 gives the two realizations.
+Independent of any target, a suspended continuation carries the state the recipe of §2 implies. A conforming implementation SHALL realize this state as the frame; §5 gives its witnessed form.
 
-- **Suspension index** — which `cont.suspend` the continuation paused at (`0` = not yet started; `1..N` = paused at the Nth suspension; done = ran to its origin).
-- **In-flight value** — the value delivered by the last `cont.resume` (read inward) or passed by the last `cont.suspend` (read outward by the resumer).
-- **Capture set** — the bindings live on the path from a `cont.suspend` to the continuation's origin, unioned across all suspension points. This is the delimited remainder; it is what distinguishes a continuation from a `seq` (whose captured state is only loop-local).
-- **Internal state** — `let mutable` bindings threaded across suspensions.
+- **Suspension index** — the discriminant: which cut the continuation paused at (`0` = not yet started; `1..N` = paused at the *N*th cut; done = ran to its origin).
+- **In-flight value** — the value delivered on the resumption edge (read inward) or passed outward at the cut.
+- **Live-across set** — the bindings live on the path from a cut to the continuation's origin, per cut. This is the delimited remainder; it is what distinguishes a continuation from a `seq`, whose captured state is loop-local.
+- **Internal state** — `let mutable` bindings threaded across cuts.
 
-The capture-set computation is the one genuinely new analysis relative to `seq`: `seq` captures only loop-local state, a continuation captures the delimited remainder. It is computed per suspension point during elaboration and consumed (not recomputed) by whichever lowering §5 selects.
+The live-across computation is the one analysis this chapter adds over `seq`. It is computed per cut at elaboration and consumed, never recomputed, at fold-in and at the witness.
 
-## 5. Target Lowerings
+## 5. The Witnessed Form and the Target Legs
 
-The surface of §2 transports to three destinations. The first two reach the native-CPU target pathway through LLVM ([Backend Lowering Architecture](backend-lowering-architecture.md) §2 — LLVM is the CPU/MCU pathway, one of several); they differ only in whether the target realizes suspend/resume as a coroutine frame the compiler builds or as a primitive the target provides. The third is the JSIR pathway (§5.3), where the host's own suspendable functions are the primitive. The selection is per call site (a lowering decision), and none changes the operation surface or the state of §4.
+What crosses the witness boundary is standard dialects only: a discriminant, a byte frame with static `memref.view`s at literal offsets, function values, and `scf.index_switch` over the discriminant. No continuation dialect, no `llvm` dialect, no new op. The correspondence table of [Closure Representation §6.3](closure-representation.md) covers every constituent; the suspension form adds the discriminant switch and nothing else.
 
-### 5.1 LLVM coroutines (the freestanding state machine)
+```mlir
+// resume: load the discriminant, dispatch to the segment, run to the next cut
+func.func private @region_resume(%frame: memref<Exi8>, %delivered: T) -> i1 {
+  %c0 = arith.constant 0 : index
+  %sv = memref.view %frame[%c0][] : memref<Exi8> to memref<1xindex>
+  %s  = memref.load %sv[%c0] : memref<1xindex>
+  %again = scf.index_switch %s -> i1
+    case 0 { ... segment 0 ... store in-flight, store 1, scf.yield %true }
+    case 1 { ... segment 1 ... }
+    default { ... store done, scf.yield %false }
+  return %again : i1
+}
+```
 
-On the general native path, `cont.suspend`/`resume` lower through the LLVM coroutine intrinsics (`llvm.coro.*`), whose split pass realizes the §4 state as a resumable frame. On a **freestanding target** the frame is the `seq` state-machine struct ([seq §4.1](seq-representation.md)) — byte-compatible, with `seq`'s `current` reinterpreted as the in-flight value — so the allocation, escape-classification, and arena-placement rules of [Memory Regions](memory-regions.md) apply unchanged. When the continuation's scope is bounded (the common case when a freestanding target drives an event loop) the frame is stack- or arena-allocated with no heap involvement, and resume is the `seq` CFG of [seq §5.2](seq-representation.md): an `entry` block loads the suspension index and `switch`es to the per-suspension resume blocks, each of which delivers the in-flight value, advances the index, and returns; the origin block marks done. On this target it reduces to a single `llvm.switch %index, %resume_blocks` — no coroutine runtime library, no heap frame, no scheduler.
+`E`, every slot offset, and every discriminant literal are fixed at saturation (§2). The frame is the same 1-D `i8` buffer with identity layout that `memref.view` requires as its source, which is why the standard dialect already contains the elaborated form.
 
-Resume on this path has the `MoveNext` shape of [seq §5.1](seq-representation.md):
+Below the boundary, each target leg realizes the same saturated structure in its own shape. The realizations are stated with the profile conditions that select them; none changes what the witness emits.
+
+### 5.1 CPU and MCU: the state-machine form
+
+The witnessed form runs as written: `scf.index_switch` dispatches on the discriminant, each case is a segment, and resume is a call that loads the frame, switches, and runs to the next cut. On a freestanding target the frame is stack- or region-placed with no heap involvement (§2, placement), and resume has the `MoveNext` shape of [seq §5.1](seq-representation.md):
 
 ```
-resume: (ptr<Cont<T>>, T) -> i1   // true if it suspended again, false at the origin
+resume: (memref<Exi8>, T) -> i1   // true if it suspended again, false at the origin
 ```
+
+This is the first realization to build, and it is the `seq` state machine generalized.
 
 ### 5.2 Stack switching
 
-On a target that exposes suspend/resume as a first-class primitive, the surface lowers to that primitive directly rather than to a compiler-built frame. This is the same LLVM coroutine destination reached natively: the coroutine's suspend and resume are realized by the target's stack-switch, so the continuation is preserved as a first-class value rather than reified into a state-machine struct. The operation surface of §2 is unchanged; only the realization differs, which is the point of specifying the surface separately from the lowering.
+A target that exposes suspend/resume as a first-class primitive (the WebAssembly stack-switching proposal, when its runtime support matures) may receive the saturated frame and discriminant transliterated into that primitive by a **backend leg**, below the boundary, in the target's own vocabulary. That vocabulary expresses the target upward ([Backend Lowering Architecture §3.2](backend-lowering-architecture.md)); it never expresses Clef downward, and the front end never emits it. The witnessed form of §5 is unchanged; only the leg differs.
 
 ### 5.3 Host coroutines (JSIR pathway)
 
 > This subsection binds implementations claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)).
 
-On the JSIR pathway the host's suspendable functions are the suspend/resume primitive: `cont.suspend` and `cont.resume` lower to the host's async-function or generator mechanism, and the §4 state is carried by the host coroutine's own frame under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md). Resume is delivery by the host event loop; the run-to-completion guarantee between suspension points is supplied by the single-threaded host and is the substrate-discharged form of the discipline in §7 (see the isolate row of [Scheduler Contract §7](scheduler-contract.md)). A rejection delivered at a suspension point that a boundary operation awaited is intercepted per [JavaScript Boundary Semantics §6](javascript-boundary.md). The operation surface of §2 and the state of §4 are unchanged; only the realization differs.
+On the JSIR pathway the host's suspendable functions are the suspend/resume primitive: each cut is realized by the host's async-function or generator mechanism, and the §4 state is carried by the host coroutine's own frame under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md). Resume is delivery by the host event loop; the run-to-completion guarantee between cuts is supplied by the single-threaded host and is the substrate-discharged form of the discipline in §7 (see the isolate row of [Scheduler Contract §7](scheduler-contract.md)). A rejection delivered at a cut that a boundary operation awaited is intercepted per [JavaScript Boundary Semantics §6](javascript-boundary.md). The structure of §2 and the state of §4 are unchanged; only the realization differs.
 
-## 6. PSG Structure
+## 6. PSG Structure and Verification Conditions
 
-A continuation region saturates to a `ContStateMachine` node, the analogue of the `SeqStateMachine` node of [Program Semantic Graph §12.5](program-semantic-graph.md):
+A continuation region saturates to a frame node — the environment node of [Closure Representation](closure-representation.md) in its second instance — with these constituents settled:
 
 ```
-ContStateMachine {
-    Delimiter:      NodeId              // the reset boundary
-    SuspendPoints:  (NodeId * int) list // each shift and its state index
-    CaptureSet:     NodeId list         // bindings live across suspensions
-    InternalState:  NodeId list         // let mutable across suspensions
-    ResumeBlocks:   NodeId list         // per-suspension resume code
+Frame (environment node, state-machine slot class) {
+    Delimiter:        edge to the builder extent that owns this region
+    Cuts:             (NodeId * int) list      // each suspension point and its discriminant value
+    LiveAcross:       per cut, the enumerated slot set
+    InternalState:    NodeId list              // let mutable across cuts
+    Segments:         NodeId list              // per-cut resume code
+    ResumptionEdge:   the edge class member (I/O, mailbox, interrupt, DMA)
 }
 ```
 
-The suspension-point state indices are assigned by a coeffect analogous to the Yield State Analysis of [Program Semantic Graph §14.3.3](program-semantic-graph.md), computed during preprocessing and consumed (not recomputed) during witnessing. The saturation principle is unchanged: CCS builds the `ContStateMachine`; code generators only witness it.
+The frame is minted by the suspension recipe at saturation, in the front end. Its discriminant values, slot offsets, and extent are literals on the graph, projected onto the nodes they govern as annotations the witness reads ([Program Hypergraph §5](program-hypergraph.md)). No code generator assigns them, and no analysis beside the graph recomputes them.
+
+Every obligation the suspension form generates is quantifier-free, in the discharge regime of [Closure Representation §11](closure-representation.md): at saturation, over the graph's literals, before witnessing. For a frame with slots *s*₀..*s*ₙ₋₁, offsets *off*ᵢ, sizes *size*ᵢ, extent *E*, and cut count *N*:
+
+| VC | Obligation | Fragment | Discharge |
+|---|---|---|---|
+| VC-EXT | *size*₀ + … + *size*ₙ₋₁ + pad = *E* | QF_LIA | ground arithmetic over literals |
+| VC-STATE | every store to the discriminant writes a literal in [−1, *N*] | QF_LIA | finite conjunction over literals |
+| VC-ACC | for each state *k*, the slots read by segment *k* are within live(*k*) | none; sets | per-state check against segment liveness, enumerated |
+| VC-DOM | the delimiter node dominates every cut it encloses | none; graph | dominance check on the saturated graph |
+| VC-ONE | each suspended frame is resumed exactly once | none; linear | linear obligation on the frame value |
+
+Because VC-ONE is stated on the frame value, multi-shot is well-defined where it is declared: a frame copy is a byte copy of *E* bytes, legitimate because the frame is flat with literal extent, and each copy carries its own VC-ONE. Multi-shot is never the silent default.
 
 ## 7. NORMATIVE: Single-Core Cooperative Scheduling
 
-Delimited continuations are pervasive in Clef and carry no scheduling role of their own; the operation surface of §2 is what `async`, actor `receive`, and every suspension point lower to, on every target. On a **single-core** small-form-factor target ([Backend Lowering Architecture](backend-lowering-architecture.md) §5 defines the freestanding pathway), one further fact holds: the suspend/resume semantics of that surface **become** the cooperative scheduler. This is a forcing function of the braid, not a property of continuations. With one thread of control and no room for a separate scheduler runtime, a continuation that suspends is the only thing that can hand the core to another, so the braid presses the continuation's own suspend/resume into the scheduler's role — no task queue or preemption mechanism is introduced because none can be. The operative constraint is the single core, not the freestanding host: a freestanding pathway is not inherently single-core, and where the target has more cores the braid coordinates them by other means, out of this section's scope. This section states the single-core discipline normatively so it can be relied upon; it holds regardless of which §5 lowering realizes the surface.
+Delimited continuations are pervasive in Clef and carry no scheduling role of their own; the frame and its resume are what `async`, actor `receive`, and every suspension point saturate to, on every target. On a **single-core** small-form-factor target ([Backend Lowering Architecture](backend-lowering-architecture.md) §5 defines the freestanding pathway), one further fact holds: the suspend/resume semantics **become** the cooperative scheduler. This is a forcing function of the braid, not a property of continuations. With one thread of control and no room for a separate scheduler runtime, a continuation that suspends is the only thing that can hand the core to another, so the braid presses the continuation's own suspend/resume into the scheduler's role — no task queue or preemption mechanism is introduced because none can be. The operative constraint is the single core, not the freestanding host: a freestanding pathway is not inherently single-core, and where the target has more cores the braid coordinates them by other means, out of this section's scope. This section states the single-core discipline normatively so it can be relied upon; it holds regardless of which §5 leg realizes the frame.
 
 A conforming single-core implementation SHALL observe:
 
-1. **Continuations are tasks.** A suspended continuation is a runnable unit. There is no task object distinct from the continuation itself.
+1. **Continuations are tasks.** A suspended frame is a runnable unit. There is no task object distinct from the frame itself.
 
-2. **Resume is the scheduling event.** A continuation runs only when resumed (`cont.resume`) by delivery of its awaited value. On a bare-metal freestanding target the delivery source is a peripheral interrupt (or a completion the interrupt records); the interrupt-to-continuation binding is the scheduler's dispatch.
+2. **Resume is the scheduling event.** A continuation runs only when resumed by delivery on its resumption edge. On a bare-metal freestanding target the delivery source is a peripheral interrupt (or a completion the interrupt records); the interrupt-to-continuation binding is the scheduler's dispatch.
 
-3. **Run-to-completion until the next `cont.suspend` (non-preemption).** Once resumed, a continuation runs until it reaches its next `cont.suspend` or its origin. It is never preempted mid-remainder. This is the cooperative guarantee: a continuation yields the core only at a suspension point, never involuntarily.
+3. **Run-to-completion until the next cut (non-preemption).** Once resumed, a continuation runs its segment until it reaches its next cut or its origin. It is never preempted mid-segment. This is the cooperative guarantee: a continuation yields the core only at a cut, never involuntarily.
 
-4. **Quiescence to low power.** When no continuation is runnable — every continuation is suspended awaiting a value — the implementation SHALL return the core to a wait state (e.g. `WFI` on Arm) until the next interrupt. The interrupt resumes the awaiting continuation, and the cycle repeats.
+4. **Quiescence to low power.** When no continuation is runnable — every frame is suspended awaiting delivery — the implementation SHALL return the core to a wait state (e.g. `WFI` on Arm) until the next interrupt. The interrupt resumes the awaiting continuation, and the cycle repeats.
 
-The interrupt handler that delivers a value SHALL be a captureless top-level handler bound directly to the vector-table slot (hardware vectors carry no environment pointer); it reaches continuation state through the resume entry point, not through a captured closure. The progress guarantee under this discipline is that every continuation whose awaited value has been delivered is eventually resumed; on a single core with one interrupt source per suspension class this reduces to "the handler resumes the awaiting continuation," and no fairness policy beyond interrupt priority is required.
+The interrupt handler that delivers a value SHALL be a captureless top-level handler bound directly to the vector-table slot (hardware vectors carry no environment pointer); it reaches the frame through the resume entry point, not through a captured closure. The progress guarantee under this discipline is that every continuation whose awaited value has been delivered is eventually resumed; on a single core with one interrupt source per suspension class this reduces to "the handler resumes the awaiting continuation," and no fairness policy beyond interrupt priority is required.
 
 > This is the sense in which the concurrency model reduces to an event loop *on a single core*:
-> the braided crossing (a `cont.suspend` that spawns an awaited computation
-> and threads its result back through the remainder) is held by the continuation, and where the
-> target has one core the continuation's own suspend/resume is the whole of the scheduling. The
-> reduction is a property of the core count, not of the freestanding host — the same continuation
-> semantics carry to a multi-core target, where the scheduling is more than one event loop.
+> the braided crossing (a cut that spawns an awaited computation and threads its result back
+> through the remainder) is held by the frame, and where the target has one core the frame's
+> own suspend/resume is the whole of the scheduling. The reduction is a property of the core
+> count, not of the freestanding host — the same continuation semantics carry to a multi-core
+> target, where the scheduling is more than one event loop.
 
 ## 8. SSA Cost
 
-On the §5.1 freestanding lowering the resume state machine has the `seq` SSA cost profile ([seq §9](seq-representation.md)): one `switch` at entry, plus per-suspension the value-store and index-store, plus the capture-set loads on each resume. No allocation-site cost is added for a scope-bounded continuation (stack/arena), matching the zero-heap requirement of a freestanding target.
+On the §5.1 leg the resume state machine has the `seq` SSA cost profile ([seq §5](seq-representation.md)): one discriminant load and switch at entry, plus per cut the in-flight store and discriminant store, plus the live-across loads on each resume. No allocation-site cost is added for a scope-bounded frame (stack/region), matching the zero-heap requirement of a freestanding target.
 
 ## 9. Normative Requirements
 
-1. **Operation surface.** A delimited continuation SHALL be expressed by the target-neutral operation surface of §2 (`cont.new` / `cont.suspend` / `cont.resume` and the continuation memory ops), which every target lowering consumes.
-2. **Suspended state.** A lowering SHALL realize the suspended-continuation state of §4: the suspension index, the in-flight value, the capture set, and internal state.
-3. **Capture set.** The capture set SHALL be the bindings live on the path from each `cont.suspend` to the continuation's origin, unioned across suspension points — the delimited remainder.
-4. **Freestanding lowering.** On the freestanding native path the surface SHALL lower per §5.1: the `seq` state-machine struct as the coroutine frame, resume with the `seq` CFG and calling convention, and no continuation-runtime, coroutine-library, or scheduler-runtime dependency.
-5. **Transportability.** The operation surface SHALL be independent of the lowering; a different target (e.g. stack switching, §5.2) SHALL be a different lowering pass over the same surface, not a change to it.
-6. **Cooperative discipline.** A single-core implementation SHALL observe the scheduling discipline of §7 (continuations-as-tasks, resume-as-dispatch, run-to-completion, quiescence-to-wait).
+1. **Graph structure, not an operation surface.** A delimited continuation SHALL be expressed on the Program Semantic Graph by the suspension recipe of §2 — segments at cuts, a frame, and a delimiter edge from every cut to the builder extent that owns it. An implementation SHALL NOT express continuations as a continuation operation surface or continuation dialect above the witness boundary.
+2. **Suspended state.** The frame SHALL realize the state of §4: the discriminant, the in-flight value, the live-across set per cut, and internal state.
+3. **Live-across set.** The live-across set of a cut SHALL be the bindings live on the path from that cut to the continuation's origin — the delimited remainder — computed at elaboration and consumed, not recomputed, thereafter.
+4. **Witnessed form.** The witness SHALL emit the form of §5: a discriminant, a byte frame of literal extent with static `memref.view`s at literal offsets, function values, and `scf.index_switch` over the discriminant, in the portable dialects of [Backend Lowering Architecture §2.1](backend-lowering-architecture.md) and no other.
+5. **Target legs below the boundary.** A target that natively hosts continuations MAY transliterate the witnessed frame and discriminant into its own primitive in a backend leg (§5.2). Such a leg SHALL consume the witnessed form; it SHALL NOT be a change to what the witness emits.
+6. **Verification conditions.** The obligations of §6 SHALL be discharged at saturation, over the graph's literals, before witnessing; VC-ONE SHALL be stated on the frame value.
+7. **Cooperative discipline.** A single-core implementation SHALL observe the scheduling discipline of §7 (continuations-as-tasks, resume-as-dispatch, run-to-completion, quiescence-to-wait).
 
 ## 10. Related Chapters
 
-- [Sequence Expression Representation](seq-representation.md) — the state-machine struct and state-index discipline the §5.1 freestanding lowering reuses.
-- [Closure Representation](closure-representation.md) — the flat-closure architecture both extend; the observer continuation as a resumed consumer.
-- [Program Semantic Graph](program-semantic-graph.md) — `SeqStateMachine` (§12.5) and Yield State Analysis (§14.3.3), the analogues of `ContStateMachine` and its state-index coeffect.
-- [Synchronous RPC and Liveness](synchronous-rpc-liveness.md) — one specified suspension point (the actor reply wait) that lowers to a `cont.suspend` and whose wait-for edge is rank-checked.
-- [Native Type Mappings](native-type-mappings.md) — the DCont/Inet routing table: which regions lower through delimited continuations versus the parallel targets.
+- [Sequence Expression Representation](seq-representation.md) — the degenerate case: the caller's pull as the only resumption edge, `yield` as the cut.
+- [Closure Representation](closure-representation.md) — the environment node this frame is an instance of; the finiteness lemma; the lifetime lattice; the discharge regime.
+- [Program Hypergraph](program-hypergraph.md) — the hyperedge formalism the delimiter edge and the frame's obligations reside in; the emission-transport rule the witness follows.
+- [Program Semantic Graph](program-semantic-graph.md) — saturation, and the state-machine node vocabulary this chapter generalizes.
+- [Synchronous RPC and Liveness](synchronous-rpc-liveness.md) — one specified cut (the actor reply wait) whose wait-for edge is rank-checked.
+- [Native Type Mappings](native-type-mappings.md) — which computation-expression regions saturate through this recipe and which compile to data flow.
 
 ## References
 
-- Danvy, O., Filinski, A. *Abstracting Control* (1990) — shift/reset, the source-level control operators the `cont.*` surface represents.
+- Danvy, O., Filinski, A. *Abstracting Control* (1990) — shift/reset, the control operators whose semantics the recipe of §2 carries as graph structure.
 - Dybvig, R. K., Peyton Jones, S., Sabry, A. *A Monadic Framework for Delimited Continuations* (JFP 2007).
-- Kang, B., Desai, H., Jia, L., Lucia, B. *WAMI: Compilation to WebAssembly through MLIR without Losing Abstraction* (2025), arXiv:2506.16048 — the `DCont`/coroutine-intrinsic dialect and its `CoroToLLVM` / `CoroToWAMI` lowerings that this surface-and-transport structure follows.
-- Appel, A. W. *SSA is Functional Programming* (1998) — the state-machine/CFG equivalence the resume lowering rests on.
+- Kang, B., Desai, H., Jia, L., Lucia, B. *WAMI: Compilation to WebAssembly through MLIR without Losing Abstraction* (2025), arXiv:2506.16048 — prior art for a dialect-level encoding of delimited continuations. An earlier revision of this chapter followed that structure; this revision does not, for the reason stated in §1, and notes that the WAMI authors themselves retired their continuation dialect in favour of a coroutine dialect (2026-02).
+- Appel, A. W. *SSA is Functional Programming* (1998) — the state-machine/CFG equivalence the resume form rests on.

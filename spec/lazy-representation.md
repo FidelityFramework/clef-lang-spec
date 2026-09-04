@@ -21,7 +21,7 @@ Lazy values build directly on the flat closure representation specified in [Clos
 
 ### 3.1 Lazy Structure
 
-A lazy value in Clef is a struct containing:
+A lazy value in Clef is the two-value pair `(thunk, env)` of [Closure Representation §6.3](closure-representation.md): the thunk is a function value (`func.constant @thunk`), and the environment is a flat struct containing:
 
 ```
 Lazy<T> with captures [c₁: T₁, ..., cₘ: Tₘ]
@@ -29,8 +29,6 @@ Lazy<T> with captures [c₁: T₁, ..., cₘ: Tₘ]
 │ computed: i1              (1 byte, padded to alignment)                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ value: T                  (sizeof(T) bytes, aligned)                     │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr             (1 platform word)                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ c₁: T₁                    (sizeof(T₁) bytes, aligned)                    │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -42,9 +40,10 @@ Lazy<T> with captures [c₁: T₁, ..., cₘ: Tₘ]
 Field Indices:
   [0] = computed flag
   [1] = memoized value
-  [2] = code pointer (thunk function)
-  [3..N+2] = captured values
+  [2..N+1] = captured values
 ```
+
+The thunk symbol is never stored in the environment as data: it travels as the function-value half of the pair, and where the force site knows the thunk (a lazy value that does not escape) it is elided altogether and force is a direct call. An earlier revision of this chapter placed a `code_ptr` word at `[2]`; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)).
 
 ### 3.2 Field Semantics
 
@@ -52,7 +51,6 @@ Field Indices:
 |-------|------|---------------|---------|
 | `computed` | `i1` | `false` | Tracks whether thunk has been evaluated |
 | `value` | `T` | `undef` | Stores result after first evaluation |
-| `code_ptr` | `ptr` | `&thunk_fn` | Address of thunk implementation |
 | `captures` | `T₁, ..., Tₘ` | captured values | Environment for thunk execution |
 
 ### 3.3 Size Formula
@@ -60,33 +58,33 @@ Field Indices:
 For a lazy value with element type `T` and `N` captures with types `T₁, ..., Tₙ`:
 
 ```
-size(Lazy<T, [T₁...Tₙ]>) = align(1) + sizeof(T) + sizeof(ptr) + Σᵢ sizeof(Tᵢ)
-                         = 1 + padding + sizeof(T) + sizeof(ptr) + Σᵢ sizeof(Tᵢ)
+size(Lazy<T, [T₁...Tₙ]>) = align(1) + sizeof(T) + Σᵢ sizeof(Tᵢ)
+                         = 1 + padding + sizeof(T) + Σᵢ sizeof(Tᵢ)
 ```
 
-`sizeof(ptr)` is the platform word: 4 bytes on `thumbv8m`/Cortex-M33, 8 bytes on x86-64. The byte totals below are worked for both. Taking `int` as a 64-bit value for the x86-64 column:
+No platform word is spent on a code pointer; the thunk is the other half of the pair, not a field. The byte totals below are worked for two targets. Taking `int` as a 64-bit value for the x86-64 column:
 
 - `lazy 42` (no captures):
-  - x86-64: 1 + 7 + 8 + 8 = 24 bytes
-  - thumbv8m (M33), with `int` as a 4-byte value: 1 + 3 + 4 + 4 = 12 bytes
+  - x86-64: 1 + 7 + 8 = 16 bytes
+  - thumbv8m (M33), with `int` as a 4-byte value: 1 + 3 + 4 = 8 bytes
 - `lazy (a + b)` with `a, b: int`:
-  - x86-64: 1 + 7 + 8 + 8 + 8 + 8 = 40 bytes
-  - thumbv8m (M33): 1 + 3 + 4 + 4 + 4 + 4 = 20 bytes
+  - x86-64: 1 + 7 + 8 + 8 + 8 = 32 bytes
+  - thumbv8m (M33): 1 + 3 + 4 + 4 + 4 = 16 bytes
 
 ## 4. Thunk Calling Convention
 
 ### 4.1 Struct Pointer Passing
 
-Clef uses the **struct pointer passing** convention for thunks. The thunk receives a pointer to its containing lazy struct and extracts captures itself.
+Clef uses the **environment passing** convention for thunks. The thunk receives its environment — the lazy struct of §3.1 — as its sole environment parameter and extracts captures itself.
 
 **Thunk Signature**:
 ```
-thunk_fn: (ptr<Lazy<T>>) -> T
+thunk_fn: (memref<Exi8>) -> T      // E = the environment extent of §3.3, a literal at saturation
 ```
 
 **Rationale**:
 - Uniform signature for all thunks regardless of capture count
-- Force implementation is simple: extract code pointer, call with struct pointer
+- Force is one call: `func.call_indirect %thunk(%env)`, or `func.call @thunk(%env)` where the force site knows the thunk
 - Thunk extracts its own captures at known offsets
 
 ### 4.2 Thunk Implementation
@@ -116,9 +114,9 @@ func.func private @thunk_example(%env: memref<?xi64>) -> i64 {
 }
 ```
 
-A thunk with no captures (e.g., `lazy 42`) is still a `func.func`; its body reads nothing from the environment. The thunk's address is stored in the lazy struct as *data*, which has no portable operation. The middle end carries that conversion as a `builtin.unrealized_conversion_cast` (`func_type → index`) and defers the commitment to the target pathway, the same mechanism the flat closure uses for a function address (backend §4.2).
+A thunk with no captures (e.g., `lazy 42`) is still a `func.func`; its body reads nothing from the environment. The thunk is the function-value half of the lazy pair — `func.constant @thunk` — and is never stored as data; no cast exists in the middle end ([Backend Lowering Architecture §4](backend-lowering-architecture.md)).
 
-The `llvm.func` / `llvm.mlir.addressof` form is one target pathway's realization of this thunk, not what the middle end emits. On the LLVM pathway the closure-cast pass resolves the deferred casts into the target's pointer representation: the `func_type → index` cast becomes `llvm.ptrtoint`, and the `memref` capture read becomes a `getelementptr` + `load` in the target ABI. A different pathway (CIRCT, SPIR-V, WebAssembly) resolves the same middle-end IR its own way.
+The `llvm.func` / `llvm.mlir.addressof` form is one target pathway's realization of this thunk, not what the middle end emits. On the LLVM pathway the standard lowerings do all of it: `func.constant` becomes `llvm.mlir.addressof`, and the `memref` capture read becomes a `getelementptr` + `load` in the target ABI. No cast-resolution pass runs. A different pathway (CIRCT, SPIR-V, WebAssembly) realizes the same middle-end IR its own way.
 
 ### 4.3 Alternative Considered: Parameter Passing
 
@@ -238,31 +236,30 @@ type LazyLayout = {
     LazyNodeId: NodeId              // The LazyExpr node
     CaptureCount: int               // Number of captures
     Captures: CaptureSlot list      // Reuses CaptureSlot from closures
-    LazyStructType: MLIRType        // { i1, T, ptr, cap₀, cap₁, ... }
+    LazyStructType: MLIRType        // { i1, T, cap₀, cap₁, ... }
     ElementType: MLIRType           // T (for force operations)
     
     // SSA identifiers for construction
     FalseConstSSA: SSA              // computed flag = false
     UndefSSA: SSA                   // undef lazy struct
     WithComputedSSA: SSA            // insertvalue computed at [0]
-    CodeAddrSSA: SSA                // addressof code_ptr
-    WithCodePtrSSA: SSA             // insertvalue code_ptr at [2]
-    CaptureInsertSSAs: SSA list     // insertvalue for each capture at [3..N+2]
+    CaptureInsertSSAs: SSA list     // insertvalue for each capture at [2..N+1]
     LazyResultSSA: SSA              // final result
 }
 ```
 
+This layout is computed in Composer's SSA assignment today, which is interim: it is the consequence of the closure hyperedge and moves into CCS with it (`clef/docs/fidelity/phg/Closure_Retooling_Plan.md`). The witness reads it; it does not compute it.
+
 ### 7.2 SSA Cost Formula
 
-For a lazy expression with `N` captures: `5 + N` SSAs
+For a lazy expression with `N` captures: `4 + N` SSAs
 
 | Operation | SSA Count |
 |-----------|-----------|
 | `false` constant | 1 |
 | `undef` struct | 1 |
 | insert computed flag | 1 |
-| addressof code_ptr | 1 |
-| insert code_ptr | 1 |
+| `func.constant` for the thunk (elided when the force site is known) | 1 |
 | insert captures | N |
 
 ### 7.3 ClosureLayout for Thunk
@@ -278,7 +275,7 @@ type ClosureLayout = {
 ```
 
 When `Context = LazyThunk`:
-- `closureExtractionBaseIndex` returns `3` (captures start at index 3)
+- `closureExtractionBaseIndex` returns `2` (captures start at index 2)
 - `closureLoadStructType` returns the full lazy struct type
 
 ## 8. MLIR Generation
@@ -294,60 +291,50 @@ The middle end emits lazy construction over `memref`, with the thunk address car
 // Step 1: Allocate the lazy struct's storage per its lifetime class (§9).
 //         Scope-bounded here, so memref.alloca; a program-lifetime lazy
 //         would be a memref.global instead.
-%lazy = memref.alloca() : memref<5xi64>
+%lazy = memref.alloca() : memref<4xi64>
 
 // Step 2: Write computed flag = false at [0].
 %c0 = arith.constant 0 : index
 %false = arith.constant 0 : i64
-memref.store %false, %lazy[%c0] : memref<5xi64>
+memref.store %false, %lazy[%c0] : memref<4xi64>
 
-// Step 3: Write code pointer at [2].
-//         The thunk address is data, so it is carried as a deferred cast.
-%code = builtin.unrealized_conversion_cast @thunk_lazyAdd_body
-      : (memref<?xi64>) -> i64 to i64
+// Step 3: Write captures at [2], [3], ...
 %c2 = arith.constant 2 : index
-memref.store %code, %lazy[%c2] : memref<5xi64>
-
-// Step 4: Write captures at [3], [4], ...
+memref.store %a, %lazy[%c2] : memref<4xi64>
 %c3 = arith.constant 3 : index
-memref.store %a, %lazy[%c3] : memref<5xi64>
-%c4 = arith.constant 4 : index
-memref.store %b, %lazy[%c4] : memref<5xi64>
+memref.store %b, %lazy[%c3] : memref<4xi64>
 
-// %lazy is the complete lazy value.
+// Step 4: The thunk is the other half of the pair — a function value, not data.
+%thunk = func.constant @thunk_lazyAdd_body : (memref<4xi64>) -> i64
+
+// (%thunk, %lazy) is the complete lazy value.
 ```
 
-The target pathway commits this to its ABI: on the LLVM pathway the `memref` becomes an `!llvm.struct` with `insertvalue`/`store` at the same indices, and the deferred `func_type → index` cast becomes `llvm.ptrtoint` of the thunk's `llvm.func` address. That committed form is one pathway's realization, not middle-end output.
+The target pathway commits this to its ABI through its standard lowerings: on the LLVM pathway the `memref` becomes a pointer with `store` at the same indices and `func.constant` becomes `llvm.mlir.addressof`. That committed form is one pathway's realization, not middle-end output, and no cast is involved.
 
 ### 8.2 Force Operation
 
-Force reads the `computed` flag, and either returns the cached value or calls the thunk through its stored code pointer. The middle end emits this over `memref` and `scf`, with the code-pointer call carried as a deferred `index → func_type` cast. Nothing here commits a target ABI.
+Force reads the `computed` flag, and either returns the cached value or calls the thunk — the function-value half of the pair — with the environment. The middle end emits this over `func`, `memref`, and `scf`. Nothing here commits a target ABI.
 
 ```mlir
-// Lazy.force lazy_val, where %lazy is memref<5xi64> (§8.1).
+// Lazy.force lazy_val, where the value is (%thunk, %lazy) and %lazy is memref<4xi64> (§8.1).
 // Middle end — portable dialects only.
 
 // Read computed flag at [0].
 %c0 = arith.constant 0 : index
-%flag = memref.load %lazy[%c0] : memref<5xi64>
+%flag = memref.load %lazy[%c0] : memref<4xi64>
 %zero = arith.constant 0 : i64
 %computed = arith.cmpi ne, %flag, %zero : i64
 
 %value = scf.if %computed -> i64 {
     // Already computed: return the cached value at [1].
     %c1 = arith.constant 1 : index
-    %cached = memref.load %lazy[%c1] : memref<5xi64>
+    %cached = memref.load %lazy[%c1] : memref<4xi64>
     scf.yield %cached : i64
 } else {
-    // Read the code pointer at [2] and realize it as callable.
-    %c2 = arith.constant 2 : index
-    %code = memref.load %lazy[%c2] : memref<5xi64>
-    %fn = builtin.unrealized_conversion_cast %code
-        : i64 to (memref<?xi64>) -> i64
-
-    // Struct-pointer-passing convention: pass the environment to the thunk.
-    %env = memref.cast %lazy : memref<5xi64> to memref<?xi64>
-    %result = func.call_indirect %fn(%env) : (memref<?xi64>) -> i64
+    // Environment-passing convention: call the thunk with its environment.
+    // Where the force site knows the thunk this is func.call @thunk_lazyAdd_body(%lazy).
+    %result = func.call_indirect %thunk(%lazy) : (memref<4xi64>) -> i64
 
     // For memoizing: store %result at [1] and set the flag at [0]
     // (§9; current implementation uses pure thunk semantics, no memoization).
@@ -356,7 +343,7 @@ Force reads the `computed` flag, and either returns the cached value or calls th
 // %value is the forced result.
 ```
 
-The target pathway commits this: on the LLVM pathway the `memref` reads become `extractvalue`/`load`, the `index → func_type` cast becomes `llvm.inttoptr`, and `func.call_indirect` becomes an indirect `llvm.call`. A different pathway realizes the same middle-end IR its own way.
+The target pathway commits this through its standard lowerings: on the LLVM pathway the `memref` reads become `load`s and `func.call_indirect` becomes an `llvm.call` through the function value. A different pathway realizes the same middle-end IR its own way.
 
 ## 9. Memoization Strategy
 
@@ -448,10 +435,10 @@ Lazy.create (fun () -> expr)
 ## 11. Normative Requirements
 
 1. **Flat Representation**: Lazy values SHALL use flat closure representation with captures inlined
-2. **Struct Layout**: Field order SHALL be: computed, value, code_ptr, captures
-3. **Capture Indices**: Captures SHALL begin at index 3
+2. **Struct Layout**: Field order SHALL be: computed, value, captures; no code pointer SHALL be stored in the environment
+3. **Capture Indices**: Captures SHALL begin at index 2
 4. **Module-Level Exclusion**: Module-level bindings SHALL NOT be captured
-5. **Thunk Convention**: Thunks SHALL receive pointer to containing lazy struct
+5. **Thunk Convention**: Thunks SHALL receive their environment as the sole environment parameter; a lazy value SHALL be the two-value pair `(thunk, env)` of [Closure Representation §6.3](closure-representation.md), with the thunk elided where the force site knows it
 6. **Lifetime-Driven Placement**: A lazy value's storage SHALL be placed by escape analysis in the storage whose lifetime covers it, per the four-point lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis): the stack when scope-bounded, a region when region-bounded, static storage (`memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap, a lazy value that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation. Lazy values SHALL NOT be placed on a GC-managed heap.
 7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
 8. **Single-Forcer Memoization**: A memoizing lazy value SHALL be forced under a single-forcer discipline: for each lazy value, exactly one semantic forcer performs the transition from unevaluated to computed. A lazy value whose force sites span threads or actor boundaries SHALL carry an ownership obligation discharged at compile time by establishing that single semantic forcer. This discipline keeps the write-once conditions on `computed` at `[0]` and `value` at `[1]` quantifier-free: each slot is written at one statically identified site, so the verification conditions quantify over enumerated structure only ([Closure Representation §11](closure-representation.md#11-proof-extraction-at-closure-sites)).
@@ -474,7 +461,7 @@ Lazy.create (fun () -> expr)
 
 ### 12.2 Alex Preprocessing Phase
 
-1. **SSAAssignment**:
+1. **SSAAssignment** (interim — this computation is a closure-hyperedge consequence and moves into CCS; `Closure_Retooling_Plan`):
    - Computes `LazyLayout` for LazyExpr nodes
    - Computes `ClosureLayout` for thunk Lambda nodes
    - Assigns SSAs for all construction operations

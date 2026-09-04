@@ -457,7 +457,7 @@ specified below:
 
 - Types sbyte, `byte`, `char`, `nativeint`, `unativeint`, `float32`, `float`, `int16`, `uint16`, `int32`, `uint32`,
   `int64`, `uint64`, `decimal` are unmanaged.
-- Type `nativeptr<type>` is unmanaged.
+- Type `nativeptr<type>` is unmanaged (F#; not denotable in Clef — see the Clef Note below).
 - A non-generic struct type whose fields are all unmanaged types is unmanaged.
 
 > **Clef Note**: `nativeptr<_>` is not user-denotable in Clef source. It survives only as internal `TNativePtr` compiler plumbing, so the clause above describes an internal representation rather than a type a program can write. Buffers use bounded stack arrays, registers use the `Mmio` width-typed handle, and a C binding's returned pointer uses an opaque handle (`Ptr<'T, Region, Access>`).

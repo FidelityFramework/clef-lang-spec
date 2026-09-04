@@ -68,6 +68,9 @@ A hyperedge is an analysis-time structure. It participates in saturation and con
 | Mesh boundary sharing | Saturation equality over shared boundary nodes | Design-stage; the PHG paper §5.3 |
 | Wait-for tuples, dependency width | Rank constraints (QF_LIA) | [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md); analyzer is design-stage |
 | Accumulation exactness (quire targeting) | Derived from blade masks at design time | [Grade Discipline §5.3](grade-discipline.md), [Numeric Selection §10.2](numeric-selection.md) |
+| Obligation residence — storage reservation, view containment, NUL sentinel, consecutive layout, capacity, input bounds | QF_LIA / QF_BV over graph literals at saturation; the same anchors re-derived from the artifact at build time and twin-paired | §5 of this chapter; [Conformance §6](conformance.md) |
+| Platform residence — a node `Resides` in, or is `Constrained` by, a declared space or buffer | No solver: the declaration is cited by name as the obligation's authority | The platform description as declared authority ([Native Type Mappings](native-type-mappings.md)) |
+| Closure capture and continuation frame — the environment node; source set = captures ∪ site, or live-across ∪ delimiter | VC-EXT/DIS/REG/REL/APP and VC-EXT/STATE/ACC/DOM/ONE, quantifier-free at saturation | [Closure Representation §11](closure-representation.md); [Delimited Continuation Representation §6](dcont-representation.md) |
 
 ## 7. Normative Requirements
 

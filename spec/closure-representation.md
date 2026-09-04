@@ -17,13 +17,14 @@ This chapter specifies the closure's layout (§2), capture and escape semantics 
 
 ### 2.1 Closure Structure
 
-A closure is a struct containing a code pointer followed by captured values:
+A closure is a two-value pair: a **function value** naming its implementation, and an **environment** — a flat struct of captured values:
 
 ```
-Closure with captures [c₁: T₁, ..., cₘ: Tₘ]
+Closure with captures [c₁: T₁, ..., cₘ: Tₘ]  =  (fn, env)
+
+fn:  a function value (func.constant @lifted), never stored in env
+env:
 ┌─────────────────────────────────────────────────────────┐
-│ code_ptr: ptr                    (one platform word)    │
-├─────────────────────────────────────────────────────────┤
 │ c₁: T₁  (sizeof(T₁) bytes, aligned)                     │
 ├─────────────────────────────────────────────────────────┤
 │ c₂: T₂  (sizeof(T₂) bytes, aligned)                     │
@@ -34,11 +35,10 @@ Closure with captures [c₁: T₁, ..., cₘ: Tₘ]
 └─────────────────────────────────────────────────────────┘
 
 Field Indices:
-  [0] = code_ptr (function address)
-  [1..m] = captured values
+  [0..m-1] = captured values
 ```
 
-This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by traversing a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end this environment is encoded as a pointer alongside the code pointer, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer.
+This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by traversing a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end the environment is a `memref` carried alongside the function value as two SSA values, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer. An earlier revision of this chapter placed a `code_ptr` word at `[0]` of the environment; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)). The function value is never data in the interior, so it is never a field.
 
 ### 2.2 Capture Semantics
 
@@ -47,7 +47,7 @@ Captures are classified by the mutability of the source binding:
 | Variable Kind | Capture Mode | Entry Type | Semantics |
 |---------------|--------------|------------|-----------|
 | Immutable binding | By Value | `T` | Copy value into closure |
-| Mutable binding | By Reference | `ptr<T>` | Store pointer to stack slot |
+| Mutable binding | By Reference | `memref<1xT>` | A view of the binding's storage cell (stack slot or arena slot), never a raw pointer |
 | Ref cell | By Value | `ref<T>` | Copy ref cell pointer |
 
 An immutable binding is copied because nothing can change it; every holder of the closure observes the same value regardless. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
@@ -111,9 +111,9 @@ This four-point lattice matters because a target may have no heap. On a target w
 
 ## 4. Initialization
 
-Every field of a closure is assigned at construction. The code pointer is set to the closure's implementation function; each capture field is set to the captured value, or for a by-reference capture to the address of its storage.
+Every field of a closure's environment is assigned at construction, and the function value names the closure's implementation function; each capture field is set to the captured value, or for a by-reference capture to the address of its storage.
 
-No closure field admits a null value. This exclusion is stated explicitly because null-as-a-reference-state is a widespread convention that this representation deliberately does not adopt: a closure has no null code pointer and no null capture, and where a program models the possible absence of a value it uses `Option` ([option operations](option-operations-representation.md)) rather than a nullable field. The design rationale is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+No closure field admits a null value. This exclusion is stated explicitly because null-as-a-reference-state is a widespread convention that this representation deliberately does not adopt: a closure's function value always names a defined function and no capture is null, and where a program models the possible absence of a value it uses `Option` ([option operations](option-operations-representation.md)) rather than a nullable field. The design rationale is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
 ## 5. Representation Properties
 
@@ -125,28 +125,29 @@ A closure has the following properties, which the representations in §7 rely on
 
 **Position independence.** A closure's captures live in a single flat environment, so the closure is a self-contained value that can be copied between memory spaces as a block and remains valid at the destination.
 
-These properties are preserved across backends: the closure is encoded in portable dialects and its pointers are materialized per target (§6.3, [Backend Lowering Architecture §4.2](backend-lowering-architecture.md)). The design treatment of substrate portability is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
+These properties are preserved across backends: the closure is encoded in portable dialects as the `(fn, env)` pair and realized per target through the pathway's standard lowerings (§6.3, [Backend Lowering Architecture §4](backend-lowering-architecture.md)). The design treatment of substrate portability is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
 ## 6. Calling Convention
 
 ### 6.1 Closure Invocation
 
-To invoke a closure, the caller extracts the code pointer from field `[0]`, then calls it with a pointer to the closure struct as the first argument, followed by the explicit arguments:
+To invoke a closure `(fn, env)`, the caller calls the function value with the environment as the first argument, followed by the explicit arguments:
 
 ```
-call_closure(closure, arg1, arg2):
-    code_ptr = closure[0]
-    call code_ptr(&closure, arg1, arg2)
+call_closure((fn, env), arg1, arg2):
+    call fn(env, arg1, arg2)
 ```
+
+Where the callee is known at saturation — a non-escaping lambda, a known-callee form of §7 — `fn` is not materialized at all and the call is direct.
 
 ### 6.2 Capture Access
 
-The closure body receives a pointer to its own struct and reads captures by field index:
+The closure body receives its environment and reads captures by field index:
 
 ```
-closure_body(self_ptr, arg1, arg2):
-    cap1 = self_ptr[1]    // First capture
-    cap2 = self_ptr[2]    // Second capture
+closure_body(env, arg1, arg2):
+    cap1 = env[0]    // First capture
+    cap2 = env[1]    // Second capture
     // use captures and arguments
 ```
 
@@ -154,9 +155,16 @@ Capture access is a load at a known offset.
 
 ### 6.3 Middle-End Encoding and Lowering
 
-The layout in §2 is the conceptual representation. It is **not** encoded in a backend's pointer types in the middle end. The MiddleEnd (Alex) encodes a closure using only portable dialects (`func`, `memref`, `arith`), as a `(code_pointer, environment_pointer)` pair carried as `index` values, and defers the materialization of those pointers to a per-target pass. This is what keeps the representation portable across backends rather than committed to LLVM; the mechanism, including the `unrealized_conversion_cast` deferral and its per-backend resolution, is specified in [Backend Lowering Architecture §4.2](backend-lowering-architecture.md). On the LLVM backend the code pointer and captured-environment pointer materialize as `llvm.ptr` values through that resolution; on another backend they materialize into that backend's pointer mechanism from the same middle-end IR.
+A closure value in the middle end is two SSA values: the function symbol and the environment buffer. The conceptual forms of §6.1–6.2 correspond to the witnessed form one-to-one:
 
-Because every field is assigned at construction (§4), the encoding carries a complete value into lowering on any backend.
+| Conceptual | Witnessed form |
+|---|---|
+| `fn`, the function value | `func.constant @lifted : (memref<Exi8>, args...) -> ret` — or no value at all when the callee is known at saturation |
+| the closure's environment | `%env : memref<Exi8>`, with `E` a literal settled at saturation |
+| capture at `offset_i` | `memref.view %env[%c_off_i][] : memref<Exi8> to memref<1xT_i>`, then `memref.load` |
+| `call fn(env, args)` | `func.call_indirect %fn(%env, args...)` |
+
+The pair is never packed into one value and never cast. The earlier `memref<2xindex>` index-pair encoding, carried through `builtin.unrealized_conversion_cast` and resolved by a target pass, is retired: `unrealized_conversion_cast` SHALL NOT appear in the witnessed form for any closure construct ([Backend Lowering Architecture §4](backend-lowering-architecture.md)). Each target pathway consumes `func.constant`, `func.call_indirect`, and `memref` with its standard lowerings.
 
 ### 6.4 JSIR-Pathway Realization
 
@@ -205,7 +213,7 @@ let makeAdder n =
     fun x -> x + n  // Anonymous lambda, may escape
 ```
 
-The lambda is a first-class value that can be returned, stored, passed to a higher-order function, or carried as a discriminated-union payload; DU payload storage is an escape point for the closure ([Discriminated Union Representation §8.2](discriminated-union-representation.md)). CCS creates a closure struct `{ code_ptr, n }` for it.
+The lambda is a first-class value that can be returned, stored, passed to a higher-order function, or carried as a discriminated-union payload; DU payload storage is an escape point for the closure ([Discriminated Union Representation §8.2](discriminated-union-representation.md)). CCS creates the pair for it: the lifted function `fn` and an environment `{ n }`.
 
 ### 8.2 Nested Named Functions (Parameter-Passing Model)
 
@@ -236,8 +244,8 @@ Passing the capture as a parameter costs no struct and no allocation. This is th
 | Definition form | `fun x -> ...` | `let [rec] name ...` |
 | PSG parent | Application, Sequential, etc. | Binding node |
 | Can escape scope | Yes | No |
-| Representation | `{code_ptr, cap₁, ...}` struct | Direct function |
-| Capture passing | Via struct extraction | As explicit parameters |
+| Representation | `(fn, {cap₁, ...})` pair | Direct function |
+| Capture passing | Via environment extraction | As explicit parameters |
 | Allocation | Stack, region, or static for the struct (§3.3) | None |
 
 A Lambda is classified as a nested named function if and only if its enclosing function is present (it is nested) **and** its parent [PSG](program-semantic-graph.md) node is a `Binding` (it is named). Otherwise it is an escaping closure and uses the struct model.
@@ -248,13 +256,13 @@ The closure representation is produced across three phases, consistent with the 
 
 **CCS** constructs the [PSG](program-semantic-graph.md) with complete lambda information: `SemanticKind.Lambda(parameters, body, captures)`, with captures computed during scope analysis and mutability tracked in `CaptureInfo.IsMutable`.
 
-**Alex preprocessing** identifies lambda nodes that capture, tagging them with a `HasClosureCapture` coeffect, then computes each closure's concrete struct layout and assigns the SSA identifiers for its construction. Layout is settled here, before emission.
+**Saturation** settles each closure's form and its environment layout on the graph as the consequence of the closure hyperedge — captures ∪ site as the source set — before emission ([Program Hypergraph §6](program-hypergraph.md)). (Interim: this computation runs in Composer's SSA assignment today and moves into CCS with the closure hyperedge; `clef/docs/fidelity/phg/Closure_Retooling_Plan.md`.)
 
-**Witnessing** observes the pre-computed coeffect. Where a closure coeffect is present, the witness emits the closure struct and the `(code_ptr, env_ptr)` pair. Where a lambda captures nothing, the witness emits no closure value at all: the lambda is a plain named function, and its callers reference it directly by name. A closure struct exists only when there is an environment to carry. The witness reads the layout; it does not compute it.
+**Witnessing** observes the pre-computed coeffect. Where a closure form is present, the witness emits the environment and the `(fn, env)` pair. Where a lambda captures nothing, the witness emits no environment at all: the lambda is a plain named function, and its callers reference it directly by name. An environment exists only when there is something to carry. The witness reads the layout; it does not compute it.
 
 ## 10. Normative Requirements
 
-1. **Flat Representation**: A closure with captures SHALL use the flat closure representation: a code pointer and a single flat environment holding the captures, with no linked chain of enclosing environments.
+1. **Flat Representation**: A closure with captures SHALL use the flat closure representation: a function value and a single flat environment holding the captures, carried as two SSA values (§6.3), with no linked chain of enclosing environments and no function address stored in the environment as data.
 2. **No Linked Environment Chain**: A closure's environment SHALL be a single flat block, not a chain of enclosing environments; a closure SHALL NOT traverse a linked chain of environment pointers to reach a capture.
 3. **Full Initialization**: Every field of a closure SHALL be assigned at construction.
 4. **No Null State**: A closure field SHALL NOT admit a null value; absence, where required, SHALL be modeled with `Option`.

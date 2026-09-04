@@ -168,7 +168,7 @@ This desugaring to nested lambdas provides continuation semantics as notation. T
 
 | Pattern | Compilation Strategy |
 |---------|---------------------|
-| Sequential effects (async, state) | Preserve continuations (DCont regime; `ContStateMachine` on the PSG, [DCont Representation](dcont-representation.md) §6) |
+| Sequential effects (async, state) | Saturate through the suspension recipe — segments at cuts, a frame, a delimiter edge — and witness as `scf.index_switch` over a discriminant ([DCont Representation](dcont-representation.md) §2, §5, §6) |
 | Parallel pure (validated, reader) | Compile to data flow (Inet regime) |
 
 ### Normative Requirements
@@ -481,11 +481,12 @@ Functions capturing environment use [closure representation](closure-representat
 let makeAdder n = fun x -> x + n
 ```
 
-**Layout**:
+**Form** — two SSA values, never packed ([Closure Representation §6.3](closure-representation.md)):
 ```
-┌─────────────────────┬─────────────────────┐
-│ fn_ptr: ptr<fn>     │ env: captured values│
-└─────────────────────┴─────────────────────┘
+fn:  func.constant @makeAdder_lambda : (memref<Exi8>, int) -> int
+env: ┌─────────────────────┐
+     │ n: captured value   │   memref<Exi8>, E literal at saturation
+     └─────────────────────┘
 ```
 
 ## MLIR Type Mappings
@@ -500,12 +501,12 @@ let makeAdder n = fun x -> x + n
 | `float` | `f64` |
 | `float32` | `f32` |
 | `char` | `i32` |
-| `string` | `!fidelity.str` |
-| `option<'T>` | `!fidelity.option<T>` |
+| `string` | `memref<?xi8>` |
+| `option<'T>` | `memref<Exi8>` — `{tag, payload}`, stack-placed ([Option Operations](option-operations-representation.md)) |
 | Tuple | `tuple<...>` |
-| Record | `!fidelity.record<...>` |
-| DU | `!fidelity.union<...>` |
-| Function | `!fidelity.fn<A, B>` |
+| Record | `memref<Exi8>` (settled layout) |
+| DU | `memref<Exi8>` (`{tag, payload}`) |
+| Function | `(A) -> B` — a `func` value |
 
 ## Why IL Infrastructure Is Removed from CCS
 

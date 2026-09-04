@@ -25,13 +25,13 @@ Sequence operations build on:
 
 **Progressive Extension Pattern**:
 ```
-PRD-11 (Closures)     → Flat closure: {code_ptr, cap₀, cap₁, ...}
+PRD-11 (Closures)     → Flat closure: (fn, {cap₀, cap₁, ...})
          ↓ extends
-PRD-14 (Lazy)         → Extended closure: {computed, value, code_ptr, cap₀...}
+PRD-14 (Lazy)         → Extended closure: (thunk, {computed, value, cap₀...})
          ↓ extends
-PRD-15 (SimpleSeq)    → State machine: {state, current, code_ptr, cap₀..., internal₀...}
+PRD-15 (SimpleSeq)    → State machine: (moveNext, {state, current, cap₀..., internal₀...})
          ↓ composes
-PRD-16 (SeqOperations)→ Wrapper seq: {state, current, code_ptr, inner_seq, closure}
+PRD-16 (SeqOperations)→ Wrapper seq: (moveNext, {state, current, inner_env, closure_env, ...})
 ```
 
 ## 3. Operation Classification
@@ -73,8 +73,6 @@ MapSeq<A, B> with inner: Seq<A>, mapper: Closure<A -> B>
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: B              (sizeof(B) bytes) - current transformed value   │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (one platform word) - MapMoveNext address       │
-├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED, copied        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ mapper: Closure         (sizeof(Closure) bytes) - INLINED, copied       │
@@ -83,12 +81,13 @@ MapSeq<A, B> with inner: Seq<A>, mapper: Closure<A -> B>
 Field Indices:
   [0] = state
   [1] = current
-  [2] = code_ptr
-  [3] = inner_seq (entire struct, not pointer)
-  [4] = mapper (entire closure struct, not pointer)
+  [2] = inner_seq (the inner sequence's environment, entire struct, not pointer)
+  [3] = mapper (the mapper's environment, entire struct, not pointer)
 ```
 
-**CRITICAL**: Both `inner_seq` and `mapper` are **inlined** (copied by value into the wrapper struct), not stored by pointer. This follows the flat closure principle of self-contained structs.
+A wrapper sequence is, like every seq, the pair `(moveNext, env)` of [Seq Representation §4.1](seq-representation.md): `MapMoveNext` is the function-value half and the struct above is its environment. No function address is stored in the environment.
+
+**CRITICAL**: Both `inner_seq` and `mapper` are **inlined** (copied by value into the wrapper struct), not stored by pointer. This follows the flat closure principle of self-contained structs. What is inlined is each one's *environment*; their function values are bound at saturation: the inner sequence's `MoveNext` and the mapper's implementation are known at the `Seq.map` site whenever the arguments are lambda literals or named functions — the common case — and the wrapper's `MoveNext` then calls them directly (the known-callee form of [Closure Representation §7](closure-representation.md)). Where a mapper arrives as a function-value *parameter*, the wrapper must carry that value; its memory form is the open placement decision recorded in `clef/docs/fidelity/phg/Closure_Retooling_Plan.md` and is not a cast.
 
 ### 4.2 FilterSeq Structure
 
@@ -98,8 +97,6 @@ FilterSeq<A> with inner: Seq<A>, predicate: Closure<A -> bool>
 │ state: i32              (4 bytes)                                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: A              (sizeof(A) bytes) - current matching value       │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (one platform word) - FilterMoveNext address     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -115,8 +112,6 @@ TakeSeq<A> with inner: Seq<A>
 │ state: i32              (4 bytes)                                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: A              (sizeof(A) bytes)                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (one platform word) - TakeMoveNext address       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -134,8 +129,6 @@ CollectSeq<A, B> with outer: Seq<A>, mapper: Closure<A -> Seq<B>>
 │ state: i32              (4 bytes) - 0=initial, 1=iterating_inner, -1=done│
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: B              (sizeof(B) bytes)                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (one platform word) - CollectMoveNext address    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ outer_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -160,16 +153,17 @@ let mapped = Seq.map mapper innerSeq
 The wrapper creation **copies both `innerSeq` and `mapper` by value** into the wrapper struct:
 
 ```mlir
-// LLVM target pathway — committed dialect. NOT middle-end output; the middle end
-// emits this construction over portable memref/arith, and the LLVM pathway commits
-// the struct access to the target ABI (Backend Lowering Architecture §4.2).
-// Create MapSeq wrapper - COPIES both values
-%undef = llvm.mlir.undef : !map_seq_type
-%s0 = llvm.insertvalue %zero, %undef[0] : !map_seq_type           // state = 0
-%s1 = llvm.insertvalue %mapMoveNext_ptr, %s0[2] : !map_seq_type   // code_ptr
-%s2 = llvm.insertvalue %inner_seq_VALUE, %s1[3] : !map_seq_type   // COPY inner
-%s3 = llvm.insertvalue %mapper_VALUE, %s2[4] : !map_seq_type      // COPY mapper
- 
+// Middle end — portable dialects only. E, E_inner, and E_mapper are literals at saturation.
+%env = memref.alloca() : memref<Exi8>                          // the wrapper's environment
+%c0 = arith.constant 0 : index
+%sv = memref.view %env[%c0][] : memref<Exi8> to memref<1xi32>
+memref.store %zero, %sv[%c0] : memref<1xi32>                   // state = 0 at [0]
+%inner_dst = memref.view %env[%off_inner][] : memref<Exi8> to memref<E_innerxi8>
+memref.copy %inner_env, %inner_dst : memref<E_innerxi8> to memref<E_innerxi8>   // COPY inner env
+%mapper_dst = memref.view %env[%off_mapper][] : memref<Exi8> to memref<E_mapperxi8>
+memref.copy %mapper_env, %mapper_dst : memref<E_mapperxi8> to memref<E_mapperxi8> // COPY mapper env
+%mn = func.constant @MapMoveNext_site : (memref<Exi8>) -> i1   // the function-value half
+// (%mn, %env) is the wrapper value.
 ```
 
 ### 5.2 Why Copy Semantics?
@@ -197,22 +191,16 @@ Both iterations work because each `for` expression copies `doubled` into its own
 
 ### 5.3 Closure Invocation from Wrapper
 
-When invoking the mapper/predicate, the closure is extracted from the wrapper and invoked per the flat closure convention:
+When invoking the mapper/predicate, its environment is viewed in place inside the wrapper's environment and its implementation is called with that view, per [Closure Representation §6](closure-representation.md):
 
 ```mlir
-// LLVM target pathway — committed dialect. NOT middle-end output; the middle end
-// carries the closure extraction and indirect call over portable dialects, and
-// the LLVM pathway commits them (Backend Lowering Architecture §4.2).
-// In MapMoveNext:
-// 1. Extract mapper closure (value copy in struct)
-%mapper = llvm.extractvalue %wrapper[4] : !map_seq_type -> !closure_type
+// Middle end — portable dialects only. In MapMoveNext(%env: memref<Exi8>):
+// 1. View the mapper's environment in place (no copy, no extraction of a code pointer).
+%mapper_env = memref.view %env[%off_mapper][] : memref<Exi8> to memref<E_mapperxi8>
 
-// 2. Extract code_ptr and captures from closure
-%code_ptr = llvm.extractvalue %mapper[0] : !closure_type -> !llvm.ptr
-%cap0 = llvm.extractvalue %mapper[1] : !closure_type -> ...  // if captures exist
-
-// 3. Invoke: code_ptr(captures..., value)
-%result = llvm.call %code_ptr(%cap0, %inner_val) : (...) -> !output_type
+// 2. Call the mapper with its environment. The callee is known at saturation
+//    (lambda literal or named function at the Seq.map site), so the call is direct.
+%result = func.call @mapper_site(%mapper_env, %inner_val) : (memref<E_mapperxi8>, A) -> B
 ```
 
 ## 6. Composition Model
@@ -232,19 +220,21 @@ let pipeline =
 The result is a **nested struct**:
 
 ```
-TakeSeq {
-    state, current, code_ptr,
-    inner: MapSeq {
-        state, current, code_ptr,
-        inner: FilterSeq {
-            state, current, code_ptr,
-            inner: source_seq,
-            predicate: {...}
+TakeSeq env {
+    state, current,
+    inner: MapSeq env {
+        state, current,
+        inner: FilterSeq env {
+            state, current,
+            inner: source_seq env,
+            predicate env: {...}
         },
-        mapper: {...}
+        mapper env: {...}
     },
     remaining: 5
 }
+// The MoveNext of each level is the function-value half of its pair, bound at
+// saturation; none is stored in the nested environment.
 ```
 
 ### 6.2 Struct Size Growth
@@ -291,7 +281,7 @@ FilterMoveNext:
 ### 7.1 MapMoveNext Algorithm
 
 ```
-MapMoveNext(self: ptr<MapSeq<A,B>>) -> bool:
+MapMoveNext(env: MapSeq<A,B> env) -> bool:
     if inner.MoveNext():
         self.current = self.mapper(inner.current)
         return true
@@ -303,7 +293,7 @@ MapMoveNext(self: ptr<MapSeq<A,B>>) -> bool:
 ### 7.2 FilterMoveNext Algorithm
 
 ```
-FilterMoveNext(self: ptr<FilterSeq<A>>) -> bool:
+FilterMoveNext(env: FilterSeq<A> env) -> bool:
     while inner.MoveNext():
         if self.predicate(inner.current):
             self.current = inner.current
@@ -316,7 +306,7 @@ FilterMoveNext(self: ptr<FilterSeq<A>>) -> bool:
 ### 7.3 TakeMoveNext Algorithm
 
 ```
-TakeMoveNext(self: ptr<TakeSeq<A>>) -> bool:
+TakeMoveNext(env: TakeSeq<A> env) -> bool:
     if self.remaining > 0:
         if inner.MoveNext():
             self.current = inner.current
@@ -330,7 +320,7 @@ TakeMoveNext(self: ptr<TakeSeq<A>>) -> bool:
 ### 7.4 CollectMoveNext Algorithm
 
 ```
-CollectMoveNext(self: ptr<CollectSeq<A,B>>) -> bool:
+CollectMoveNext(env: CollectSeq<A,B> env) -> bool:
     loop:
         // Try advancing current inner sequence
         if self.state == 1 and inner_seq.MoveNext():
@@ -400,7 +390,7 @@ func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
 
 | Operation | Formula | Breakdown |
 |-----------|---------|-----------|
-| `Seq.map` | `5 + sizeof(inner) + sizeof(mapper)` | state(1) + code_ptr(1) + insertvalue×3 + inner fields + mapper fields |
+| `Seq.map` | `4 + sizeof(inner) + sizeof(mapper)` | state(1) + `func.constant`(1, elided when the consumer knows MoveNext) + env stores + inner fields + mapper fields |
 | `Seq.filter` | `5 + sizeof(inner) + sizeof(predicate)` | Same structure |
 | `Seq.take` | `6 + sizeof(inner)` | +1 for remaining counter |
 | `Seq.collect` | `5 + sizeof(outer) + sizeof(mapper) + sizeof(inner_seq_type)` | Includes inner seq slot |
@@ -418,8 +408,8 @@ func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
 
 1. **Flat Representation**: Seq operation wrappers SHALL use flat struct representation with inner seq and closure inlined
 2. **Copy Semantics**: Wrapper creation SHALL copy inner seq and closure by value, not by pointer
-3. **Field Order**: Wrapper struct fields SHALL be ordered: state, current, code_ptr, inner_seq, closure/config
-4. **Closure Invocation**: Mapper/predicate invocation SHALL follow flat closure calling convention (extract code_ptr and captures, call with captures prepended)
+3. **Field Order**: Wrapper environment fields SHALL be ordered: state, current, inner_seq, closure/config; no function address SHALL be stored in the environment, and a wrapper SHALL be the pair `(moveNext, env)` of [Seq Representation §4.1](seq-representation.md)
+4. **Closure Invocation**: Mapper/predicate invocation SHALL follow the flat closure calling convention of [Closure Representation §6](closure-representation.md): call the implementation with a view of its environment as the first argument, directly where the callee is known at saturation
 5. **Lifetime-Driven Placement**: A wrapper sequence SHALL be placed by the four-point lifetime lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. A wrapper sequence SHALL NOT be allocated on a GC-managed heap. On a target without a heap, a wrapper that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation.
 6. **Composition = Nesting**: Composed operations SHALL produce nested structs, not linked structures
 7. **Eager Consumers**: `Seq.fold` SHALL consume immediately, not create wrapper

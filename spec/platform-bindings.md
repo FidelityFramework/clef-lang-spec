@@ -504,7 +504,7 @@ The platform descriptor is inspected at compile time:
 1. **CCS** reads the platform descriptor from `Fidelity.Platform`
 2. For freestanding mode, **Intrinsic Elaboration** generates the `_start` wrapper
 3. The wrapper uses `Sys.emptyStringArray` and `Sys.exit` intrinsics
-4. Alex emits portable dialects (`func`, `cf`, `scf`, `arith`, `memref`, `index`, `builtin`), committing to no target; a target pathway lowers them and supplies the entry glue. On the hosted x86-64 pathway that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the bare-metal M33 pathway has no linker entry flag and no `_start` (control arrives at the reset vector).
+4. Alex emits portable dialects (`func`, `scf`, `arith`, `memref`, `index`), committing to no target; a target pathway lowers them and supplies the entry glue. On the hosted x86-64 pathway that glue is an `_start` symbol the linker points at via `-Wl,-e,_start`; the bare-metal M33 pathway has no linker entry flag and no `_start` (control arrives at the reset vector).
 
 The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler handles entry point generation based on the platform and output mode
 

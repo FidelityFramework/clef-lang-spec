@@ -43,22 +43,21 @@ The middle end emits only portable dialects:
 | Dialect | Purpose | Operations |
 |---------|---------|------------|
 | `func` | Function structure | `func.func`, `func.call`, `func.return` |
-| `cf` | Control flow | `cf.br`, `cf.cond_br`, `cf.switch` |
-| `scf` | Structured control | `scf.while`, `scf.for`, `scf.if` |
+| `scf` | Structured control | `scf.while`, `scf.for`, `scf.if`, `scf.index_switch` |
 | `arith` | Arithmetic | `arith.addi`, `arith.constant`, `arith.cmpi` |
 | `memref` | Memory and layout | `memref.alloca`, `memref.global`, `memref.load`, `memref.store` |
 | `index` | Target-word integers | `index.constant`, `index.casts` |
 
-These dialects lower to any target pathway: LLVM, CIRCT, MLIR-AIE, JSIR, SPIR-V, WebAssembly.
+These five dialects, and no other, are the witnessed vocabulary; they lower to any target pathway: LLVM, CIRCT, MLIR-AIE, JSIR, SPIR-V, WebAssembly. Block-based control flow (`cf.*`) is produced by the pathway's standard `scf` lowering and never appears above the witness boundary. Admitting a further dialect (for example `affine`) is a change to this table first, made step-wise and recorded here before any witness emits it.
 
-### 2.2 Constructs With No Portable Representation
+### 2.2 Constructs Whose Realization Is a Target Commitment
 
-Some constructs have no portable operation that expresses them, because their realization depends on a target the middle end has not chosen. The two the closure family relies on are the *function address as data* and the *raw environment pointer*. The middle end does not resolve these into any backend's form; it represents each as a `builtin.unrealized_conversion_cast`, MLIR's designated mechanism for a type conversion whose realization is deferred, and the target pathway for the chosen target performs the commitment. §4.2 develops this for the flat closure.
+Some constructs are expressed portably in the middle end and take a target-specific form only in the pathway. None requires a deferred cast: each has a portable carrier the pathway's standard lowerings already consume. An earlier revision of this section held that a function address as data and a raw environment pointer had no portable representation and carried each as a `builtin.unrealized_conversion_cast`; that premise is retired by §4, which shows a function value is never data in the interior.
 
 | Category | Portable middle-end carrier | Committed by the target pathway |
 |----------|-----------------------------|------------------------------|
-| Function pointers | `func_type → index` cast | `llvm.ptrtoint` / `llvm.inttoptr` (LLVM pathway); function table index (SPIR-V); host function value (JSIR pathway) |
-| Struct manipulation | `memref` of the closure layout | ABI struct access (per pathway) |
+| Function values | `func.constant` / `func.call_indirect`; a closure is the pair `(fn, env)` (§4.2) | `llvm.mlir.addressof` / `llvm.call` (LLVM pathway); function table index (SPIR-V, WebAssembly); host function value (JSIR pathway) |
+| Struct manipulation | `memref` of the settled layout | ABI struct access (per pathway) |
 | Volatile MMIO | typed `Mmio` op held to the serializer | `llvm.inttoptr` + `llvm.store volatile` (LLVM pathway) |
 
 ## 3. Where a Target Commitment Happens
@@ -69,71 +68,40 @@ Some constructs have no portable operation that expresses them, because their re
 - Directly-called functions (`func.func`, called by name)
 - Structural control flow (branches, loops, conditions)
 - Arithmetic and comparison
-- The closure `(code_pointer, environment_pointer)` encoding, carried as `index`-in-`memref` (§4.2)
+- Function values and closures, as the two-value pair `(fn, env)` (§4.2)
 
 ### 3.2 The Target Pathway Commits For
 
-- Taking a function's address for storage or indirect call
+- The memory form of a function address — at the extern boundary, where a C API receives a callback ([FFI Boundary §3.2](ffi-boundary.md))
 - Manipulating heterogeneous structs (records, closures, unions) into the target ABI
 - Operations with ABI implications (memory layout, alignment)
 - Target intrinsics (syscalls, atomics, volatile MMIO)
 
-None of these commitments appears in middle-end IR. Each is realized by the serializer or a resolution plugin for the specific target (§4.2).
+None of these commitments appears in middle-end IR. Each is realized by the pathway's standard lowerings for the portable dialects (§4.3); no pathway requires a resolution pass or plugin.
 
-## 4. Flat Closure Pattern and Deferred Resolution
+## 4. Function Values in the Interior
 
-Clef implements [closures](closure-representation.md), [lazy values](lazy-representation.md), and [sequences](seq-representation.md) using flat closures that store function pointers in structs. The commitment this pattern needs is deferred to the backend; the middle-end encoding stays portable.
+The middle end represents a function value as two SSA values — a function symbol and an environment buffer — and passes them as two parameters. This is the multi-value form of [Closure Representation §6.3](closure-representation.md), and it is the whole of the closure calling convention above the witness boundary. Nothing about a function value is deferred to a target pathway.
 
-### 4.1 Why the Commitment Is Deferred
+### 4.1 Why No Commitment Is Deferred
 
-The flat closure pattern needs three things a portable dialect cannot express directly:
-1. Taking a function's address as data
-2. Storing that address in a struct alongside captures
-3. Calling through the stored pointer
+An earlier revision of this chapter held that a portable dialect cannot express a function pointer in memory, and therefore encoded a closure as an `index` pair carried through `builtin.unrealized_conversion_cast` and resolved by a target-specific pass. That analysis was right about `memref` — a memref of function type is not expressible — and wrong in its conclusion, because a Clef closure is not that object. The environment is a byte buffer of captured *data*; the code is a `func.func` symbol referenced by name. `func.constant` is a first-class SSA value in the portable dialect, `func.call_indirect` consumes it, and the pair `(fn, env)` crosses any function boundary as two parameters. The things the earlier revision named as inexpressible — a function pointer in memory, an indirect call through it, its representation type — never need expressing. The interior forms are enumerated in [Closure Representation §7](closure-representation.md), all in `func` + `memref` + `arith`.
 
-There is no portable MLIR representation for "pointer to function"; each target realizes it differently:
+### 4.2 The Multi-Value Encoding
 
-| Target pathway | Function Pointer Mechanism |
-|-------------|---------------------------|
-| LLVM (CPU/MCU) | `!llvm.ptr` + `llvm.inttoptr` |
-| CIRCT (FPGA) | placed hardware, no runtime pointer |
-| JSIR (JavaScript) | host function values; a JavaScript function carries its code and its captured environment together |
-| SPIR-V | Function tables, `OpFunctionPointer` |
-| WebAssembly | Function indices, `call_indirect` |
+A closure value is `(%fn : (memref<Exi8>, args...) -> ret, %env : memref<Exi8>)`, where `E` is the environment extent settled at saturation. Creation is `func.constant @lifted` plus the allocation the lifetime lattice selects ([Closure Representation §3.3](closure-representation.md)) and a `memref.store` of each capture at its literal offset through a static `memref.view`. Application is `func.call_indirect %fn(%env, args...)`; where the callee is known at saturation the form degenerates to `func.call @lifted(%env, args...)` with no function value at all.
 
-Because the realization differs per pathway, the middle end must not pick one. It carries the closure in a form every pathway can still commit from, and each pathway performs its own commitment (§4.2).
+There is no cast. `builtin.unrealized_conversion_cast` SHALL NOT appear in the middle end's output for any construct, and no target pathway resolves a closure form: each pathway receives standard `func` and `memref` operations that its standard lowerings already handle. A closure that must reside in memory — an aggregate field, a container element — resides as its environment buffer, with the code component fixed by the closure form; the placement of a code component in memory is settled by that form at saturation, not by a cast at emission.
 
-### 4.2 The Middle-End Encoding and Deferred Resolution
+### 4.3 Realization on Each Pathway
 
-The MiddleEnd (Alex) does not emit the backend-specific form of the previous section. It emits a **target-agnostic encoding** of the flat closure using only portable dialects (`func`, `memref`, `arith`), and defers the backend commitment to a later, per-target pass. A closure is encoded as a `(code_pointer, environment_pointer)` pair, with both pointers carried as `index` values in `memref` rather than as any backend's pointer type.
+Every pathway consumes the multi-value form with its standard lowerings, and none adds a pass:
 
-This is deliberate. Committing the closure representation to `!llvm.ptr` in the middle end would pre-commit every closure, and therefore every lazy value, sequence, and reactive callback that builds on it, to the LLVM backend. Keeping the encoding in portable dialects is what allows the same closure IR to reach LLVM, SPIR-V, WebAssembly, or a hardware backend. The middle end stays LLVM-free so that the choice of backend remains open past the middle end.
+- **CPU and MCU (LLVM).** `func.constant` → `llvm.mlir.addressof`; `func.call_indirect` → `llvm.call` through the function value; the environment `memref` → the pathway's memref lowering.
+- **WebAssembly.** `func.constant` → a table index consumed by `call_indirect`; the environment lives in linear memory. The pair remains two values.
+- **JSIR.** Under §4.5, the environment buffer is realized by the host closure and the pair collapses to the host function value.
 
-The obstacle is that storing a function's address **as data** has no standard MLIR lowering: there is no portable operation that turns a function into an integer-sized value and back. The MiddleEnd represents each such conversion as a `builtin.unrealized_conversion_cast`, which is MLIR's designated mechanism for a type conversion whose realization is deferred. Three net conversions arise:
-
-| Middle-End Conversion | Meaning | Backend Realization (LLVM) |
-|---|---|---|
-| `func_type → index` | Store a function address as data | `llvm.ptrtoint` |
-| `index → func_type` | Recover a function for an indirect call | `llvm.inttoptr` |
-| `index → memref` | Reconstruct a captured-environment pointer as a `memref` for capture extraction | `llvm.inttoptr` + descriptor construction |
-
-Each backend resolves these deferred casts into its own pointer representation. For the LLVM backend the resolution runs as a dedicated pass, positioned **after** the standard dialect conversions (`--convert-func-to-llvm`, `--finalize-memref-to-llvm`, and so on) and **before** `--reconcile-unrealized-casts`, because the standard conversions leave the closure casts with intermediate types that reconciliation cannot collapse on its own. The Fidelity `flat-closure-lowering` plugin provides this as `--resolve-closure-casts`. A backend targeting different hardware supplies its own resolution of the same three conversions; the middle-end IR it consumes is identical.
-
-### 4.3 Portable Encoding and Its Backend Realization
-
-The middle end emits the thunk as a `func.func` and reads captures through a `memref`, with the deferred casts standing in for the address conversions. Nothing here names a target:
-
-```mlir
-// Middle end — portable dialects only.
-func.func private @lazy_thunk(%env: memref<?xi64>) -> i64 {
-    // Capture read — portable memref access, no ABI committed.
-    %cap = memref.load %env[%c3] : memref<?xi64>
-    %result = arith.addi %cap, %cap : i64
-    func.return %result : i64
-}
-```
-
-The LLVM pathway resolves this into its pointer representation during the closure-cast pass (§4.2); the `func_type → index` and `index → memref` casts become `llvm.ptrtoint` / `llvm.inttoptr`, and the `memref` capture access becomes a `getelementptr` + `load` in the target ABI. A different pathway resolves the same middle-end IR its own way. The realization is the backend's, not the middle end's.
+A lazy thunk shows the interior at its simplest: `Lazy<int>` is an environment `{state: i1, value: i32}` with a known-callee body, so forcing is a direct `func.call @thunk(%env)` guarded by the state flag — no indirect call and no pointer anywhere. Escaping function values use `call_indirect`; the discriminating condition is the closure form, decided at saturation.
 
 ### 4.4 Function-Body Composition
 
@@ -204,12 +172,11 @@ The JSIR pathway takes no `word_size`: it realizes no byte layouts (§4.5), and 
 
 ## 7. Normative Requirements
 
-1. **The middle end SHALL emit only portable dialects**: Control flow, arithmetic, directly-called functions, memory, and the flat-closure encoding use `func`, `cf`, `scf`, `arith`, `memref`, `index`, and `builtin`. The middle end SHALL NOT emit `llvm.*` or any other target-specific operation.
-2. **A target commitment SHALL occur only in a target pathway**: Taking a function's address, ABI struct layout, and target intrinsics are committed by the serializer or a resolution plugin for the selected target (e.g., an `llvm.func` on the LLVM pathway), never in middle-end IR.
+1. **The middle end SHALL emit only portable dialects**: Control flow, arithmetic, function values and calls, and memory use `func`, `scf`, `arith`, `memref`, and `index`, and no other dialect. The middle end SHALL NOT emit `llvm.*`, `cf.*`, `builtin.unrealized_conversion_cast`, or any target-specific operation; block-based control flow is produced by the pathway's standard `scf` lowering.
+2. **A target commitment SHALL occur only in a target pathway**: The memory form of a function address, ABI struct layout, and target intrinsics are committed by the selected pathway's standard lowerings (e.g., `func.constant` → `llvm.mlir.addressof` on the LLVM pathway), never in middle-end IR.
 3. **Struct manipulation SHALL be carried portably and committed per pathway**: Record, [union](discriminated-union-representation.md), and closure struct access is emitted over `memref` in the middle end and committed by the target pathway: to the target ABI on a pathway that realizes memory layouts, and to the pathway's own value model on a pathway that does not (§4.5).
 4. **`llvm.call` target restriction**: within the LLVM pathway, `llvm.call` SHALL only call functions defined as `llvm.func`; to call a `func.func` from `llvm.func`, use `func.call`
-5. **Target-free middle end**: the MiddleEnd SHALL encode flat closures using portable dialects and SHALL NOT commit to any pathway's pointer type; the conversion of a function address to and from data SHALL be represented as `builtin.unrealized_conversion_cast` and resolved per target
-6. **Deferred cast resolution**: a target pathway SHALL resolve the `func_type ↔ index` and `index → memref` closure casts into its own pointer representation; for the LLVM pathway this resolution SHALL run after standard dialect conversions and before `--reconcile-unrealized-casts`
-7. **Platform configuration flow**: `fidproj` platform settings, including `word_size`, SHALL inform all lowering decisions; pointer and word width SHALL be taken from the selected target's `word_size` and SHALL NOT be assumed to be 64-bit
-8. **Carrier realization**: a target pathway SHALL realize the portable storage carriers and their access operations in its own value model, MAY read the Program Semantic Graph's type structure during that realization, and SHALL preserve every structural requirement the representation chapters state; the layout figures of the representation chapters SHALL bind only pathways that realize memory layouts (§4.5)
-9. **Artifact class**: the artifact class a pathway produces is part of its commitment: a native binary on the LLVM pathway, a bitstream on the CIRCT pathway, an NPU binary on the MLIR-AIE pathway, a JavaScript module on the JSIR pathway
+5. **Function values are two SSA values**: the middle end SHALL represent a closure as `(fn, env)` per §4.2 and SHALL NOT convert a function address to or from data; `builtin.unrealized_conversion_cast` SHALL NOT appear in middle-end output, and no pathway SHALL require a cast-resolution pass or plugin to consume a closure
+6. **Platform configuration flow**: `fidproj` platform settings, including `word_size`, SHALL inform all lowering decisions; pointer and word width SHALL be taken from the selected target's `word_size` and SHALL NOT be assumed to be 64-bit
+7. **Carrier realization**: a target pathway SHALL realize the portable storage carriers and their access operations in its own value model, MAY read the Program Semantic Graph's type structure during that realization, and SHALL preserve every structural requirement the representation chapters state; the layout figures of the representation chapters SHALL bind only pathways that realize memory layouts (§4.5)
+8. **Artifact class**: the artifact class a pathway produces is part of its commitment: a native binary on the LLVM pathway, a bitstream on the CIRCT pathway, an NPU binary on the MLIR-AIE pathway, a JavaScript module on the JSIR pathway

@@ -17,11 +17,11 @@ Sequence expressions build on the flat closure representation specified in [Clos
 
 **Progressive Extension Pattern**:
 ```
-PRD-11 (Closures)     → Flat closure: {code_ptr, cap₀, cap₁, ...}
+PRD-11 (Closures)     → Flat closure: (fn, {cap₀, cap₁, ...})
          ↓ extends (adds state prefix)
-PRD-14 (Lazy)         → Extended closure: {computed, value, code_ptr, cap₀, ...}
+PRD-14 (Lazy)         → Extended closure: (thunk, {computed, value, cap₀, ...})
          ↓ extends (adds INTERNAL STATE suffix)
-PRD-15 (SimpleSeq)    → State machine closure: {state, current, code_ptr, cap₀, ..., internalState₀, ...}
+PRD-15 (SimpleSeq)    → State machine closure: (moveNext, {state, current, cap₀, ..., internalState₀, ...})
 ```
 
 **Key Insight**: A sequence expression creates a struct containing both captured values from the enclosing scope AND internal mutable state declared within the seq body.
@@ -41,7 +41,7 @@ Seq.empty<'T> : seq<'T>
 **Representation**: `Seq.empty` creates a minimal seq struct with:
 - `state = -1` (already exhausted)
 - `current = default<'T>` (never accessed)
-- `code_ptr` pointing to a trivial MoveNext that returns `false`
+- `moveNext` (the function-value half) naming a trivial MoveNext that returns `false`, or elided (below)
 - No captures, no internal state
 
 ```
@@ -50,8 +50,6 @@ Seq.empty<T>
 │ state: i32 = -1       (4 bytes) - already done                          │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: T            (sizeof(T) bytes) - undefined (never read)        │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr         (1 word) - trivial MoveNext (always false)        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,9 +60,9 @@ func.func @seq_empty_movenext(%env: memref<?xi64>) -> i1 {
 }
 ```
 
-Alternatively, an implementation MAY optimize `Seq.empty` to immediately set `state = -1` without a code pointer, as the MoveNext is never meaningfully called.
+Alternatively, an implementation MAY optimize `Seq.empty` to immediately set `state = -1` and elide the MoveNext function value, as it is never meaningfully called.
 
-**SSA Cost**: 3 (undef struct, insert state=-1, insert code_ptr)
+**SSA Cost**: 2 (undef struct, insert state=-1), plus 1 for `func.constant` when the MoveNext value is materialized
 
 ### 3.2 Relationship to seq { }
 
@@ -81,7 +79,7 @@ However, `Seq.empty` is a primitive that avoids state machine generation entirel
 
 ### 4.1 Seq Structure
 
-A seq value in Clef is a struct containing:
+A seq value in Clef is the two-value pair `(moveNext, env)` of [Closure Representation §6.3](closure-representation.md): `moveNext` is a function value, and the environment is a flat struct containing:
 
 ```
 Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S₁, ..., sₖ: Sₖ]
@@ -89,8 +87,6 @@ Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S�
 │ state: i32              (4 bytes) - state machine position              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ current: T              (sizeof(T) bytes) - current yielded value       │
-├─────────────────────────────────────────────────────────────────────────┤
-│ code_ptr: ptr           (1 word) - MoveNext function address            │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ c₁: T₁                  (captured value from enclosing scope)           │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -108,12 +104,13 @@ Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S�
 Field Indices:
   [0] = state (i32)
   [1] = current (T)
-  [2] = code_ptr (MoveNext function)
-  [3..m+2] = captured values from enclosing scope
-  [m+3..m+k+2] = internal mutable state from seq body
+  [2..m+1] = captured values from enclosing scope
+  [m+2..m+k+1] = internal mutable state from seq body
 ```
 
-### 3.2 Captures vs Internal State
+The `MoveNext` symbol is never stored in the environment as data: it is the function-value half of the pair, elided where the consumer knows it. An earlier revision placed a `code_ptr` word at `[2]`; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)).
+
+### 4.2 Captures vs Internal State
 
 | Category | Definition Location | Initialization Time | Access Pattern |
 |----------|---------------------|---------------------|----------------|
@@ -123,17 +120,17 @@ Field Indices:
 **Example**:
 ```fsharp
 let multiplesOf factor count = seq {
-    let mutable i = 1        // INTERNAL STATE → index [m+3]
-    while i <= count do      // 'count' is CAPTURE → index [4]
-        yield i * factor     // 'factor' is CAPTURE → index [3]
+    let mutable i = 1        // INTERNAL STATE → index [m+2]
+    while i <= count do      // 'count' is CAPTURE → index [3]
+        yield i * factor     // 'factor' is CAPTURE → index [2]
         i <- i + 1
 }
-// Struct: {state, current, code_ptr, factor, count, i}
-//         [0]    [1]      [2]       [3]     [4]    [5]
+// Environment: {state, current, factor, count, i}
+//              [0]    [1]      [2]     [3]    [4]
  
 ```
 
-### 3.3 State Values
+### 4.3 State Values
 
 | State | Meaning |
 |-------|---------|
@@ -145,207 +142,48 @@ let multiplesOf factor count = seq {
 
 ### 5.1 Struct Pointer Passing
 
-Following the lazy thunk pattern, MoveNext receives a pointer to its containing seq struct:
+Following the lazy thunk convention, `MoveNext` receives its environment — the struct of §4.1 — as its sole parameter; the seq value is the pair `(moveNext, env)`:
 
 **MoveNext Signature**:
 ```
-moveNext: (ptr<Seq<T>>) -> i1
+moveNext: (memref<Exi8>) -> i1      // E = the environment extent, a literal at saturation
 ```
 
 Returns `true` if a value was yielded (available in `current`), `false` if exhausted.
 
 ### 5.2 State Machine Structure
 
-For while-based seq expressions, the MoveNext function has this CFG:
+`MoveNext` dispatches on the `state` discriminant with `scf.index_switch`. Each case is the segment that runs from that state to its next yield (or to completion), and every case ends by storing the next state and yielding whether a value was produced:
 
-```
-entry:
-    load state
-    switch state: [0 → ^s0, 1 → ^s1, default → ^done]
-
-^s0:  // Initial state
-    initialize internal state variables
-    br ^check
-
-^s1:  // Resume after yield
-    execute post-yield expressions
-    br ^check
-
-^check:
-    evaluate while condition
-    cond_br condition, ^yield, ^done
-
-^yield:
-    execute pre-yield expressions
-    compute yield value
-    store to current field
-    set state = 1
-    return true
-
-^done:
-    set state = -1
-    return false
-```
-
-## 6. PSG Structure and Sequential Flattening
-
-### 6.1 The Nested Sequential Problem
-
-F# source code with statements before/after yield results in deeply nested `Sequential` nodes in the PSG:
-
-```fsharp
-while i <= count do
-    sum <- sum + i    // pre-yield
-    yield sum
-    i <- i + 1        // post-yield
- 
-```
-
-**PSG Structure** (simplified):
-```
-WhileBody = Sequential([
-    Set(sum <- sum + i),        // [0] - obviously pre-yield
-    Sequential([                 // [1] - contains yield AND post-yield
-        Yield(sum),
-        Set(i <- i + 1)
-    ])
-])
-```
-
-### 6.2 Naive Split Failure
-
-A naive `splitAtYield` that only looks at top-level nodes fails:
-
-```
-splitAtYield([Set(sum), Sequential([Yield, Set(i)])], [])
-  → Check Set(sum): no yields → pre = [Set(sum)]
-  → Check Sequential([...]): has yields → return (pre=[Set(sum)], post=[])
-                                                            ↑
-                                                     WRONG! i <- i + 1 is INSIDE
-```
-
-The post-yield `Set(i <- i + 1)` is **inside** the nested Sequential, not after it in the outer list.
-
-### 6.3 NORMATIVE: Sequential Flattening Requirement
-
-**All nested Sequential nodes MUST be flattened before splitting at yield.**
-
-The `flattenSequentials` function recursively expands nested Sequentials:
-
-```fsharp
-/// Flatten nested Sequentials into a single list of non-Sequential nodes
-/// e.g., [A, Sequential([B, Sequential([C, D])])] → [A, B, C, D]
-let rec flattenSequentials (graph: SemanticGraph) (nodeIds: NodeId list) : NodeId list =
-    nodeIds
-    |> List.collect (fun nodeId ->
-        match isSequential graph nodeId with
-        | Some innerNodes -> flattenSequentials graph innerNodes
-        | None -> [nodeId])
-```
-
-After flattening:
-```
-flattenSequentials([Set(sum), Sequential([Yield, Set(i)])])
-  → [Set(sum), Yield, Set(i)]
-```
-
-Now `splitAtYield` works correctly:
-```
-splitAtYield([Set(sum), Yield, Set(i)], [])
-  → Check Set(sum): no yields → pre = [Set(sum)]
-  → Check Yield: has yields → return (pre=[Set(sum)], post=[Set(i)])
-                                                            ↑
-                                                     CORRECT!
-```
-
-### 6.4 Complete Split Algorithm
-
-```fsharp
-let (preYield, postYield) =
-    // CRITICAL: Flatten nested Sequentials FIRST
-    let flattenedBody = flattenSequentials graph whileBodyNodes
-    
-    let rec splitAtYield (nodes: NodeId list) (pre: NodeId list) =
-        match nodes with
-        | [] -> (List.rev pre, [])
-        | nodeId :: rest ->
-            let nodeYields = collectYieldsInSubtree graph nodeId
-            if not (List.isEmpty nodeYields) then
-                // This node contains yield - rest is post-yield
-                (List.rev pre, rest)
-            else
-                splitAtYield rest (nodeId :: pre)
-    
-    splitAtYield flattenedBody []
-```
-
-## 7. Post-Yield Expression Handling
-
-### 7.1 Supported Expression Types
-
-The `emitPostYield` function must handle these PSG node kinds:
-
-| Kind | Example | Handling |
-|------|---------|----------|
-| `Set` | `i <- i + 1` | Load operands, compute, store |
-| `Binding` (immutable) | `let temp = a + b` | Compute value, track in local map |
-| `Sequential` | Multiple statements | Recursively process children |
-
-### 7.2 Local Binding Tracking
-
-For sequences like fibonacci:
-```fsharp
-yield a
-let temp = a + b    // immutable local binding
-a <- b
-b <- temp           // references local binding
-i <- i + 1
-```
-
-The `temp` binding is NOT in the struct - it's computed locally in MoveNext. Post-yield emission must:
-1. Track local immutable bindings in a map
-2. When evaluating VarRefs, check local map before struct fields
-
-```fsharp
-// Pseudocode for emitPostYield with local binding support
-let mutable localBindings = Map.empty<string, SSA>
-
-for expr in postYieldExprs do
-    match expr.Kind with
-    | Binding(name, valueExpr, isMutable=false) ->
-        let (ops, ssa) = emitValue valueExpr localBindings
-        localBindings <- Map.add name ssa localBindings
-        ops  // No store - just track the SSA
-    | Set(target, value) ->
-        let (valueOps, valueSSA) = emitValue value localBindings
-        valueOps @ storeToStruct target valueSSA
-```
-
-## 8. WhileBasedMoveNextInfo
-
-### 8.1 Structure
-
-```fsharp
-type WhileBasedYieldInfo = {
-    InitExprs: NodeId list       // let mutable declarations before while
-    WhileNodeId: NodeId          // The WhileLoop node
-    ConditionId: NodeId          // While condition expression
-    PreYieldExprs: NodeId list   // Expressions BEFORE yield in while body
-    YieldNodeId: NodeId          // The Yield node
-    YieldValueId: NodeId         // Expression being yielded
-    PostYieldExprs: NodeId list  // Expressions AFTER yield in while body
-    ConditionalYield: ConditionalYieldInfo option  // If yield is inside an if
+```mlir
+func.func private @moveNext(%seq: memref<Exi8>) -> i1 {
+  %c0 = arith.constant 0 : index
+  %sv = memref.view %seq[%c0][] : memref<Exi8> to memref<1xindex>
+  %s  = memref.load %sv[%c0] : memref<1xindex>
+  %more = scf.index_switch %s -> i1
+    case 0 { ... initialize internal state, then run the loop segment ... }
+    case 1 { ... post-yield segment; evaluate the condition;
+             true:  pre-yield segment, store current, store state 1, scf.yield %true
+             false: store state 2, scf.yield %false ... }
+    default { %f = arith.constant false ; scf.yield %f : i1 }
+  return %more : i1
 }
 ```
 
-### 8.2 Population Requirements
+No block-based control flow (`cf.br`, `cf.cond_br`) appears above the witness boundary. `scf.index_switch` over the literal state set is the structured form of the same machine; the pathway's standard `scf` lowering produces the blocks.
 
-1. `InitExprs`: All `let mutable` bindings between seq body start and while loop
-2. `PreYieldExprs`: Non-yield nodes before yield in FLATTENED while body
-3. `PostYieldExprs`: Non-yield nodes after yield in FLATTENED while body
-4. `ConditionalYield`: Set if yield appears inside `if` within while body
+## 6. PSG Structure: Segments at Yield
 
-## 9. SSA Cost Formula
+A `seq { }` body is elaborated by the suspension recipe of [Delimited Continuation Representation §2](dcont-representation.md), with `yield` as the cut and the caller's pull as the only resumption edge. The recipe, not a shape recognizer, produces the state machine:
+
+- **Segments.** Fan-out splits the body at each `yield`. In a `while`-shaped body the code before the yield and the code after it are the two segments adjacent to the cut, whatever nesting of `Sequential` nodes the surface syntax produced. Segmentation follows the graph's evaluation order, so no flattening or splitting of `Sequential` nodes is specified or needed.
+- **State count.** A body with *N* yields folds to a discriminant over *N*+2 values (§4.3 shows *N* = 1).
+- **Slots.** Each cut's live-across set is enumerated at elaboration: `let mutable` bindings threaded across the yield become internal-state slots; an immutable `let` whose scope does not cross a yield is evaluated within its segment and occupies no slot. Offsets and the extent `E` are literals settled by interference colouring over segment liveness.
+- **Conditional yield.** A `yield` under `if` is a cut on one branch; the other branch continues the segment. The discriminant records which cut was reached; no separate conditional-yield structure exists.
+
+The saturated result is a frame node — the environment node of [Closure Representation §7](closure-representation.md) in its state-machine slot class — whose segments are the `scf.index_switch` cases of §5.2. The middle end witnesses that structure; it does not recognize shapes, split expressions, or track bindings.
+
+## 7. SSA Cost Formula
 
 For a seq expression with `N` captures and `M` internal state variables:
 
@@ -359,24 +197,24 @@ SSA cost = 5 + N + (2 × M)
 | undef struct | 1 |
 | insert state | 1 |
 | addressof MoveNext | 1 |
-| insert code_ptr | 1 |
+| `func.constant` for MoveNext (elided when the consumer knows it) | 1 |
 | insert captures | N |
 | internal state (const 0 + insert each) | 2 × M |
 
-## 10. Normative Requirements
+## 8. Normative Requirements
 
 1. **Flat Representation**: Seq values SHALL use flat closure representation with captures AND internal state inlined
-2. **Struct Layout**: Field order SHALL be: state, current, code_ptr, captures, internal_state
-3. **Capture Indices**: Captures SHALL begin at index 3
+2. **Struct Layout**: Field order SHALL be: state, current, captures, internal_state; no code pointer SHALL be stored in the environment
+3. **Capture Indices**: Captures SHALL begin at index 2
 4. **Seq.empty Representation**: `Seq.empty<'T>` SHALL be represented as a minimal seq struct with state=-1
-5. **Internal State Indices**: Internal state SHALL begin at index 3 + capture_count
-6. **Sequential Flattening**: Nested Sequentials in while body SHALL be flattened before pre/post yield splitting
-7. **MoveNext Convention**: MoveNext SHALL receive pointer to containing seq struct
-8. **State Machine**: State 0 = initial, positive = after yield N, -1 = done
+5. **Internal State Indices**: Internal state SHALL begin at index 2 + capture_count
+6. **Segmentation**: The body SHALL be segmented at each `yield` by the suspension recipe (§6); segmentation SHALL follow the graph's evaluation order, and no flattening or splitting of `Sequential` nodes is specified
+7. **MoveNext Convention**: MoveNext SHALL receive its environment as its sole parameter; a seq value SHALL be the two-value pair `(moveNext, env)` of [Closure Representation §6.3](closure-representation.md)
+8. **State Machine**: State 0 = initial, positive = after yield N, -1 = done; MoveNext SHALL dispatch on the state with `scf.index_switch` (§5.2), and no `cf.*` operation SHALL appear above the witness boundary
 
-## 11. Test Cases
+## 9. Test Cases
 
-### 11.1 triangularNumbers (Pre-yield + Post-yield)
+### 9.1 triangularNumbers (Pre-yield + Post-yield)
 
 ```fsharp
 let triangularNumbers count = seq {
@@ -389,14 +227,14 @@ let triangularNumbers count = seq {
 }
 ```
 
-**Struct**: `{state, current, code_ptr, count, sum, i}`
+**Environment**: `{state, current, count, sum, i}`
 
 **MoveNext blocks**:
 - `^s0`: sum=0, i=1, br check
 - `^s1`: i=i+1, br check
 - `^yield`: sum=sum+i, current=sum, state=1, return true
 
-### 11.2 fibonacci (LetBinding in Post-yield)
+### 9.2 fibonacci (LetBinding in Post-yield)
 
 ```fsharp
 let fibonacci count = seq {
@@ -412,11 +250,11 @@ let fibonacci count = seq {
 }
 ```
 
-**Struct**: `{state, current, code_ptr, count, a, b, i}`
+**Environment**: `{state, current, count, a, b, i}`
 
 **MoveNext ^s1**: Must compute `temp` locally, not load from struct.
 
-## 12. Related Chapters
+## 10. Related Chapters
 
 This chapter covers `seq { }` expressions (PRD-15). For **Seq module operations** (map, filter, take, fold, collect), see:
 
