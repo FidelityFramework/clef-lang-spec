@@ -443,7 +443,7 @@ Lazy.create (fun () -> expr)
 7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
 8. **Single-Forcer Memoization**: A memoizing lazy value SHALL be forced under a single-forcer discipline: for each lazy value, exactly one semantic forcer performs the transition from unevaluated to computed. A lazy value whose force sites span threads or actor boundaries SHALL carry an ownership obligation discharged at compile time by establishing that single semantic forcer. This discipline keeps the write-once conditions on `computed` at `[0]` and `value` at `[1]` quantifier-free: each slot is written at one statically identified site, so the verification conditions quantify over enumerated structure only ([Closure Representation §11](closure-representation.md#11-proof-extraction-at-closure-sites)).
 
-## 12. Implementation in CCS/Firefly Pipeline
+## 12. Implementation in CCS/Composer Pipeline
 
 ### 12.1 CCS Phase
 

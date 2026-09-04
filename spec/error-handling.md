@@ -213,7 +213,7 @@ The multi-target editor model is well established in the F# ecosystem: Ionide ro
 Lattice, the Clef editor tooling, follows this model:
 
 ```
-Lattice ←→ LSP ←→ CCS ←→ Firefly Compiler ←→ MLIR/LLVM
+Lattice ←→ LSP ←→ CCS ←→ Composer Compiler ←→ MLIR/LLVM
 ```
 
 #### Extension Points

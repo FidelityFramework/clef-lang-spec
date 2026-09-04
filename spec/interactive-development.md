@@ -393,7 +393,7 @@ Clef uses a parallel toolchain rather than extending managed F# tooling:
 | Component | Managed F# | Clef |
 |-----------|------------|-----------|
 | Compiler Services | FCS (F# Compiler Services) | CCS (Clef Compiler Service) |
-| Language Server | FSAC (F# AutoComplete) | FSNAC (Clef AutoComplete) |
+| Language Server | FSAC (F# AutoComplete) | Lattice (ClefAutoComplete) |
 | Package Manager | NuGet | Fargo (fpm) |
 | Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
 | Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
@@ -422,7 +422,7 @@ my-project/
 │   ├── App.fsproj         # ← FSAC handles this
 │   └── Components.fs
 ├── native-backend/         # Clef → Native binary
-│   ├── Server.fidproj     # ← FSNAC handles this
+│   ├── Server.fidproj     # ← Lattice handles this
 │   └── Api.clef
 └── shared/                 # Pure F# domain types
     ├── Shared.fsproj      # ← Both can consume (with constraints)
@@ -432,7 +432,7 @@ my-project/
 IDE integration (Lattice) routes to the appropriate language server based on project type:
 
 - `.fsproj` → FSAC (managed F# or Fable)
-- `.fidproj` → FSNAC (Clef)
+- `.fidproj` → Lattice (Clef)
 
 ### Shared Code Constraints
 
@@ -500,7 +500,7 @@ Reloaded: MyLocalPackage
 
 ### LSP Integration
 
-clefx connects to the Clef Language Server (FSNAC) for:
+clefx connects to the Clef language server, Lattice, for:
 
 - Autocompletion in the REPL
 - Type information on hover

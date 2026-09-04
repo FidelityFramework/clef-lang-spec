@@ -89,7 +89,7 @@ Console.WriteLine $"N^2 = {squares}"
 
 To compile this program with Clef:
 
-- Use the Firefly compiler to produce a native executable.
+- Use the Composer compiler to produce a native executable.
 - The resulting binary runs without any runtime dependencies.
 
 ### Lightweight Syntax
@@ -289,7 +289,7 @@ module Sys =
  
 ```
 
-CCS recognizes these by module pattern (`Sys.*`, `Mmio.*`) and the Firefly compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
+CCS recognizes these by module pattern (`Sys.*`, `Mmio.*`) and the Composer compiler (Alex component) provides implementations for each target platform (Linux, macOS, Windows, embedded, etc.).
 
 > **See**: [Platform Bindings](platform-bindings.md) for the three-layer binding architecture including Sys intrinsics and quotation-based bindings for external libraries.
 

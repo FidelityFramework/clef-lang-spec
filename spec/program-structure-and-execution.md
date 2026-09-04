@@ -138,7 +138,7 @@ exposed with its representation reveals that representation (see
 
 ## Script Files
 
-Script files have the `.clefx` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Firefly compiler. For native compilation, use implementation files (`.clef`) organized via a `.fidproj` project file.
+Script files have the `.clefx` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Composer compiler. For native compilation, use implementation files (`.clef`) organized via a `.fidproj` project file.
 
 Script files have the following characteristics:
 
@@ -146,7 +146,7 @@ Script files have the following characteristics:
 - Script files may add other implementation files and script files to the list of sources by using the `#load` directive. Files are processed in the dependency order computed by CCS (see [§](program-structure.md#compilation-pipeline)); the textual position of `#load` directives does not determine compilation order. If a filename appears in more than one `#load` directive, the file is loaded only once.
 - Script files may have `#nowarn` directives, which disable a warning for the entire compilation.
 
-The Firefly compiler defines the `FIDELITY` compilation symbol for native compilation. The `COMPILED` symbol is also defined for compatibility.
+The Composer compiler defines the `FIDELITY` compilation symbol for native compilation. The `COMPILED` symbol is also defined for compatibility.
 
 ## Compiler Directives
 

@@ -11,7 +11,7 @@ status: normative
 
 ## 1. Overview
 
-Clef implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Firefly to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
+Clef implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Composer to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
 
 `Incremental<'T>` occupies a specific position in a spectrum of evaluation strategies that the compiler understands natively:
 
@@ -155,7 +155,7 @@ On GPU and NPU targets, the node does not materialize as a struct. The logical f
 
 The dependency graph for `Incremental<'T>` nodes forms a directed acyclic graph (DAG). The compiler distinguishes two structural categories based on applicative vs. monadic composition:
 
-**Applicative subgraphs** have static structure known at compile time. All dependencies are declared unconditionally. Firefly can compile these to fixed hardware configurations (static AIE overlays, pre-allocated GPU dispatch groups).
+**Applicative subgraphs** have static structure known at compile time. All dependencies are declared unconditionally. Composer can compile these to fixed hardware configurations (static AIE overlays, pre-allocated GPU dispatch groups).
 
 ```fsharp
 // Applicative: both dependencies are unconditional

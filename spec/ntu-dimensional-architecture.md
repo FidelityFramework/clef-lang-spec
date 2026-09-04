@@ -316,7 +316,7 @@ first-class in the type system; they don't erase after type checking. CCS valida
 dimensional consistency (e.g., you cannot add a `Pointer`-width integer to a
 `Fixed 32` integer without explicit conversion) without knowing the target platform.
 
-### 5.2 Firefly / Alex (Code Generation)
+### 5.2 Composer / Alex (Code Generation)
 
 Alex resolves dimensional types to concrete values using the PlatformContext for each
 graph section. The `mapNativeTypeForArch` function in TypeMapping.fs is the resolution
