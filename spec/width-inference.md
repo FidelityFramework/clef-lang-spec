@@ -34,14 +34,14 @@ From a range \([a, b]\), the minimal integer width is derived directly:
 
 A value uses exactly the bits its range requires — no more. The following are inferred widths from a working FPGA design (Arty A7-100T):
 
-| Value | Inferred width | Range |
+| Value | Range | Inferred width |
 |---|---|---|
-| `Counter` | 31 bits | free-running mod ~10⁹ |
-| `StepTick` | 21 bits | counts to ~781,250 |
-| `Phase` | 10 bits | cycles `0..511` |
-| `PeriodMs` | 13 bits | latched period ≤ 4000 |
+| `Counter` | free-running mod ~10⁹, `[0, 10⁹ − 1]` | 30 bits, unsigned |
+| `StepTick` | counts to ~781,250, `[0, 781 250]` | 20 bits, unsigned |
+| `Phase` | cycles `0..511` | 9 bits, unsigned |
+| `PeriodMs` | latched period, `[0, 4000]` | 12 bits, unsigned |
 
-Each register uses exactly the bits it needs; on the FPGA each `seq.compreg` flip-flop is narrowed accordingly, shortening carry chains. No width is declared by hand.
+Each register uses exactly the bits its range requires; on the FPGA each `seq.compreg` flip-flop is narrowed accordingly, shortening carry chains. No width is declared by hand. A non-negative range spends no sign bit: signedness is a fact of the range (§1), and the zero-extension or sign-extension an operand needs when it meets a wider operand follows from that fact, never from a type name. An implementation that adds a sign bit to every range, or extends by a fixed rule, does not conform to this section.
 
 ## 4. Representation Selection (Reals)
 

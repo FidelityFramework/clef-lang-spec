@@ -449,7 +449,7 @@ The `SyscallConvention` and `FreestandingStartup` below are the hosted-ELF frees
 let platform: Expr<PlatformDescriptor> = <@
     { Architecture = X86_64
       OperatingSystem = Linux
-      Dimensions = Map.ofList [ (Pointer, 64); (Register, 64) ]
+      Dimensions = Map.ofList [ (WidthDimension "Pointer", 64); (WidthDimension "Register", 64) ]
       Endianness = Little
       TypeLayouts = (* ... *)
       SyscallConvention =
@@ -472,7 +472,7 @@ The bare-metal Cortex-M33 target has no syscall ABI and no `_start`. `Pointer` i
 let platform: Expr<PlatformDescriptor> = <@
     { Architecture = ARM_Thumbv8m
       OperatingSystem = BareMetal
-      Dimensions = Map.ofList [ (Pointer, 32); (Register, 32) ]
+      Dimensions = Map.ofList [ (WidthDimension "Pointer", 32); (WidthDimension "Register", 32) ]
       Endianness = Little
       TypeLayouts = (* ... *)
       SyscallConvention = NoSyscalls
@@ -512,6 +512,6 @@ The F# code author writes idiomatic F# (`main: string[] -> int`); the compiler h
 
 ### Program-Lifetime Spaces
 
-Among its `MemoryRegions`, a `PlatformDescriptor` SHALL designate by name exactly one **immutable program-lifetime space** and at most one **mutable program-lifetime space**. These are the spaces the representation chapters cite when a value is placed at the program-lifetime point of the lifetime lattice ([Closure Representation §3.3](closure-representation.md)): the sentinel image of an empty collection, a string literal, a program-lifetime closure environment. On an ELF target they are the rodata and data sections; on an MCU the flash and SRAM regions; on a GPU constant memory (and, where the target has one, a writable global segment); on an FPGA initialised BRAM. The role is declared, not inferred: the descriptor names the region, and a `Resides` edge ([Program Hypergraph §6](program-hypergraph.md)) cites that name as the obligation's authority.
+For each numeric representation it offers, a `PlatformDescriptor` SHALL declare its capability (native, emulated, or unavailable; [Numeric Selection §7](numeric-selection.md)) and its boundary semantics (wrap, saturate, or exact; [Numeric Selection §9](numeric-selection.md)); the compiler reads both and declares neither. Among its `MemoryRegions`, a `PlatformDescriptor` SHALL designate by name exactly one **immutable program-lifetime space** and at most one **mutable program-lifetime space**. These are the spaces the representation chapters cite when a value is placed at the program-lifetime point of the lifetime lattice ([Closure Representation §3.3](closure-representation.md)): the sentinel image of an empty collection, a string literal, a program-lifetime closure environment. On an ELF target they are the rodata and data sections; on an MCU the flash and SRAM regions; on a GPU constant memory (and, where the target has one, a writable global segment); on an FPGA initialised BRAM. The role is declared, not inferred: the descriptor names the region, and a `Resides` edge ([Program Hypergraph §6](program-hypergraph.md)) cites that name as the obligation's authority.
 
 An implementation SHALL NOT fabricate a space the descriptor does not declare; this is the two-sided preservation obligation of [Conformance §6](conformance.md). A program-lifetime value whose required space the selected descriptor does not declare is a compile-time error, not a fallback placement. A managed-substrate descriptor (the JavaScript Substrate profile) declares no memory spaces; there, program-lifetime values are realised by the host value model under the carrier-realisation rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md), and the `Resides` obligation is discharged by that profile's declaration.

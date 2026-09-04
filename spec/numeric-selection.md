@@ -49,7 +49,7 @@ The bare argmin as written above is **ill-posed without two side-conditions**, s
 
 \[R_{\mathrm{cov}}(T, [a, b]) = \{\, r \in R(T) \;:\; \mathrm{dynrange}(r) \supseteq [a, b] \,\}\]
 
-with the explicit rule: **if `R_cov = ∅`, that is a hard error** ("no available representation on this target covers `[a, b]`; widen the range source, rescale dimensionally, or seal a representation and accept saturation"). A non-covering format SHALL NOT be selected. The Tier-3 seal check (§5) is a special case of this coverage check applied to a singleton `R`, not a separate mechanism. The coverage constraint is part of the objective, not a post-hoc warning.
+with the explicit rule: **if `R_cov = ∅`, that is a coverage warning** ("no available representation on this target covers `[a, b]`; widen the range source, rescale dimensionally, or seal a representation and accept saturation"), and selection then falls to the argmin over the full offered set `R(T)` with the uncovered range recorded on the node. A non-covering format is selected only in that case and only under that warning, which names the range, the fallback and the remedies; the `--warnaserror` policy promotes it to an error, the rule every warning in the framework follows (the FPGA timing budget's `CCS0100` is the reference case). Nothing is silent. The Tier-3 seal check (§5) is a special case of this coverage check applied to a singleton `R`, not a separate mechanism. The coverage constraint is part of the objective, not a post-hoc warning.
 
 ### 2.2 The zero-crossing error metric
 
@@ -144,9 +144,9 @@ The compiler infers `N` for free; the **range comes from Tier 2**, precisely bec
 A Tier-3 seal fixes a concrete representation at the site. The compiler runs selection in reverse and discharges exactly the §2.1 coverage check on the singleton candidate set:
 
 - If the sealed representation covers the value range, the seal compiles, even if accuracy-suboptimal. A suboptimal-but-covering seal SHALL be witnessed at design time with the representation the open argmin would have chosen.
-- If the sealed representation does *not* cover the range, that is the §2.1 hard error.
+- If the sealed representation does *not* cover the range, that is the §2.1 coverage warning, promoted to an error under `--warnaserror`.
 
-The seal form (operator, attribute, or quotation; and the rounding/saturation discipline for any accompanying lossy conversion) is **[Not yet specified]**; it inherits the open explicit-conversion syntax of [Width Inference §7](width-inference.md).
+The seal form is the named representation type written where a type is written: an annotation, a parameter or return type, or a literal suffix (`int32`, `uint8`, `float32`, `Posit32`, `Posit16`). The angle brackets remain the measure slot, so `Posit32<newtons>` seals the representation and states the dimension in one type. The parameterized `posit<n, es, rs, bias>` of §8 item 3 is a synthesis configuration for reconfigurable targets and is never a seal in source. The rounding or saturation discipline that a lossy explicit conversion must state inherits the open syntax of [Width Inference §7](width-inference.md).
 
 ## 6. The Default and Unobservable Case
 
@@ -201,7 +201,7 @@ The `allow-emulated-warn` policy lets emulated-ness influence *which diagnostic 
 
 **[Design decision.]** The representation space lives on three layers, split across the CPU/FPGA fork so that surface syntax and synthesis configurations never collide:
 
-1. **Surface (Tiers 1–2): `float<dim>` or a ranged real.** No posit width appears on the garden path. A concrete `posit<n, es>` is the explicit Level-3 escape hatch only (seal syntax **[Not yet specified]**).
+1. **Surface (Tiers 1–2): `float<dim>`.** No posit width appears on the garden path; a range is a coeffect on the node, never a surface form. A concrete named posit type (`Posit32`) is the explicit Level-3 seal only (§5).
 2. **Lowering codomain on fixed-ISA (CPU / SIMD / RISC-V): four concrete types `Posit8 / 16 / 32 / 64`.** Direct struct layout, clean SRTP dispatch, clean hardware mapping, clean error messages, clean quire pairing (a `Quire32.fma` takes `Posit32` by construction). Selection chooses *among these concrete types* plus IEEE and fixed-point. Concrete types are the **codomain of selection, not the surface syntax.**
 3. **Parameterized `posit<n, es, rs, bias>`: FPGA / reconfigurable-only synthesis search.** The `(rs, es)` grid is enumerable (`rs ∈ [2, 6]`, `es ∈ [1, 5]`, ≤ 25 points); **bias and asymmetry are a bounded but continuous parameterization explored heuristically, not enumerated.** Calling the *full* space "enumerable" would be wrong. This is type-directed *hardware synthesis*, not a type the developer instantiates, and it is future work.
 
@@ -211,12 +211,12 @@ ML routing follows from this split: the Tier-2 library supplies the narrow range
 
 Numeric selection rides the same Program Semantic Graph coeffect frame that width inference uses for integers. The pattern to replicate, with honest cost annotations:
 
-1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a peer `RepresentationSelection` coeffect beside the width-inference coeffect, computed during the same elaboration. *(Cheap: a new field and a new producer.)*
+1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a peer `RepresentationSelection` coeffect beside the width-inference coeffect, computed in the same coeffect pass: range propagation runs in Elaboration wherever no platform fact is needed and is closed, together with selection, at Saturation against the platform description of the section ([NTU Dimensional Architecture §4.3](ntu-dimensional-architecture.md)). *(Cheap: a new field and a new producer.)*
 2. **Abstract sentinel at type-lowering.** Just as platform-word integers lower to an abstract width sentinel resolved at narrowing, reals lower to an abstract real/float sentinel resolved by a single `selectRepresentation` choke point into `posit<n, es, bias>`, IEEE `f32`/`f64`, or fixed-point. *(Moderate: a new sentinel and a new resolver; this hook does not exist for reals today.)*
 3. **Single resolver choke point**, analogous to integer narrowing.
 4. **Hard error on unobservability**, inherited and split on dimensionedness (§6).
 5. **Check-time diagnostics**, emitted in the same shape as the existing width-inference and FPGA diagnostics (§10).
-6. **Platform capability facts**, the natural seat for "does this target have native posit hardware, an extended posit instruction, or quire support?" (§7).
+6. **Platform capability facts**, the natural seat for "does this target have native posit hardware, an extended posit instruction, or quire support?" (§7), and for the **boundary semantics** of each offered representation: what an operation does when its result leaves the representation's dynamic range (wrap on a two's-complement integer unit, saturation on a posit unit or a saturating DSP block, exact on fabric where the width is the range's). The range coeffect reads that fact to decide whether a sealed operation can reach its boundary; when the interval image stays inside the seal nothing is said, and when it can cross, the finding is a warning promoted under `--warnaserror`, resolved by the developer with a tighter bound, a wider seal, or an explicitly saturating or wrapping operation. The language declares no boundary semantics of its own and never selects one.
 
 ### 9.1 The real interval domain is a new abstract domain, not a port
 
@@ -314,10 +314,10 @@ The "rescale to AU" suggestion is itself a dimensional operation (1 AU ≈ 1.5 �
 ## 13. Normative Requirements
 
 1. **Range-driven representation.** For a real-valued quantity, the representation (IEEE-754 / posit / fixed-point) SHALL be selected per target as a function of the analyzed and dimensional range, not from a target type name.
-2. **Feasibility constraint.** Selection SHALL be over the coverage-filtered candidate set `R_cov`; a non-covering representation SHALL NOT be selected, and `R_cov = ∅` SHALL be a compile-time error.
+2. **Feasibility constraint.** Selection SHALL be over the coverage-filtered candidate set `R_cov`; a non-covering representation SHALL be selected only when `R_cov = ∅`, and then under a coverage warning that names the uncovered range, the fallback and the remedies; the warning SHALL be promoted to an error under `--warnaserror`.
 3. **Zero-crossing soundness.** The error metric SHALL be the ULP-floored form of §2.2 (or its equivalent neighborhood-exclusion form); a range straddling zero SHALL NOT yield an undefined argmin.
 4. **Accuracy-only objective.** The selection score SHALL be worst-case error over the range and SHALL NOT include a cost, latency, or area term; performance SHALL be expressed only as a candidate-set filter (§7).
-5. **Tier composition.** When multiple tiers produce a range claim, the binding range SHALL be the claim of the highest present tier; lower-tier claims SHALL become consistency obligations whose violation is a diagnostic, not a change to the binding range. There SHALL be no empty-intersection state.
+5. **Tier composition.** When multiple tiers produce a range claim, the binding range SHALL be the claim of the highest present tier; lower-tier claims SHALL become consistency obligations whose violation is a warning, promoted to an error under `--warnaserror`, and never a change to the binding range. There SHALL be no empty-intersection state.
 6. **Unobservable range, dimensioned.** A dimensioned real whose range cannot be bounded by any provenance SHALL be reported as an error requesting annotation; the compiler SHALL NOT assume a representation.
 7. **Unobservable range, bare.** A bare `float` with an unobservable range SHALL lower to IEEE `f64` without error; this is the argmin outcome for an unknown range, not a bypass of selection. Bare reals SHALL still carry range propagation.
 8. **Dimensioning seam.** When an unbounded bare value flows into a dimensioned context, the range error SHALL fire at the dimensioning boundary and SHALL name the upstream bare source.
@@ -330,7 +330,7 @@ The "rescale to AU" suggestion is itself a dimensional operation (1 AU ≈ 1.5 �
 
 > **Not yet specified.** The following are open and SHALL be resolved before the corresponding capability is claimed shippable. None is invented here as settled.
 
-1. **Seal syntax.** The Tier-3 seal form (operator, attribute, or quotation) and any accompanying lossy-conversion rounding/saturation discipline are open; this inherits the open explicit-conversion syntax of [Width Inference §7](width-inference.md). This is the critical-path gap, since Tier 3 is the only tier buildable on today's infrastructure.
+1. **Lossy-conversion discipline syntax.** The seal form is resolved in §5: a named representation type in type position. The rounding or saturation discipline a lossy explicit conversion must state remains open and inherits [Width Inference §7](width-inference.md). This is the critical-path gap, since Tier 3 is the only tier buildable on today's infrastructure.
 2. **`Fidelity.Physics` binding contract.** The export interface that composes a quotation-symbolic module (§4) into a Tier-2 range claim is unspecified, and the library is planned, not built. The terminating range-expression sub-language is now **resolved in §4**: it is a closed-form image computation in the interval domain (§9.1) that feeds the regime classifier, so the carried object is a categorical regime (a point in the bounded representation lattice), not a scalar, and downstream obligations are finite lattice operations over that categorical codomain. The **residual gaps are (a) the per-transcendental segment-splitting convention** (where exactly `sin` and other non-monotone functions are split into monotone pieces) and **(b) the tightness target for the bound method** — since interval over-estimation under the dependency problem (`r·r`) bears on *which* lattice element is selected (selection completeness), it must be pinned how tight the bound has to be, and whether affine/Taylor refinement is required when an over-estimate would straddle a regime boundary.
 3. **Tier-disagreement tolerance.** Whether containment `R_lower ⊆ R_binding` is exact or within an ε, and whether the tolerance is per-dimension, is open; measurement reality means observed ranges may legitimately exceed declared ranges by epsilon.
 4. **Profiling-evidence provenance.** The third range source has no recording, versioning, or cross-build trust model; whether a profiling range is Tier 1 (with an evidence-provenance tag) or its own tier is unresolved.

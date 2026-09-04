@@ -177,7 +177,7 @@ filepath(line,col)-(line,col): severity code: message
 For example:
 
 ```
-src/Main.clef(12,5)-(12,15): error CCS8100: Cannot use 'null' in Clef; use 'ValueNone' for optional values
+src/Main.clef(12,5)-(12,15): error CCS8010: 'null' is not permitted in Clef; use 'ValueNone' for an absent value
 ```
 
 #### Error Codes
@@ -186,7 +186,7 @@ CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnos
 
 | Range | Category |
 |-------|----------|
-| CCS8000-CCS8099 | Type system (null-freedom, [access kinds](access-kinds.md)) |
+| CCS8000-CCS8099 | Type system: identity, measures, seals and ranges, null-freedom (`CCS8010`, [Types and Type Constraints](types-and-type-constraints.md)), [access kinds](access-kinds.md) |
 | CCS8100-CCS8199 | Memory management (regions, lifetimes) |
 | CCS8200-CCS8299 | Platform bindings |
 | CCS8300-CCS8399 | Effect system |
@@ -197,7 +197,7 @@ CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnos
 CCS implements the Language Server Protocol for editor integration. Key considerations:
 
 1. **Diagnostic Publishing**: Errors are published via `textDocument/publishDiagnostics` in standard LSP format
-2. **Code Actions**: Quick fixes (e.g., "Replace null with ValueNone") are provided via `textDocument/codeAction`
+2. **Code Actions**: Quick fixes (e.g., "Insert the explicit conversion", "Add the measure annotation") are provided via `textDocument/codeAction`
 3. **Hover Information**: Type information displays native types
 
 ### Lattice Integration Model
@@ -309,13 +309,14 @@ result-return := return expr
 
 ## Diagnostics
 
+Null-freedom is by construction and has exactly one diagnostic, `CCS8010` (the `null` keyword is not permitted, [Types and Type Constraints](types-and-type-constraints.md)). There is no second null diagnostic: no type "supports null", no value is uninitialised, and `Unchecked.defaultof` is BCL surface rejected as such. The codes this chapter contributes:
+
 | Code | Severity | Message |
 |------|----------|---------|
-| CCS8100 | Error | Cannot use 'null' in Clef; use 'ValueNone' for optional values |
-| CCS8101 | Error | Cannot use 'null' in Clef; all values must be initialized |
-| CCS8102 | Warning | Exception-style error handling detected; consider Result-based pattern |
-| CCS8103 | Error | Type does not support 'null' in Clef |
-| CCS8104 | Warning | Unchecked.defaultof<'T> produces undefined behavior for reference types |
+| CCS8100 | Error | Region mismatch: a handle of region '{r1}' where region '{r2}' is required ([Memory Regions](memory-regions.md)) |
+| CCS8300 | Warning | Exception-style error handling detected; use the Result-based pattern |
+
+A warning is promoted to an error under the `--warnaserror` policy, the rule every warning in the framework follows (the FPGA timing budget's `CCS0100` is the reference case).
 
 ## Areas Requiring Further Specification
 

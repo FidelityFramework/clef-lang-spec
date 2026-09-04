@@ -9,7 +9,7 @@ F# supports static checking of _units of measure_. Units of measure, or _measure
 
 However, measures differ from types in several important ways:
 
-- Measures play no role at runtime; in fact, they are erased.
+- Measures play no role at runtime. The checker never erases them: they ride the program graph as annotations through every lowering pass and are dropped only at native emission, where they become debug metadata ([DTS/DMM §2.3](https://arxiv.org/abs/2603.16437)).
 - Measures obey special rules of _equivalence_ , so that `N m` can be interchanged with `m N`.
 - Measures are supported by special syntax.
 
@@ -255,13 +255,13 @@ type SceneObject<[<Measure>] 'U> =
 
 Internally, the type checker distinguishes between type parameters and measure parameters by assigning one of two _sorts_ (Type or Measure) to each parameter. This technique is used to check the actual arguments to types and other parameterized definitions. The type checker rejects ill-formed types such as `float<int>` and `IEnumerable<m/s>`.
 
-## Measure Parameter Erasure
+## Measure Parameters Past the Checker
 
-In contrast to _type_ parameters on generic types, _measure_ parameters are not exposed in the metadata that the runtime interprets; instead, measures are _erased_. Erasure has several consequences:
+In contrast to F#, where measures are erased at IL generation, Clef keeps the measure of every value on the program graph after checking. The consequences:
 
-- Casting is with respect to erased types.
-- Method application resolution (see [§](inference-application-resolution.md#method-application-resolution)) is with respect to erased types.
-- Reflection is with respect to erased types.
+- There is no runtime metadata and no reflection in Clef, so nothing observes a measure at runtime.
+- Method application resolution (see [§](inference-application-resolution.md#method-application-resolution)) is with respect to the measured type.
+- The lowered form of a measured value is the selected representation of its carrier ([Numeric Selection](numeric-selection.md)); the measure rides beside it as a reified attribute on the emitted operations and is dropped at native emission.
 
 ## Type Definitions with Measures in the F# Core Library
 
@@ -289,7 +289,7 @@ These type definitions have the following special properties:
 
 - They extend `System.ValueType`.
 - They explicitly implement `System.IFormattable`, `System.IComparable`, `System.IConvertible`, and corresponding generic interfaces, instantiated at the given type; for example, `System.IComparable<float<'u>>` and `System.IEquatable<float<'u>>` (so that you can invoke, for example, `CompareTo` after an explicit upcast).
-- As a result of erasure, their compiled form is the corresponding primitive type.
+- Their lowered form is the carrier's selected representation; the measure rides as an annotation and never changes the instructions emitted.
 - For the purposes of constraint solving and other logical operations on types, a type equivalence holds between the unparameterized primitive type and the corresponding measured type definition that is instantiated at `<1>`:
 
     ```fsother

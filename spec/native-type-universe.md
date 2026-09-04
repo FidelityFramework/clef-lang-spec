@@ -47,7 +47,7 @@ Everything else is derived from these primitives.
 |-------------|--------------------------|-------|
 | `option<'T>` | `voption<'T>` | Stack-allocated, non-null |
 | `string` | UTF-8 `memref<?xi8>` | The buffer is the value; the byte length is the memref dimension |
-| `int` | Platform word | `nativeint` semantics |
+| `int` | Bare integer kind; width from the range | platform word at the ABI; exact on fabric |
 
 ---
 
@@ -121,7 +121,7 @@ let x = if 1 <> 0 then "yes" else "no"
 
 **Design Decisions**:
 
-1. **`int` = platform word**: Follows native compilation conventions (Rust, C), not F#'s 32-bit default. Array indexing and arena-relative `index` arithmetic use the platform word naturally. This aligns with Rust's `isize`/`usize` philosophy.
+1. **`int` is the bare integer kind**: it carries no width claim. Its width is derived from the value's analysed range ([Width Inference](width-inference.md)); on the CPU leg that width is rounded up to the native size for arithmetic, and at a site the platform's ABI governs (an exported parameter, a foreign call) the platform description supplies the word as a seal. On the FPGA leg the width is exact. This differs from F#'s fixed 32 bits and from C's "whatever the register holds": array indexing and arena-relative `index` arithmetic still use the platform word naturally, because those values are sealed by the ABI.
 
 2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), Clef integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
 
@@ -129,9 +129,9 @@ let x = if 1 <> 0 then "yes" else "no"
    |--------|-----------------|--------------|
    | OCaml (64-bit) | 63 bits | 1 bit for GC |
    | F# (.NET) | 32 bits | None (boxed separately) |
-   | **Clef** | **64 bits (full word)** | **None** |
+   | **Clef** | **the width its range requires; the platform word at an ABI boundary** | **None** |
 
-3. **`int` and `nativeint` are synonyms**: Both map to MLIR `index` type. This differs from F# where `int` is always 32-bit.
+3. **`int` and `nativeint` are different**: `nativeint` is the platform's pointer seal (`Resolved Pointer`, [NTU Types](ntu-types.md)); `int` is bare. Both realise as the MLIR `index` type where a value is word-sealed, so the two coincide at the ABI and nowhere else.
 
 4. **Fixed-width types for interop**: `int32`, `int64` provide explicit sizing for FFI and serialization. These match OCaml's `Int32.t` and `Int64.t`.
 
