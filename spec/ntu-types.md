@@ -36,7 +36,7 @@ type WidthDimension =
 /// How the width of a numeric type is determined
 type NTUWidth =
     | Fixed of bits: int              // Known at all times: 8, 16, 32, 64
-    | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
+    | Resolved of WidthDimension      // Platform-dependent, resolved by CCS at saturation against the platform description
  
 ```
 
@@ -175,7 +175,7 @@ type WidthDimension =
 [<RequireQualifiedAccess>]
 type NTUWidth =
     | Fixed of bits: int              // Known at all times: 8, 16, 32, 64
-    | Resolved of WidthDimension      // Platform-dependent, resolved by Alex
+    | Resolved of WidthDimension      // Platform-dependent, resolved by CCS at saturation against the platform description
 
 /// NTU (Native Type Universe) type kinds.
 /// Numeric types parameterized by width. 3 kinds replace 16 discrete variants.

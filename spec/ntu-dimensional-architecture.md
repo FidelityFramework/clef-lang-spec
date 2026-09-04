@@ -297,13 +297,19 @@ PlatformContext from platform descriptors (fidproj TOML).
 ### 4.3 Dimension Resolution Flow
 
 ```
-fidproj TOML → Fidelity.Platform → PlatformContext → Alex (per section)
+fidproj TOML → Fidelity.Platform → PlatformContext → CCS saturation (per section)
                                                       ↓
-                                                 MLIR emission with
-                                                 concrete widths,
-                                                 aligned layouts,
-                                                 space-appropriate ops
+                                          resolved widths, layouts and spaces
+                                          as literal annotations on the PSG
+                                                      ↓
+                                          Alex reads them and witnesses MLIR
+                                          with concrete widths, aligned layouts,
+                                          space-appropriate ops
 ```
+
+Resolution happens in CCS, at saturation, against the platform description of each section; the platform
+description is always present, so cross-apply is always available. Nothing below the witness boundary
+resolves a dimension: Alex observes the resolved annotation the way it observes every other saturated fact.
 
 ---
 
@@ -318,9 +324,10 @@ dimensional consistency (e.g., you cannot add a `Pointer`-width integer to a
 
 ### 5.2 Composer / Alex (Code Generation)
 
-Alex resolves dimensional types to concrete values using the PlatformContext for each
-graph section. The `mapNativeTypeForArch` function in TypeMapping.fs is the resolution
-point: it matches on NTUWidth dimensions and emits concrete MLIR types.
+Alex witnesses dimensional types that CCS has already resolved. The type mapping in Composer reads the
+resolved width and layout annotations on each node and emits the corresponding concrete MLIR types; it does
+not consult the platform context to decide a width, and a mapping that did would be computing a fact the
+graph already carries ([Program Hypergraph §5](program-hypergraph.md)).
 
 ### 5.3 Fidelity.Platform
 
