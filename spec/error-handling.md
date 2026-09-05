@@ -192,6 +192,59 @@ CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnos
 | CCS8300-CCS8399 | Effect system |
 | CCS8400-CCS8499 | Code generation |
 
+#### The CCS code table
+
+Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the compiler service reports carries a code in the CCS series; the `FS` prefix is retired. Codes are allocated inside the blocks above and never reassigned. Inherited lexer and parser diagnostics keep their F# number under the CCS prefix (`FS0058` becomes `CCS0058`); the block `CCS0000`–`CCS0999` is reserved for that family.
+
+| Code | Severity | Meaning |
+|------|----------|---------|
+| CCS8000 | Error | An operator's operand is not numeric ([Width Inference](width-inference.md), the numeric constraint) |
+| CCS8001 | Error | The kind of an operator's operands cannot be determined at a binding that is not generalisable |
+| CCS8002 | Error | A conversion's source is not numeric |
+| CCS8003 | Error | Type mismatch |
+| CCS8004 | Error | Type constructor arity mismatch |
+| CCS8005 | Error | Infinite type (a type variable occurs in its own solution) |
+| CCS8006 | Error | Tuple mismatch (length or struct kind) |
+| CCS8007 | Error | Byref kind mismatch |
+| CCS8008 | Error | The constructor is not defined |
+| CCS8009 | Error | The value or constructor is not defined |
+| CCS8010 | Error | The `null` keyword is not permitted ([Types and Type Constraints](types-and-type-constraints.md)) |
+| CCS8011–CCS8018 | see [NTU Types](ntu-types.md) | Width, range and seal family: unobservable range, seal does not cover, two seals meet, covering-but-suboptimal seal, sealed arithmetic may wrap, observed range exceeds a claim, conversion cannot hold the range, unsupported literal suffix |
+| CCS8020–CCS8022 | Error | Access kinds ([Access Kinds](access-kinds.md)) |
+| CCS8030–CCS8033 | Error | Platform intrinsics ([Platform Bindings](platform-bindings.md)) |
+| CCS8040–CCS8050 | Error | Units of measure ([Units of Measure](units-of-measure.md)): mismatch, no integer solution, not in scope, cyclic abbreviation, variable in a literal, sort mismatch, no dimension, unresolved at a non-generalisable binding, rational exponent, parameterised definition, arity |
+| CCS8060 | Error | `obj` is not a Clef type |
+| CCS8061 | Error | Boxing is not a Clef operation |
+| CCS8062 | Error | Dynamic invocation is not a Clef operation |
+| CCS8063 | Error | Quote expression patterns are not a Clef construct |
+| CCS8064 | Error | Instance member patterns (object expressions) are not a Clef construct |
+| CCS8080 | Error | A BCL type or namespace is not available in Clef |
+| CCS8081 | Error | The `System` namespace is not available in Clef |
+| CCS8082 | Error | The `Microsoft` namespace is not available in Clef |
+| CCS8083 | Error | `Unchecked.defaultof` is not available in Clef |
+| CCS8090 | Error | Internal invariant violated in the compiler service (reported, never swallowed) |
+| CCS8091 | Warning | A nullable annotation is ignored; native types are null-free by design |
+| CCS8092 | Warning | Type arguments applied to a value that is not a type scheme |
+| CCS8100 | Error | Region mismatch ([Memory Regions](memory-regions.md)) |
+| CCS8101 | Error | Lifetime error |
+| CCS8102 | Error | A reference escapes its region |
+| CCS8200 | Error | Platform binding error |
+| CCS8201 | Error | Unsupported platform operation |
+| CCS8202 | Error | Platform binding undefined |
+| CCS8203 | Error | A site needs a width dimension the platform description does not declare ([Platform Bindings](platform-bindings.md), [NTU Dimensional Architecture §7.1](ntu-dimensional-architecture.md)); never a default |
+| CCS8204 | Error | A sealed value's representation is not offered by the platform description, absent or declared unavailable ([Numeric Selection §7](numeric-selection.md)) |
+| CCS8205 | Info | A `[platform]` key the project file carries that the compiler does not read (`word_size`): width dimensions and representations come from the platform description |
+| CCS8206 | Error | An element of the platform description the compiler cannot read (a field that is not a literal, an element that is not the record its list is declared over, a `Core` that is neither `Some core` nor `None`), reported at the declaration |
+| CCS8207 | Error | An element of the platform description outside its vocabulary (a capability, family or boundary tag not in its closed set, a width or representation of no bits, a name declared twice, a Register width disagreeing with the word size), reported at the declaration |
+| CCS8208 | Error | A second platform description of one form among the platform binding's sources; the first is read, each other is reported at its declaration |
+| CCS8300 | Warning | Exception-style error handling detected; use the Result-based pattern |
+| CCS8400 | Error | Code generation error |
+| CCS8401 | Error | Unsupported construct in code generation |
+| CCS8500–CCS8505 | see [Interactive Development](interactive-development.md) | Interactive session |
+| CCS8701–CCS8705 | Error | Record field label resolution ([Name Resolution](inference-name-resolution.md)) |
+| CCS8710 | Error | Null constraint is not a Clef constraint |
+| CCS8711 | Error | Unsupported constraint |
+
 #### LSP Compatibility
 
 CCS implements the Language Server Protocol for editor integration. Key considerations:

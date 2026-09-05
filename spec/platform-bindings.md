@@ -386,6 +386,8 @@ CCS intrinsics have restrictions:
 
 The **Platform Descriptor** is a quotation-based structure that defines all platform-specific characteristics. It flows from `Fidelity.Platform` through CCS to Alex, enabling compile-time platform specialization.
 
+The descriptor is a quotation and stays one: the record inside it is typed, while the facts it is assembled from (vendor documents, board packs, project files) are stringly typed or not typed at all, and the quotation is what carries the type over them. The compiler never evaluates the quotation. At saturation it reads the typed record structurally, by type name and field name, into the platform context: the width dimensions by their declared names and the representations the target offers. Every width or representation a program needs is answered from that declaration and never defaulted (the project file carries no width; a `word_size` key is reported as CCS8205 and not read). A seal spelled by name (`int32`, `float64`) resolves to the representation of that name; a seal named through a dimension (`int`, `nativeint`) resolves to the offered representation of its family at the dimension's declared width, whatever the descriptor names it. A site the declaration does not answer is CCS8203 (undeclared dimension) or CCS8204 (unoffered representation). A defect of the declaration itself is reported at the declaration, never at a program site: CCS8206 (an element the compiler cannot read), CCS8207 (a tag outside its vocabulary, a width of no bits, a name declared twice, a Register width disagreeing with the word size), CCS8208 (a second description of one form among the binding's sources). See [Error Handling](error-handling.md).
+
 > *Informative.* The [Building Bulletproof eBPF Programs](https://clef-lang.com/blog/building-bulletproof-ebpf-programs/) design orientation applies this descriptor discipline to the Linux kernel's programmable surface, where hooks, helpers, and verifier budgets fill the same record vocabulary.
 
 ### Structure
@@ -394,12 +396,30 @@ The **Platform Descriptor** is a quotation-based structure that defines all plat
 type PlatformDescriptor = {
     Architecture: Architecture          // X86_64, ARM64, RISCV64, etc.
     OperatingSystem: OperatingSystem    // Linux, Windows, MacOS, BareMetal
-    Dimensions: Map<WidthDimension, int> // Pointer → 64, Register → 64, etc.
+    Widths: WidthDeclaration list         // { Name = "Pointer"; Bits = 64 }, { Name = "Register"; Bits = 64 }, ...
+    Representations: Representation list  // every numeric representation the target offers
     Endianness: Endianness              // Little or Big
     TypeLayouts: Map<string, TypeLayout>  // Type sizes and alignments
     SyscallConvention: SyscallConvention  // Syscall ABI
     MemoryRegions: MemoryRegion list      // Per-target; e.g. Stack, Text, Data, and Heap only where the target has an allocator
     FreestandingStartup: FreestandingStartup option  // Entry point for freestanding mode
+}
+```
+
+```fsharp
+/// A width dimension the target declares by name; the language's `WidthDimension of name: string`
+/// ([NTU Types](ntu-types.md)) names it, and the compiler's context keys the declared bits by that name.
+type WidthDeclaration = { Name: string; Bits: int }
+
+/// A numeric representation the target offers ([Numeric Selection §7, §9.6](numeric-selection.md)).
+type Representation = {
+    Name: string           // "int32", "float64", "posit32", ...
+    Capability: Capability // native | emulated | unavailable
+    Family: Family         // int | uint | ieee | posit | fixed
+    Bits: int
+    MinMagnitude: string   // least finite value, exact decimal text
+    MaxMagnitude: string   // greatest finite value, exact decimal text
+    Boundary: Boundary     // wrap | saturate | exact
 }
 ```
 
@@ -449,7 +469,15 @@ The `SyscallConvention` and `FreestandingStartup` below are the hosted-ELF frees
 let platform: Expr<PlatformDescriptor> = <@
     { Architecture = X86_64
       OperatingSystem = Linux
-      Dimensions = Map.ofList [ (WidthDimension "Pointer", 64); (WidthDimension "Register", 64) ]
+      Widths = [ { Name = "Pointer"; Bits = 64 }; { Name = "Register"; Bits = 64 } ]
+      Representations =
+        [ { Name = "int32"; Capability = Native; Family = Int; Bits = 32
+            MinMagnitude = "-2147483648"; MaxMagnitude = "2147483647"; Boundary = Wrap }
+          { Name = "int64"; Capability = Native; Family = Int; Bits = 64
+            MinMagnitude = "-9223372036854775808"; MaxMagnitude = "9223372036854775807"; Boundary = Wrap }
+          { Name = "posit32"; Capability = Emulated; Family = Posit; Bits = 32
+            MinMagnitude = "-1329227995784915872903807060280344576"; MaxMagnitude = "1329227995784915872903807060280344576"; Boundary = Saturate }
+          (* every other representation the target offers, each with its capability, exact range and boundary *) ]
       Endianness = Little
       TypeLayouts = (* ... *)
       SyscallConvention =
@@ -472,7 +500,11 @@ The bare-metal Cortex-M33 target has no syscall ABI and no `_start`. `Pointer` i
 let platform: Expr<PlatformDescriptor> = <@
     { Architecture = ARM_Thumbv8m
       OperatingSystem = BareMetal
-      Dimensions = Map.ofList [ (WidthDimension "Pointer", 32); (WidthDimension "Register", 32) ]
+      Widths = [ { Name = "Pointer"; Bits = 32 }; { Name = "Register"; Bits = 32 } ]
+      Representations =
+        [ { Name = "int32"; Capability = Native; Family = Int; Bits = 32
+            MinMagnitude = "-2147483648"; MaxMagnitude = "2147483647"; Boundary = Wrap }
+          (* the integer representations the core offers; a float only where the FPU is declared *) ]
       Endianness = Little
       TypeLayouts = (* ... *)
       SyscallConvention = NoSyscalls

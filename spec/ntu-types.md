@@ -77,7 +77,7 @@ Type identity is kind and dimension. Seals are coeffects beside the type and do 
 ```
 int<1>     = int<1>          // same kind, same dimension
 float<m>   ≠ float<s>        // dimension mismatch, CCS8040
-int<1>     ≠ float<1>        // kind mismatch, CCS8000
+int<1>     ≠ float<1>        // kind mismatch, CCS8003
 ```
 
 Two values carrying different seals that meet at an operator or a binding form an explicit-conversion site (`CCS8013`), not a unification failure. A bare value meeting a sealed one adopts the seal when its analysed range is covered (`R₁ ⊆ dynrange(r)`, [Numeric Selection §3.4](numeric-selection.md)), else `CCS8012`:
