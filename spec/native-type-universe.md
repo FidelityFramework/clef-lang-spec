@@ -107,21 +107,17 @@ let x = if 1 then "yes" else "no"  // Error: expected bool, got int
 let x = if 1 <> 0 then "yes" else "no"
 ```
 
-### 2.3 Integer Family
+### 2.3 Integer Kind
 
-| Type | F# Name | Size | Signed | MLIR Type | OCaml Equivalent |
-|------|---------|------|--------|-----------|------------------|
-| Platform int | `int` | word | Yes | `index` | `int` (but 63-bit) |
-| Platform uint | `uint` | word | No | `index` | N/A |
-| 8-bit | `int8`, `uint8` | 1 byte | Yes/No | `i8` | N/A |
-| 16-bit | `int16`, `uint16` | 2 bytes | Yes/No | `i16` | N/A |
-| 32-bit | `int32`, `uint32` | 4 bytes | Yes/No | `i32` | `int32` |
-| 64-bit | `int64`, `uint64` | 8 bytes | Yes/No | `i64` | `int64` |
-| Native | `nativeint`, `unativeint` | word | Yes/No | `index` | `nativeint` |
+There is one integer kind, `int`, with a dimension (`int<m>`, [Units of Measure](units-of-measure.md)). Its width is not a property of the type: it is derived from the value's analysed range and selected from the integer representations the platform declares ([Width Inference §3](width-inference.md), [NTU Types](ntu-types.md), [Platform Bindings](platform-bindings.md)). Signedness is a fact of the range: a non-negative range spends no sign bit.
+
+| Kind | Clef | Width | MLIR type |
+|------|------|-------|-----------|
+| integer | `int`, `int<dim>` | the smallest declared integer representation covering the analysed range; exactly the range's width on fabric; the platform's declared `Register` or `Pointer` width at a boundary its ABI governs | `i<w>` from the node; `index` where the value is an address held by a handle |
 
 **Design Decisions**:
 
-1. **`int` is the bare integer kind**: it carries no width claim. Its width is derived from the value's analysed range ([Width Inference](width-inference.md)); on the CPU leg that width is rounded up to the native size for arithmetic, and at a site the platform's ABI governs (an exported parameter, a foreign call) the platform description supplies the word as a seal. On the FPGA leg the width is exact. This differs from F#'s fixed 32 bits and from C's "whatever the register holds": array indexing and arena-relative `index` arithmetic still use the platform word naturally, because those values are sealed by the ABI.
+1. **No width-named integer type.** `int8`, `int16`, `int32`, `int64`, their unsigned forms, `byte`, `sbyte`, `uint`, `nativeint` and `unativeint` are not Clef types (D10, `Dimensional_Range_Design.md`). "There is only int that happens to be 8 wide." A width appears only in a declaration the compiler reads: the platform description and a boundary declaration (a wire-schema field, an MMIO register, a C ABI parameter in a binding descriptor, an endpoint contract). OCaml's `Int32.t` and `Int64.t` have no counterpart; interop widths belong to the descriptor, and the Clef signature beside it says `int`.
 
 2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), Clef integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
 
@@ -129,74 +125,36 @@ let x = if 1 <> 0 then "yes" else "no"
    |--------|-----------------|--------------|
    | OCaml (64-bit) | 63 bits | 1 bit for GC |
    | F# (.NET) | 32 bits | None (boxed separately) |
-   | **Clef** | **the width its range requires; the platform word at an ABI boundary** | **None** |
+   | **Clef** | **the width its range requires; the platform's declared word at an ABI boundary** | **None** |
 
-3. **`int` and `nativeint` are different**: `nativeint` is the platform's pointer seal (`Resolved Pointer`, [NTU Types](ntu-types.md)); `int` is bare. Both realise as the MLIR `index` type where a value is word-sealed, so the two coincide at the ABI and nowhere else.
+3. **An address is not an integer.** `nativeint`-as-pointer is not denotable ([FFI Boundary §1](ffi-boundary.md)); addresses live in `Ptr<'T, Region, Access>`, `Mmio` and `CHandle<'T>`, which realise as `index`. An integer of the platform's pointer width (a size, an offset handed across a C ABI) is `int` at a boundary whose declared representation is the description's `Pointer` width.
 
-4. **Fixed-width types for interop**: `int32`, `int64` provide explicit sizing for FFI and serialization. These match OCaml's `Int32.t` and `Int64.t`.
+4. **Overflow does not occur on analysed ranges.** Arithmetic's result has an analysed range and a representation selected to cover it. An intended reduction or saturation is written as arithmetic, `x % 2^n` or `clamp lo hi x`, with the range that arithmetic gives it ([Width Inference §7](width-inference.md)). A range a boundary's declared representation does not cover is CCS8012 at design time, a warning promoted under `--warnaserror`. There is no `Checked` module and no debug-build trap, because there is no undefined case for either to catch.
 
-**Alignment and Cache Considerations**:
+**Alignment**: the alignment of an integer is that of the representation selected for it, declared by the platform description; arrays of narrow-range integers pack accordingly, per element range ([Numeric Selection §5](numeric-selection.md), per-coefficient selection).
 
-| Type | Alignment | Cache Line Fit (64 bytes) |
-|------|-----------|---------------------------|
-| `int8` | 1 byte | 64 values |
-| `int16` | 2 bytes | 32 values |
-| `int32` | 4 bytes | 16 values |
-| `int64` | 8 bytes | 8 values |
-| `int` (64-bit) | 8 bytes | 8 values |
+> **JSIR pathway** (JavaScript Substrate profile): the host number model is IEEE-754 binary64 with exact integers to 2⁵³. Integer realization on this pathway, including the wide-integer mechanism for widths above 53 bits, is specified in [Width Inference §8](width-inference.md).
 
-For cache-critical code, arrays of smaller integer types pack more values per cache line.
+### 2.4 Real Kind
 
-**Overflow Behavior**:
+There is one real kind, `float`, with a dimension (`float<m>`). Its representation, IEEE-754 binary32 or binary64, a posit, or a fixed-point format, is *selected* from the value's analysed range among the real representations the platform declares ([Numeric Selection §2](numeric-selection.md)); it is never fixed by a type name, and `float32`, `single`, `double` and `float64` are not Clef types (D10).
 
-| Context | Behavior |
-|---------|----------|
-| Default | Wrapping (two's complement) |
-| `Checked` module | Returns `voption` on overflow |
-| Debug builds | Optional overflow traps |
-
-```fsharp
-// Default: wrapping arithmetic
-let wrapped = System.Int32.MaxValue + 1  // Wraps to MinValue
-
-// Checked: explicit overflow handling
-let checked = Checked.add System.Int32.MaxValue 1  // voption.None
- 
-```
-
-> **JSIR pathway** (JavaScript Substrate profile): the host number model is IEEE-754 binary64 with exact integers to 2⁵³. Integer realization on this pathway, including the wide-integer mechanism for widths above 53 bits and the preservation of fixed-width wrapping semantics, is specified in [Width Inference §8](width-inference.md). The full-word figures in this section are properties of layout-realizing pathways.
-
-### 2.4 Floating Point Family
-
-| Type | F# Name | Size | MLIR Type | IEEE 754 |
-|------|---------|------|-----------|----------|
-| Single | `float32`, `single` | 4 bytes | `f32` | binary32 |
-| Double | `float`, `double` | 8 bytes | `f64` | binary64 |
-
-`float` and `float32` are the **bare, no-locality-claim** real types: a value with no analyzed range whose representation is not being selected. Their `f64`/`f32` MLIR mappings are IEEE-754 **lowering targets**, chosen for a wide or unobservable range on a target whose binding offers an FPU, not a universal declared representation. IEEE-754 is a legacy hardware fixture (the FPU of a CPU, GPU, or APU), so it is one lowering target among several, not the default a real is presumed to be.
-
-For a **dimensioned or ranged** real, the representation — IEEE-754, posit, or fixed-point — is *selected* from the value's dimensional range by [Numeric Selection](numeric-selection.md#6-the-default-and-unobservable-case) (§6.1), never fixed by the type name. `float`/`float32` are what selection lowers to when the range is wide or unobservable; the `float = f64` / `float32 = f32` mappings remain correct as those lowering targets. Representation follows from analyzed range, not from a target type name.
+| Kind | Clef | Representation | MLIR type |
+|------|------|----------------|-----------|
+| real | `float`, `float<dim>` | the argmin of [Numeric Selection §2](numeric-selection.md) over the declared real representations covering the range; IEEE `f64` for a bare real of unobservable range | `f32`, `f64`, a posit or fixed-point format, from the node |
 
 **Design Decisions**:
 
-1. **`float`/`float32` carry no representation claim**: they are the bare types that lower to `f64`/`f32` when a range is wide or unobservable. They are not "the default representation" for a real; a dimensioned or ranged real has its representation selected per [Numeric Selection](numeric-selection.md) (§6.1), which may select a posit or a fixed-point number instead. Explicit developer selection of a precision and range is sovereign over inference.
+1. **`float` carries no representation claim.** A bare `float` with an unobservable range selects IEEE `f64`, the no-bet representation, without a diagnostic, and still carries range propagation; a dimensioned real with an unobservable range is a diagnostic at the dimensioning seam ([Numeric Selection §6](numeric-selection.md)).
 
-2. **IEEE 754 compliance when IEEE is the selected representation**: where the selected or bare representation is `f64`/`f32`, all floating-point operations follow IEEE 754 semantics including NaN propagation, infinities, and signed zeros.
+2. **IEEE 754 compliance when IEEE is the selected representation**: where the selected representation is `f64`/`f32`, all floating-point operations follow IEEE 754 semantics including NaN propagation, infinities, and signed zeros.
 
-3. **No implicit float-int conversion**:
+3. **No implicit real-integer change of kind**: `float x` takes an integer to a real, exactly where the selected real representation holds the range; `floor`, `ceiling`, `round` and `truncate` take a real to an integer, each with its range image ([Width Inference §7](width-inference.md)).
    ```fsharp
    let x : float = 42    // Error: expected float, got int
    let x : float = 42.0  // OK
-   let x : float = float 42  // OK - explicit conversion
- 
+   let x : float = float 42  // OK, exact: [42, 42]
    ```
-
-**Alignment**:
-
-| Type | Alignment | Notes |
-|------|-----------|-------|
-| `float32` | 4 bytes | Natural alignment |
-| `float64` | 8 bytes | Natural alignment |
 
 **Special Values**:
 
@@ -205,7 +163,6 @@ let inf = infinity        // Positive infinity
 let ninf = -infinity      // Negative infinity
 let nan = nan             // Not a Number
 let isNan x = x <> x      // NaN property: NaN ≠ NaN
- 
 ```
 
 ### 2.5 Character

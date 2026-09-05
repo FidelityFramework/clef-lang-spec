@@ -92,19 +92,17 @@ The directed-rounding obligation of §3.1 therefore SHALL thread through each in
 - **Saturation** — a value exceeding the target's representable range is clamped to the nearest representable extreme.
 - **Wrap** — a value exceeding the range is reduced modulo the range.
 
-Per [Width Inference §7](width-inference.md), a conversion whose target cannot hold the source *range* known at compile time is a type error, not a candidate for either discipline; saturation and wrap govern only the **runtime-dependent** case, where a value *may* exceed the target but the compiler cannot prove it will. In that case the conversion SHALL name a discipline; it SHALL NOT silently truncate or silently wrap. Saturation is the recommended default for dimensioned quantities, because a clamped physical value is a bounded error whereas a wrapped one is an unbounded one; the default is **[Design decision]** and stated as a SHOULD in §10.
+Per [Width Inference §7](width-inference.md), a value whose analysed range a boundary's declared representation does not cover is a coverage diagnostic, not a candidate for either discipline, and arithmetic on analysed ranges never leaves its selected representation. Saturation and wrap are therefore facts the platform description declares about each of its representations ([Platform Bindings](platform-bindings.md)), read by the compiler to realise `clamp` and `%` natively where the hardware does them; they are never named at a site, and the compiler never chooses one. Saturation is the recommended default for dimensioned quantities, because a clamped physical value is a bounded error whereas a wrapped one is an unbounded one; the default is **[Design decision]** and stated as a SHOULD in §10.
 
-## 6. The Conversion Discipline and Seal Form
+## 6. No Conversion Form
 
-This section is the home of the syntax left open by [Width Inference §7](width-inference.md) and [Numeric Selection §5, §14.1](numeric-selection.md).
+There is no explicit conversion in Clef and no seal form ([Width Inference §7](width-inference.md), [Numeric Selection §3.3, §5](numeric-selection.md)). The three things §6 once required a conversion to carry are carried elsewhere:
 
-A representation change that loses information SHALL be explicit, SHALL record its fidelity as a coeffect (§3.2), and SHALL NOT be expressed as a polymorphic `'T → Target` coercion (inheriting the requirement verbatim from [Width Inference §6](width-inference.md)). The explicit conversion SHALL carry, at the call site:
+1. the **target representation** is the boundary's declaration, or the representation selection made from the value's range;
+2. the **rounding mode** at a boundary between two real representations is the mode the boundary's declared representation offers, read from the platform description (§7), and within an operation it is §3;
+3. the **overflow discipline** is the platform's declared boundary semantics for the representation (§5), read to realise `%` and `clamp`, never chosen by the compiler and never written at a site.
 
-1. the target representation,
-2. the rounding mode (§2), where the target offers a choice, and
-3. the overflow discipline (§5), where overflow is runtime-possible.
-
-> **[Not yet specified] — conversion and seal surface syntax.** The operator, attribute, or quotation form for an explicit conversion, and the syntactic form in which the rounding mode and overflow discipline are written, remain open. This is the same critical-path gap named in [Numeric Selection §14.1](numeric-selection.md): the Tier-3 seal is the one tier buildable on today's infrastructure, and it cannot be expressed until this form is fixed. When specified it SHALL make the representation change, the rounding mode, and the precision consequence visible at the call site.
+An intended loss is written as arithmetic, `x % 2^n`, `clamp lo hi x`, `floor`, `ceiling`, `round`, `truncate`, whose result has an analysed range; the loss is visible at the site because the site is that function, and the ranges into and out of it are on the graph.
 
 ## 7. Capability and Design-Time Surfacing
 
@@ -139,22 +137,22 @@ Numeric selection's diagnostic family (per [Numeric Selection §11](numeric-sele
 
 ## 10. Normative Requirements
 
-1. **Explicit lossy conversion.** A representation change that loses information SHALL be explicit, SHALL name its rounding mode where the target offers a choice, SHALL name its overflow discipline where overflow is runtime-possible, SHALL record its fidelity as a coeffect, and SHALL NOT be a polymorphic `'T → Target` coercion.
-2. **No silent narrowing.** A runtime-narrowing conversion SHALL specify a rounding or saturation discipline and SHALL NOT silently truncate or wrap (inheriting [Width Inference §7](width-inference.md)).
+1. **No conversion form.** There SHALL be no explicit conversion and no seal form; an intended loss SHALL be written as arithmetic with an analysed range ([Width Inference §7](width-inference.md)).
+2. **No silent narrowing.** A value SHALL NOT be truncated, wrapped or saturated by the compiler; a range a boundary does not cover SHALL be a coverage diagnostic, and the platform's declared boundary semantics SHALL be read only to realise the program's own `%` and `clamp`.
 3. **Directed rounding is representation identity.** Where a value's soundness depends on rounding direction (an interval enclosure), the directed-rounding capability SHALL be a requirement on the representation parameter, checked at unification; an enclosure type over a representation that cannot round outward SHALL NOT be well-formed. In a nonlinear interval operation (§4.3), each intermediate SHALL be rounded in the output endpoint's direction *before* the `min`/`max` reduction; rounding the reduced result afterward is unsound.
 4. **Lossy rounding is a coeffect.** Where a rounding choice affects only accuracy, the discipline SHALL be carried as a coeffect on the PSG and preserved through lowering without recomputation.
 5. **Quire single rounding.** A quire accumulation SHALL round exactly once, at the final `quire → posit` conversion, using round-to-nearest-ties-to-even; it SHALL NOT round at any intermediate step. A target lacking exact accumulation SHALL raise a capability failure, never a silent per-step-rounding fallback.
 6. **Interval over non-directed representations.** A sound enclosure over a representation that defines no directed rounding (posits) SHALL be produced by outward ULP widening, SHALL be sound, and SHALL be distinguished in diagnostics from native directed rounding.
 7. **Three-valued rounding capability.** A required rounding mode SHALL be gated as native, emulated, or unavailable per target; an unavailable mode whose soundness a value requires SHALL be a capability failure, never a silent substitution of a different mode.
-8. **Saturation default.** Where a runtime-dependent conversion of a dimensioned quantity does not name an overflow discipline and one is required, the compiler SHOULD default to saturation and SHALL surface the choice; it SHALL NOT default to wrap silently.
+8. **No default discipline.** The compiler SHALL NOT default to saturation or to wrap; a boundary a range does not cover is a diagnosed finding, and the program's own `clamp` or `%` is the only source of either behaviour.
 
 ## 11. Genuinely-Open Items
 
 > **[Not yet specified].** None invented here as settled.
 
-1. **Conversion and seal surface syntax (§6).** The operator/attribute/quotation form and how the rounding mode and overflow discipline are written. Shared with [Numeric Selection §14.1](numeric-selection.md); the critical-path gap.
+1. **Conversion and seal surface syntax (§6).** Closed 2026-09-04: there is none ([Width Inference §7](width-inference.md)).
 2. **`ulp_min(r)` per representation family (§2).** The IEEE subnormal floor, the posit smallest-regime magnitude, and the fixed-point LSB; whether the ULP-floor form or the `[−δ, +δ]` exclusion form is canonical. Shared with [Numeric Selection §14.10](numeric-selection.md); normative once chosen.
-3. **Overflow-discipline default (§5).** Whether saturation is the universal default or only for dimensioned quantities, and whether the default is per-dimension, is open.
+3. **Overflow-discipline default (§5).** Closed 2026-09-04: the compiler defaults to nothing; the program's arithmetic states its intent and the platform declares what its hardware does.
 4. **Cascade rounding.** Error tracking across a chain of conversions (e.g. `posit32 → f64 → fixed`) — whether the carried fidelity coeffect composes the per-stage losses or records them separately — is unspecified.
 5. **Selectable quire conversion mode.** Whether the final `quire → posit` rounding is fixed at round-to-nearest or may be directed for a quire feeding an interval endpoint (§4.2) is open.
 

@@ -83,19 +83,22 @@ The bit-width of numeric types. Can be fixed or platform-resolved.
 /// CPU descriptions declare Pointer and Register; a fabric binding declares its port widths.
 type WidthDimension = WidthDimension of name: string
 
+/// The width coeffect on a numeric node: the width selected from the analysed
+/// range (never written in source, D10), or the platform's declared dimension at
+/// a site its ABI governs.
 type NTUWidth =
-    | Fixed of bits: int              // a developer's seal
-    | Resolved of WidthDimension      // the platform description's seal at a site its ABI governs
+    | Selected of bits: int           // from the range, among the declared representations
+    | Resolved of WidthDimension      // the platform description's declared width at a boundary
 ```
 
-**Resolution**: `PlatformContext.Dimensions: Map<WidthDimension, int>` provides
-concrete bit widths per target.
+**Resolution**: `PlatformContext.Dimensions` (declared name → bits) and
+`PlatformContext.Representations` provide the declared widths and representations per target.
 
 **Current scope**: Sufficient for CPU and MCU targets where Pointer and Register
-capture the two independent hardware width axes. Farscape resolves C ABI-specific
-widths (C `int`, C `long`) at code generation time using PlatformABI, emitting
-Fixed-width NTU types. Only genuinely platform-abstract types (`size_t`, `intptr_t`,
-F# `int`, `nativeint`) use `Resolved`.
+capture the two independent hardware width axes. Farscape carries C ABI widths (C `int`,
+C `long`) in the binding descriptor quotation it emits, a boundary declaration the compiler
+reads; the Clef signature beside it is `int`. There is no fixed-width NTU type
+(`Dimensional_Range_Design.md` §4, §9).
 
 **Declared, not enumerated**: `WidthDimension` is a name the platform description declares (§7.1). `Pointer` and `Register` are the CPU declarations; a fabric binding declares its port widths; the `Dimensions` map is keyed by the declared name. Fidelity.Platform, not Farscape, declares width dimensions.
 
@@ -410,13 +413,13 @@ graph sections is structurally sound.
 
 ### 7.1 WidthDimension Extensibility
 
-Settled 2026-09-04 by the design the pre-prints set: a width dimension is a name the platform description declares, not a closed enumeration in the language. A CPU description declares `Pointer` and `Register`; a fabric binding declares the width of each port it governs; an NPU description declares its lane and accumulator widths. `Resolved d` is the seal the platform description supplies at a site its ABI governs ([NTU Types §1](ntu-types.md)); `Fixed n` is the seal a developer writes. `Dimensions: Map<WidthDimension, int>` is already keyed by the declared name, so the only change from the earlier closed form is that the key is declared by Fidelity.Platform rather than enumerated here. Interior widths on any target come from the analysed range and need no dimension at all ([Width Inference](width-inference.md)).
+Settled 2026-09-04 by the design the pre-prints set: a width dimension is a name the platform description declares, not a closed enumeration in the language. A CPU description declares `Pointer` and `Register`; a fabric binding declares the width of each port it governs; an NPU description declares its lane and accumulator widths. `Resolved d` is the platform description's declared width at a site its ABI governs ([NTU Types §1](ntu-types.md)); no width is ever written by a developer (D10). `Dimensions: Map<WidthDimension, int>` is already keyed by the declared name, so the only change from the earlier closed form is that the key is declared by Fidelity.Platform rather than enumerated here. Interior widths on any target come from the analysed range and need no dimension at all ([Width Inference](width-inference.md)).
 
 ### 7.2 Dimensional Type Identity
 
-Decided 2026-09-04. Identity is exact on every dimensional component: unit, memory space, region and access kind. No component is subtyped. Width and representation are not components: they are coeffects beside the type ([NTU Types §1](ntu-types.md), [Width Inference §5](width-inference.md)), so `NTUint(Fixed 32)` and `NTUint(Resolved Register)` are one kind carrying two different seals, and two seals meeting is an explicit-conversion site (`CCS8013`) rather than a unification failure.
+Decided 2026-09-04. Identity is exact on every dimensional component: unit, memory space, region and access kind. No component is subtyped. Width and representation are not components: they are coeffects beside the type ([NTU Types §1](ntu-types.md), [Width Inference §5](width-inference.md)), selected from the analysed range; two integers of different selected widths meeting at an operator are one kind, and their result's width is selected from the result's range. There are no seals and no conversion sites (D10).
 
-- `NTUint(Fixed 32, Stack)` and `NTUint(Fixed 32, Global)` are different types; a value crosses memory spaces only through an explicit transfer.
+- `int` at `Stack` and `int` at `Global` are different types; a value crosses memory spaces only through an explicit transfer.
 - Access is invariant. A `ReadWrite` handle where `ReadOnly` is required passes only through `Ptr.asReadOnly` ([Access Kinds](access-kinds.md)), a node in the graph; a `ReadOnly` handle where `ReadWrite` is required is `CCS8022`.
 
 The enumeration sort needs no ordering; every check is equality ([DTS/DMM §2.5](https://arxiv.org/abs/2603.16437)).

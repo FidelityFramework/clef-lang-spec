@@ -61,15 +61,22 @@ The inferred width/representation is a **coeffect**: a requirement settled durin
 
 When interval analysis cannot bound a value's range, the compiler does **not** guess a width or fall back to a machine-word default. It reports an error asking the source for an annotation. This preserves the decidable-by-construction property: every width is either inferred from an observed range or supplied explicitly; none is silently assumed.
 
-## 7. Explicit Conversion
+## 7. Intended Loss Is Arithmetic
 
-A genuine change of representation — narrowing a value to fewer bits than its range requires, or moving between incompatible formats (e.g. posit ↔ fixed-point) — is **explicit**, and:
+There is no explicit conversion in Clef, because there is nothing to convert between: a value is `int` or `float` at a dimension, its range is analysed, and its width or representation is selected from what the platform declares (§3, §4; [NTU Types](ntu-types.md)). No width-named type exists, no literal suffix names a width, and no operator changes a representation. Where a program intends to lose information it says so in arithmetic, and the result is a value with a known range like any other:
 
-1. **Fidelity is tracked.** A representation change that loses information records the loss; the language server surfaces it at design time (a lossless transfer is fidelity `1.0`; a lossy one is `< 1.0` with a bound derived from the range).
-2. **Overflow is a type error, not undefined behavior.** A conversion whose target cannot hold the source range is rejected at compile time. Where a runtime-dependent value may exceed the target, the conversion must specify a rounding or saturation discipline; it may not silently truncate.
-3. **There is no polymorphic `'T -> Target` conversion.** Each explicit conversion names its source and target representations.
+| Intent | Written as | Range |
+|---|---|---|
+| reduce modulo `2^n` | `x % 2^n` or `x &&& (2^n − 1)` | `[0, 2^n − 1]` |
+| saturate to `[lo, hi]` | `clamp lo hi x` (`min hi (max lo x)`) | `[lo, hi]` |
+| real to integer | `floor`, `ceiling`, `round`, `truncate` | the integer image of the range |
+| integer to real | `float x` | `[a, b]`, exact where the selected real representation holds it |
 
-> **Not yet specified.** The surface syntax for an explicit conversion (the operator form, how a rounding/saturation mode is written, and how the fidelity coeffect is named in source) is open. When specified, it SHALL make the representation change and its precision consequence visible at the call site.
+Because the range of each of these is known, the width follows from it as it does everywhere, and no discipline is ever named at a site: the compiler never selects wrap or saturate, and never inserts a narrowing. A platform's declared boundary semantics for a representation (wrap on a two's-complement unit, saturate on a saturating block, exact on fabric: [Platform Bindings](platform-bindings.md)) are read only to realise `%` and `clamp` cheaply where the hardware does them natively, never to give a program its meaning.
+
+Where a value meets a **boundary**, a representation a declaration fixed rather than the range (a wire-schema field, an MMIO register, a C ABI parameter, an endpoint contract, an exported entry point at the platform's word), the obligation is coverage: the analysed range is contained in the boundary's declared range, else CCS8012, a warning promoted under `--warnaserror`, whose remedies are to bound the value or to change the declaration ([Numeric Selection §5](numeric-selection.md)). Overflow is therefore never undefined behaviour and never a runtime discipline: on analysed ranges it does not occur, and at a boundary it is a design-time finding.
+
+> **Settled.** The surface syntax this section once left open is closed by having none: the representation change and its consequence are visible at the site because the site is a `%`, a `clamp`, a rounding function or a boundary declaration, and the two ranges on the node are what a reader sees (`Dimensional_Range_Design.md`, clef `docs/fidelity/phg`).
 
 ## 8. Target Lowering
 
@@ -97,8 +104,8 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 3. **Representation selection**: For real-valued quantities, representation (IEEE-754 / posit / fixed-point) SHALL be selected per target as a function of the analyzed and dimensional range.
 4. **Coeffect carriage**: The inferred width/representation SHALL be recorded as a coeffect on the PSG and preserved through lowering without recomputation.
 5. **No silent default**: An unanalyzable range SHALL be reported as an error requesting annotation; the compiler SHALL NOT assume a default width.
-6. **Explicit conversion**: A representation change that loses information SHALL be explicit, SHALL record fidelity, and SHALL NOT be expressed as a polymorphic `'T -> Target` coercion.
-7. **No undefined overflow**: A conversion whose target cannot hold the source range SHALL be a compile-time error; runtime-narrowing conversions SHALL specify a rounding or saturation discipline.
+6. **No conversion, no width-named type**: There SHALL be no width-named numeric type, no width-bearing literal suffix and no conversion between representations; an intended loss SHALL be written as arithmetic (§7) whose range is analysed like any other value's.
+7. **No undefined overflow**: Arithmetic on analysed ranges SHALL NOT overflow, its result's representation being selected to cover its range; a value whose range a boundary's declared representation does not cover SHALL be diagnosed (CCS8012, a warning promoted under `--warnaserror`) and SHALL NOT be silently truncated, wrapped or saturated.
 8. **JavaScript realization**: On the JSIR pathway, integer realization SHALL follow the JavaScript row of §8; the wide-integer mechanism SHALL be documented; a range exceeding the documented realization's exact envelope SHALL be diagnosed, not silently realized in binary64; fixed-width wrapping semantics SHALL be preserved observably.
 
 ## References

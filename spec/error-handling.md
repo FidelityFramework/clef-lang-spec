@@ -209,7 +209,14 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8008 | Error | The constructor is not defined |
 | CCS8009 | Error | The value or constructor is not defined |
 | CCS8010 | Error | The `null` keyword is not permitted ([Types and Type Constraints](types-and-type-constraints.md)) |
-| CCS8011–CCS8018 | see [NTU Types](ntu-types.md) | Width, range and seal family: unobservable range, seal does not cover, two seals meet, covering-but-suboptimal seal, sealed arithmetic may wrap, observed range exceeds a claim, conversion cannot hold the range, unsupported literal suffix |
+| CCS8011 | Error | An integer or dimensioned real whose range is unobservable; for a bare real flowing into a dimension, at the dimensioning seam naming the bare source ([Width Inference §6](width-inference.md), [Numeric Selection §6](numeric-selection.md)) |
+| CCS8012 | Warning (error under `--warnaserror`) | A value's analysed range is not covered by the boundary's declared representation ([Numeric Selection §5](numeric-selection.md)) |
+| CCS8013 | retired | "two seals meet": there are no seals ([NTU Types](ntu-types.md)) |
+| CCS8014 | Info | A declared boundary representation wider than the range requires; the representation the open argmin would select is named |
+| CCS8015 | retired | "sealed arithmetic may wrap": arithmetic on analysed ranges never overflows |
+| CCS8016 | Warning (error under `--warnaserror`) | An analysed range exceeds a higher-provenance claim, a library law's range or a declaration ([Numeric Selection §3.4](numeric-selection.md)) |
+| CCS8017 | retired | "a conversion cannot hold the range": there are no conversions |
+| CCS8018 | Error | A literal suffix: every width suffix (`L`, `u`, `uy`, `s`, `n`, `f`), `I`, and any suffix the language does not have ([Width Inference §7](width-inference.md)) |
 | CCS8020–CCS8022 | Error | Access kinds ([Access Kinds](access-kinds.md)) |
 | CCS8030–CCS8033 | Error | Platform intrinsics ([Platform Bindings](platform-bindings.md)) |
 | CCS8040–CCS8050 | Error | Units of measure ([Units of Measure](units-of-measure.md)): mismatch, no integer solution, not in scope, cyclic abbreviation, variable in a literal, sort mismatch, no dimension, unresolved at a non-generalisable binding, rational exponent, parameterised definition, arity |

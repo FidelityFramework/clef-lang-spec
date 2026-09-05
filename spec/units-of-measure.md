@@ -41,17 +41,8 @@ measure-literal :=
 
 const :=
     ...
-    byte < measure-literal >                    -- 8 - bit unsigned integer constant
-    uint16 < measure-literal >                  -- 16 - bit unsigned integer constant
-    uint32 < measure-literal >                  -- 32 - bit unsigned integer constant
-    uint64 < measure-literal >                  -- 64 - bit unsigned integer constant
-    sbyte < measure-literal >                   -- 8 - bit integer constant
-    int16 < measure-literal >                   -- 16 - bit integer constant
-    int32 < measure-literal >                   -- 32 - bit integer constant
-    int64 < measure-literal >                   -- 64 - bit integer constant
     ieee32 < measure-literal >                  -- single-precision float32 constant
     ieee64 < measure-literal >                  -- double-precision float constant
-    decimal < measure-literal >                 -- decimal constant
 
 measure-atom :=
     typar                                       -- variable measure, such as 'U
