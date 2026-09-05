@@ -218,6 +218,8 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8062 | Error | Dynamic invocation is not a Clef operation |
 | CCS8063 | Error | Quote expression patterns are not a Clef construct |
 | CCS8064 | Error | Instance member patterns (object expressions) are not a Clef construct |
+| CCS8065 | Error | Expression splices (`%e`, `%%e`) are not a Clef construct: a quotation is compile-time data read whole ([Expressions, Quoted Expressions](expressions.md)) |
+| CCS8066 | Error | A quotation referenced from executed code: a quotation has no run-time value; reported at each reachable reference, or at the quotation when it stands in executed expression position |
 | CCS8080 | Error | A BCL type or namespace is not available in Clef |
 | CCS8081 | Error | The `System` namespace is not available in Clef |
 | CCS8082 | Error | The `Microsoft` namespace is not available in Clef |
@@ -242,6 +244,7 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8401 | Error | Unsupported construct in code generation |
 | CCS8500–CCS8505 | see [Interactive Development](interactive-development.md) | Interactive session |
 | CCS8701–CCS8705 | Error | Record field label resolution ([Name Resolution](inference-name-resolution.md)) |
+| CCS8706 | Error | A type name in an annotation that resolves to nothing (no abbreviation, definition, primitive or built-in constructor), reported at the annotation; the error type it leaves unifies with anything, so this is the one report of the failure |
 | CCS8710 | Error | Null constraint is not a Clef constraint |
 | CCS8711 | Error | Unsupported constraint |
 

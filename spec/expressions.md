@@ -2758,7 +2758,7 @@ The initial type of the overall expression is `ty`. Expression `expr` is checked
 
 ## Quoted Expressions
 
-An expression in one of these forms is a quoted expression:
+Clef has quoted expressions of two forms:
 
 ```fsgrammar
 <@ expr @>
@@ -2766,61 +2766,18 @@ An expression in one of these forms is a quoted expression:
 <@@ expr @@>
 ```
 
-The former is a _strongly typed quoted expression_ , and the latter is a _weakly typed quoted expression_.
-In both cases, the expression forms capture the enclosed expression in the form of a typed abstract
-syntax tree.
+The former is a _strongly typed quoted expression_, the latter a _weakly typed quoted expression_. A quotation is an **intrinsic form of the language**, not a library facility: its type constructor `Expr<ty>` is provided by the compiler, and there is no quotations namespace, no `Expr` module, no `ReflectedDefinition` attribute and no run-time representation of an expression tree. Where a Clef program opens the F# core library's quotations namespace, the reference is not a Clef construct (CCS8080).
 
-The exact nodes that appear in the expression tree are determined by the elaborated form of `expr`
-that type checking produces.
+A quotation is a phase-distinct structure. The enclosed expression is type-checked in place and elaborated into the program graph as the quotation's body, in the same node forms every other expression elaborates to; the compiler reads it there **as data, at compile time**, and never evaluates it. Nothing about a quotation is observable in the running program: a quotation has no run-time value, and executed code cannot hold, pass or evaluate one. A reference to a quotation from executed code is diagnosed with CCS8066 at the reference; a quotation in expression position inside executed code is diagnosed with CCS8066 at the quotation. A quotation the compiler does not consult is dead by construction and emits nothing. A binding whose value is a quotation is a **declaration**: it is neither initialised by its module nor emitted as a definition, and reachability never enters it from the module; a reference to it from inside another quotation (a descriptor citing a descriptor) is compile-time structure and is legal.
 
-For details about the nodes that may be encountered, see the documentation for the
-`FSharp.Quotations.Expr` type in the F# core library. In particular, quotations may contain:
+What the compiler reads out of a quotation:
 
-- References to module-bound functions and values, and to type-bound members. For example:
+- **Declarations**, read structurally by type name and field name and never evaluated: the platform descriptor ([Platform Bindings](platform-bindings.md)), platform predicates ([Platform Predicates](platform-predicates.md)), the binding descriptors a generator emits (`Expr<TypeDescriptor>`, `Expr<FunctionDescriptor>`), a peripheral descriptor ([Native Type Mappings](native-type-mappings.md), "Quotations as Semantic Carriers"). A quoted record is read exactly as a plain record value is; the quotation is kept because it carries the record's type over facts that arrive stringly typed or untyped.
+- **Laws**, evaluated at compile time in a total, terminating, closed-form sub-language: the range law of [Numeric Selection §4](numeric-selection.md), whose bound is an image computation in the outward-rounded interval domain, not a run-time evaluation.
 
-    ```fsharp
-    let id x = x
-    let f (x : int) = <@ id 1 @>
-    ```
-
-    In this case the value appears in the expression tree as a node of kind
-    `FSharp.Quotations.Expr.Call`.
-
-- A type, module, function, value, or member that is annotated with the `ReflectedDefinition`
-    attribute. If so, the expression tree that forms its definition may be retrieved dynamically using
-    the `FSharp.Quotations.Expr.TryGetReflectedDefinition`.
-
-    If the `ReflectedDefinition` attribute is applied to a type or module, it will be recursively applied
-    to all members, too.
-
-- References to defined values, such as the following:
-
-    ```fsharp
-    let f (x : int) = <@ x + 1 @>
-    ```
-
-    Such a value appears in the expression tree as a node of kind FSharp.Quotations.Expr.Value.
-
-- References to generic type parameters or uses of constructs whose type involves a generic
-    parameter, such as the following:
-
-    ```fsharp
-    let f (x:'T) = <@ (x, x) : 'T * 'T @>
-    ```
-
-    In this case, the actual value of the type parameter is implicitly substituted throughout the type
-    annotations and types in the generated expression tree.
-
-As of F# 3. 1 , the following limitations apply to quoted expressions:
-
-- Quotations may not use object expressions.
-- Quotations may not define expression-bound functions that are themselves inferred to be
-    generic. Instead, expression-bound functions should either include type annotations to refer to a
-    specific type or should be written by using module-bound functions or class-bound members.
+Both readers belong to the compiler. No reader is a library, and no reader reflects over a tree apart from the program graph.
 
 ### Strongly Typed Quoted Expressions
-
-A strongly typed quoted expression has the following form:
 
 ```fsgrammar
 <@ expr @>
@@ -2834,102 +2791,19 @@ For example:
 <@ (fun x -> x + 1) @>
 ```
 
-In the first example, the type of the expression is `FSharp.Quotations.Expr<int>`. In the second
-example, the type of the expression is `FSharp.Quotations.Expr<int -> int>`.
-
-When checked, the initial type of a strongly typed quoted expression `<@ expr @>` is asserted to be of
-the form `FSharp.Quotations.Expr<ty>` for a fresh type `ty`. The expression `expr` is checked with initial
-type `ty`.
+The type of the first is `Expr<int>`, of the second `Expr<int -> int>`. When checked, the initial type of `<@ expr @>` is asserted to be of the form `Expr<ty>` for a fresh type `ty`, and `expr` is checked with initial type `ty`.
 
 ### Weakly Typed Quoted Expressions
-
-A _weakly typed quoted expression_ has the following form:
 
 ```fsgrammar
 <@@ expr @@>
 ```
 
-Weakly typed quoted expressions are similar to strongly quoted expressions but omit any type
-annotation. For example:
-
-```fsharp
-<@@ 1 + 1 @@>
-
-<@@ (fun x -> x + 1) @@>
-```
-
-In both these examples, the type of the expression is `FSharp.Quotations.Expr`.
-
-When checked, the initial type of a weakly typed quoted expression `<@@ expr @@>` is asserted to be
-of the form `FSharp.Quotations.Expr`. The expression `expr` is checked with fresh initial type `ty`.
+A weakly typed quotation omits the type argument: `<@@ 1 + 1 @@>` has type `Expr<ty>` for a fresh `ty` constrained only by the body. In a type annotation the bare name `Expr` denotes `Expr<_>`.
 
 ### Expression Splices
 
-Both strongly typed and weakly typed quotations may contain expression splices in the following
-forms:
-
-```fsgrammar
-%expr
-%%expr
-```
-
-These are respectively strongly typed and weakly typed splicing operators.
-
-#### Strongly Typed Expression Splices
-
-An expression of the following form is a _strongly typed expression splice_ :
-
-```fsgrammar
-%expr
-```
-
-For example, given
-
-```fsharp
-open FSharp.Quotations
-let f1 (v:Expr<int>) = <@ %v + 1 @>
-let expr = f1 <@ 3 @>
-```
-
-the identifier `expr` evaluates to the same expression tree as `<@ 3 + 1 @>`. The expression tree
-for `<@ 3 @>` replaces the splice in the corresponding expression tree node.
-
-A strongly typed expression splice may appear only in a quotation. Assuming that the splice
-expression `%expr` is checked with initial type `ty` , the expression `expr` is checked with initial type
-`FSharp.Quotations.Expr<ty>`.
-
-> Note: The rules in this section apply to any use of the prefix operator
-`FSharp.Core.ExtraTopLevelOperators.(~%)`. Uses of this operator must be applied to an
-argument and may only appear in quoted expressions.
-
-**6.8.3.2 Weakly Typed Expression Splices**
-An expression of the following form is a _weakly typed expression splice_ :
-
-```fsgrammar
-%%expr
-```
-
-For example, given
-
-```fsharp
-open FSharp.Quotations
-let f1 (v:Expr) = <@ %%v + 1 @>
-let tree = f1 <@@ 3 @@>
-```
-
-the identifier `tree` evaluates to the same expression tree as `<@ 3 + 1 @>`. The expression tree
-replaces the splice in the corresponding expression tree node.
-
-A weakly typed expression splice may appear only in a quotation. Assuming that the splice
-expression `%%expr` is checked with initial type `ty`, then the expression `expr` is checked with initial type
-`FSharp.Quotations.Expr`. No additional constraint is placed on `ty`.
-
-Additional type annotations are often required for successful use of this operator.
-
-> Note: The rules in this section apply to any use of the prefix operator
-`FSharp.Core.ExtraTopLevelOperators.(~%%)`, which is defined in the F# core library. Uses
-of this operator must be applied to an argument and may only occur in quoted
-expressions.
+The splice forms `%expr` and `%%expr` are **not Clef constructs** and are diagnosed with CCS8065. There is no run-time quotation value to splice, and a declaration is written whole; composition of declarations is ordinary record construction, one quotation citing the binding that holds another.
 
 ## Evaluation of Elaborated Forms
 

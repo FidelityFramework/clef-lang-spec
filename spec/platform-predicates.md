@@ -144,8 +144,7 @@ The column below describes the JavaScript isolate class the JSIR pathway targets
 // Fidelity.Platform/Linux_x86_64/Capabilities.fs
 namespace Fidelity.Platform.Linux_x86_64
 
-open FSharp.Quotations
-
+// `Expr<'T>` is intrinsic ([Expressions, Quoted Expressions](expressions.md)): nothing is opened.
 module Capabilities =
     // Word size predicates
     let fits_u32: Expr<bool> = <@ true @>
@@ -169,18 +168,9 @@ module Capabilities =
     let cache_line_size: Expr<int> = <@ 64 @>
 ```
 
-### 5.2 Dynamic CPU Detection (Optional)
+### 5.2 A Predicate Is a Declared Fact
 
-For predicates that depend on runtime CPU features:
-
-```fsharp
-// Compile-time: Predicate is abstract
-let has_avx512: Expr<bool> = <@ Runtime.cpuSupportsAVX512() @>
-
-// Code generation: Alex may generate runtime check or
-// use compile-time target selection
- 
-```
+A predicate's quotation holds a literal (`<@ true @>`, `<@ 64 @>`): the compiler reads it structurally at saturation as a fact of the platform description, and a predicate the description does not declare is never defaulted. A capability that can only be known when the program runs (a CPU feature detected at start-up) is not a predicate: it is an ordinary function the program calls, and the compiler makes no selection on it. A quotation whose body is not a literal is a defect of the declaration, reported at the declaration (CCS8206), never a run-time check generated below the graph.
 
 ## 6. Using Predicates in Application Code
 
