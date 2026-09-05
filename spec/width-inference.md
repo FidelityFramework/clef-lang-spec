@@ -36,10 +36,10 @@ A value uses exactly the bits its range requires — no more. The following are 
 
 | Value | Range | Inferred width |
 |---|---|---|
-| `Counter` | free-running mod ~10⁹, `[0, 10⁹ − 1]` | 30 bits, unsigned |
-| `StepTick` | counts to ~781,250, `[0, 781 250]` | 20 bits, unsigned |
-| `Phase` | cycles `0..511` | 9 bits, unsigned |
-| `PeriodMs` | latched period, `[0, 4000]` | 12 bits, unsigned |
+| `Counter` | free-running modulo `800 000 000`, `[0, 799 999 999]` | 30 bits, unsigned |
+| `StepTick` | reset by a comparison against a threshold of at most `390 625`, `[0, 390 624]` | 19 bits, unsigned |
+| `Phase` | cycles modulo `1024`, `[0, 1023]` | 10 bits, unsigned |
+| `PeriodMs` | the latched period, the join of four button values and the initial `4000`, `[500, 4000]` | 12 bits, unsigned |
 
 Each register uses exactly the bits its range requires; on the FPGA each `seq.compreg` flip-flop is narrowed accordingly, shortening carry chains. No width is declared by hand. A non-negative range spends no sign bit: signedness is a fact of the range (§1), and the zero-extension or sign-extension an operand needs when it meets a wider operand follows from that fact, never from a type name. An implementation that adds a sign bit to every range, or extends by a fixed rule, does not conform to this section.
 
