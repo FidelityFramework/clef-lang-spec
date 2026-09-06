@@ -50,7 +50,7 @@ Captures are classified by the mutability of the source binding:
 | Mutable binding | By Reference | `memref<1xT>` | A view of the binding's storage cell (stack slot or arena slot), never a raw pointer |
 | Ref cell | By Value | `ref<T>` | Copy ref cell pointer |
 
-An immutable binding is copied because nothing can change it; every holder of the closure observes the same value regardless. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
+An immutable binding is copied because the binding cannot be reassigned. Copying a value that contains a reference preserves the reference and its sharing. It does not establish immutability of the referenced storage. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
 
 ### 2.3 Allocation Strategy
 
@@ -61,7 +61,7 @@ A closure's environment is placed in the storage whose lifetime covers it, chose
 3. **In static storage**, when its lifetime is the whole program (constructed once, held to program end, never freed): the platform's declared mutable program-lifetime space for a mutable environment, or its declared immutable program-lifetime space for an immutable one, each cited by name from the platform description (on an MCU the [`Sram`](memory-regions.md) and [`Flash`](memory-regions.md) regions; rodata and data sections on an ELF target; constant memory on a GPU; initialised BRAM on an FPGA).
 4. **On the heap**, when its extent is genuinely dynamic.
 
-The classification and placement are chosen at compile time by escape analysis (§3.3). A target without a heap admits only the stack and static placements; a closure that classifies as dynamic there is a lifetime error, not a silent heap allocation. Static placement uses the same program-lifetime storage that a fixed-address register (`Peripheral`) or a linker-carved buffer already occupies: a program-lifetime closure is a global, and it lives where the other globals live.
+The classification and placement are chosen at compile time by escape analysis (§3.3). A target without a heap admits the stack, static storage, and any explicitly available regions; a closure that classifies as dynamic there is a lifetime error, not a silent heap allocation. Static placement uses the same program-lifetime storage that a fixed-address register (`Peripheral`) or a linker-carved buffer already occupies: a program-lifetime closure is a global, and it lives where the other globals live.
 
 ## 3. Capture, Escape, and the Type System
 
@@ -88,7 +88,7 @@ type CaptureInfo = {
 }
 ```
 
-The capture set determines the struct's layout: one field per captured variable, in a determined order, with the mode taken from `IsMutable`. Because the set is known at compile time, the layout is known at compile time (§5).
+The capture set determines the struct's layout: one field per captured variable, in a determined order, with the mode taken from `IsMutable`. The finite capture set determines the layout obligations. Offsets and extent become concrete when the captured types and target representation facts are settled (§5).
 
 ### 3.3 Escape Analysis
 
@@ -107,7 +107,7 @@ The analysis classifies each closure by *how long its environment must live*, an
 
 A scope-bounded closure keeps its environment on the stack, reclaimed when the scope exits. A region-bounded closure has its environment in a region whose lifetime covers it, so a by-reference capture remains valid after the defining scope returns. A **program-lifetime** closure, one constructed once and held for the life of the program with no free (a capability record assembled at startup and held by the entry point is the canonical case), has a statically knowable lifetime equal to the program's, and its environment is placed in static storage rather than allocated: it is a global in the same sense a fixed-address register or a linker-carved ring buffer is a global. A dynamic closure of genuinely unknown extent uses the heap.
 
-This four-point lattice matters because a target may have no heap. On a target with no allocator, the *only* lifetimes that have a home are scope-bounded (stack) and program-lifetime (static); a closure that classifies as dynamic on such a target is a lifetime error, not a silent heap allocation. Collapsing "escapes" to "heap" would make every long-lived closure, including a capability record, allocate on a heap that does not exist. Distinguishing program-lifetime from dynamic is what lets a returned-and-held closure live in `.bss` and satisfy a no-allocation discipline by construction. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation; as a design-time property established here, it is subject to the [preservation obligation through lowering](conformance.md).
+This four-point lattice matters because a target may have no heap. On a target with no allocator or declared region mechanism, the available lifetimes are scope-bounded (stack) and program-lifetime (static); a closure that classifies as dynamic on such a target is a lifetime error, not a silent heap allocation. Collapsing "escapes" to "heap" would make every long-lived closure, including a capability record, allocate on a heap that does not exist. Distinguishing program-lifetime from dynamic is what lets a returned-and-held closure live in `.bss` and satisfy a no-allocation discipline by construction. The escape classification is carried as a coeffect that the closure's witness reads when it emits the allocation; as a design-time property established here, it is subject to the [preservation obligation through lowering](conformance.md).
 
 ## 4. Initialization
 
@@ -119,11 +119,11 @@ No closure field admits a null value. This exclusion is stated explicitly becaus
 
 A closure has the following properties, which the representations in §7 rely on:
 
-**Deterministic layout.** A closure's size and field offsets are fixed at compile time by its capture set, independent of run-time state.
+**Deterministic layout.** A closure's size and field offsets are fixed before layout commitment from its capture types, capture modes, and the target's declared layout facts. A generic closure can retain a symbolic layout until those facts are available.
 
-**Static self-description.** A closure is interpretable from its static type alone, with no run-time header, descriptor, or tag.
+**Static self-description.** A settled closure is interpretable from its static type and selected layout, with no run-time header, descriptor, or tag.
 
-**Position independence.** A closure's captures live in a single flat environment, so the closure is a self-contained value that can be copied between memory spaces as a block and remains valid at the destination.
+**Transfer obligations.** A flat environment is one block of capture slots. Captured references can point outside that block, and the function value names code that must be available at the destination. Transfer between memory spaces SHALL establish representation compatibility, reference validity or relocation, preservation of required sharing, and destination code availability. A byte copy alone is sufficient only when these obligations have been discharged. BAREWire's memory-layout, IPC, and network contracts supply relevant boundary facts ([Memory Regions](memory-regions.md)).
 
 These properties are preserved across backends: the closure is encoded in portable dialects as the `(fn, env)` pair and realized per target through the pathway's standard lowerings (§6.3, [Backend Lowering Architecture §4](backend-lowering-architecture.md)). The design treatment of substrate portability is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
@@ -187,7 +187,7 @@ The flat closure is extended, not replaced, by several other representations. Ea
 | Reactive callback | A capture set read as a dependency-edge set | [Reactive Signals](reactive-signals.md) |
 | Observer continuation | The consumer state a continuation resumes into | [Observable Computation](observable-computation.md) |
 
-Each of these is a flat closure first. A lazy value is null-free and position-independent for the same reason a plain closure is; a sequence's state machine is a settled struct for the same reason. The properties in §4 and §5 are inherited by the whole family because they are properties of the base representation, established once here.
+Each of these is a flat closure first. A lazy value inherits the closure's initialization and transfer obligations. A sequence extends the layout with state slots. Each representation must settle those additional slots before committing its layout.
 
 An extending representation adds its fields to the flat environment as one or more **slot classes**, and each slot class carries a transition discipline: a finite monotone automaton whose transitions occur at statically identified program points. The environment's mutation obligations are the product of its slot classes' automata; because each automaton is finite and each transition point is statically identified, the obligations quantify over enumerated structure only and remain quantifier-free (§11).
 
@@ -248,7 +248,7 @@ Passing the capture as a parameter costs no struct and no allocation. This is th
 | Capture passing | Via environment extraction | As explicit parameters |
 | Allocation | Stack, region, or static for the struct (§3.3) | None |
 
-A Lambda is classified as a nested named function if and only if its enclosing function is present (it is nested) **and** its parent [PSG](program-semantic-graph.md) node is a `Binding` (it is named). Otherwise it is an escaping closure and uses the struct model.
+A lambda bound by a nested `Binding` is a candidate for direct capture passing. The compiler SHALL establish that its uses permit this form. A named function that is returned, stored, or otherwise used as an escaping value requires the corresponding closure and lifetime treatment. Syntax alone does not establish non-escape.
 
 ## 9. Compilation Pipeline
 
@@ -256,7 +256,7 @@ The closure representation is produced across three phases, consistent with the 
 
 **CCS** constructs the [PSG](program-semantic-graph.md) with complete lambda information: `SemanticKind.Lambda(parameters, body, captures)`, with captures computed during scope analysis and mutability tracked in `CaptureInfo.IsMutable`.
 
-**Saturation** settles each closure's form and its environment layout on the graph as the consequence of the closure hyperedge — captures ∪ site as the source set — before emission ([Program Hypergraph §6](program-hypergraph.md)). (Interim: this computation runs in Composer's SSA assignment today and moves into CCS with the closure hyperedge; `clef/docs/fidelity/phg/Closure_Retooling_Plan.md`.)
+**Saturation** settles each closure's form and its environment layout on the graph as the consequence of the closure hyperedge — captures ∪ site as the source set — before emission ([Program Hypergraph §6](program-hypergraph.md)).
 
 **Witnessing** observes the pre-computed coeffect. Where a closure form is present, the witness emits the environment and the `(fn, env)` pair. Where a lambda captures nothing, the witness emits no environment at all: the lambda is a plain named function, and its callers reference it directly by name. An environment exists only when there is something to carry. The witness reads the layout; it does not compute it.
 
@@ -271,14 +271,16 @@ The closure representation is produced across three phases, consistent with the 
 7. **Capture Mode**: A mutable binding SHALL be captured by reference; an immutable binding SHALL be captured by value.
 8. **Lifetime-Driven Allocation**: A closure's environment SHALL be placed by escape analysis in the storage whose lifetime covers the closure, per the §3.3 lattice: the stack when scope-bounded, a region when region-bounded, static storage when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. The environment holding a by-reference capture SHALL be placed with a lifetime that covers every closure capturing it. On a target without a heap, a closure that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation.
 9. **Allocation Site**: A closure's environment SHALL be placed on the stack, in a region, in static storage, or on the heap, as determined by the §3.3 lifetime classification from escape analysis.
-10. **Cache Alignment**: A small closure (≤64 bytes) SHOULD be aligned to a cache line.
+10. **Cache Alignment**: Cache alignment SHOULD follow the target's declared cache-line and memory-layout facts. An implementation SHALL NOT infer a 64-byte cache line from the flat representation.
 11. **Nested Functions**: A named function defined within another function that does not escape SHALL pass its captures as parameters rather than building a closure struct.
-12. **Classification**: A Lambda SHALL be classified as a nested named function if and only if its enclosing function is present AND its parent PSG node is a Binding.
+12. **Classification**: A nested binding SHALL use direct capture passing only when its uses establish the non-escaping form of §8.2. Binding-node parentage alone SHALL NOT establish non-escape.
 13. **Pathway Scope**: Requirements 5, 8, 9, and 10 are requirements on layout-realizing pathways and bind pathways that realize memory layouts. On the JSIR pathway the closure SHALL be realized as a host function value per §6.4, with requirements 3, 4, 7, 11, and 12 binding unchanged.
 
 ## 11. Proof Extraction at Closure Sites
 
-The flat representation is also a proof discipline. At every closure site the compiler extracts, without annotation, the judgments the representation makes finite. The capture set is enumerated (§3.2), so the closure's reachability frontier is exactly its field list. Its extent is a literal, fixed at compile time by the layout (§2.1, §5). Its release is a single site, chosen by the lifetime classification (§3.3). The memory-safety verification conditions a closure site generates therefore quantify over enumerated structure only: they are quantifier-free, and they discharge at the standing tiers of the decidable verification hierarchy ([terms and definitions](terms-and-definitions.md); [grade discipline](grade-discipline.md), where the escape classification discharges in the lattice family). An implementation SHALL derive these judgments from the representation itself; a closure site SHALL NOT require annotation to yield them.
+A closure's finite capture set determines a finite set of slot-layout and direct lifetime obligations. These can be derived from the typed graph without requiring an annotation at each closure site. The compiler SHALL derive them during elaboration and retain unresolved premises until the relevant commitment boundary. A slot containing a reference can denote storage beyond the flat environment. The finiteness of the capture list does not establish finiteness of arbitrary transitive heap reachability or discharge that storage's ownership and lifetime obligations.
+
+For a settled environment, bounds on slot offsets and extents can be expressed in the standing arithmetic fragment. Captured storage requires its own lifetime and sharing evidence. These judgments enter the joint PSG constraint mechanism and are preserved or rechecked at the relevant lowering edges. A temporary external ledger can compare obligations and discharge results across those edges while that mechanism is being validated. Recording a proposition in the ledger does not establish its proof.
 
 The judgments survive lowering because the lowered form carries the same structure. The MLIR witnessed from the graph preserves the enumerated frontier: the zipper elides only what the graph has already saturated ([Program Semantic Graph](program-semantic-graph.md)), and every cast the closure representation requires ([Backend Lowering Architecture §4.2](backend-lowering-architecture.md)) corresponds to an obligation the graph records. Integrity is therefore substantiated through lowering, not re-derived after it; this is the [preservation obligation through lowering](conformance.md) in its closure-specific form. The proof shape is that of region soundness and safe-for-space closure conversion; see Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997), and Shao and Appel, *Space-Efficient Closure Representations* (LFP '94).
 

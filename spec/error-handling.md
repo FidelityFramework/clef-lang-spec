@@ -217,6 +217,7 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8016 | Warning (error under `--warnaserror`) | An analysed range exceeds a higher-provenance claim, a library law's range or a declaration ([Numeric Selection §3.4](numeric-selection.md)) |
 | CCS8017 | retired | "a conversion cannot hold the range": there are no conversions |
 | CCS8018 | Error | A literal suffix: every width suffix (`L`, `u`, `uy`, `s`, `n`, `f`), `I`, and any suffix the language does not have ([Width Inference §7](width-inference.md)) |
+| CCS8019 | Warning (not promoted by `--warnaserror` during the alias period) | A width-named spelling (`uint32`, `byte`, `float32`, ...) or a width suffix on a literal (`0L`, `5u`, `1.0f`, ...) during the CS-12 alias period: the spelling denotes the one kind and the representation it names is an interim declared boundary; retired at step three of the migration, when a spelling is CCS8706 and a suffix CCS8018 |
 | CCS8020–CCS8022 | Error | Access kinds ([Access Kinds](access-kinds.md)) |
 | CCS8030–CCS8033 | Error | Platform intrinsics ([Platform Bindings](platform-bindings.md)) |
 | CCS8040–CCS8050 | Error | Units of measure ([Units of Measure](units-of-measure.md)): mismatch, no integer solution, not in scope, cyclic abbreviation, variable in a literal, sort mismatch, no dimension, unresolved at a non-generalisable binding, rational exponent, parameterised definition, arity |

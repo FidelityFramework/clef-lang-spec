@@ -7,8 +7,10 @@ status: normative
 
 > **Status**: Design: Active
 > **Normative**: Prospective (will become normative as sections are implemented)
-> **Last Updated**: 2026-02-11
+> **Last Updated**: 2026-09-06
 > **Companion Specs**: [ntu-types.md](ntu-types.md), [platform-bindings.md](platform-bindings.md), [program-semantic-graph.md](program-semantic-graph.md)
+>
+> **Normative Scope**: This chapter is the normative definition of Clef's dimensional substrate. Historical notes, project blogs, and ephemeral design memos under `docs/` are informative only. They may be retired, merged, or discarded without affecting the conformance obligations of this specification. Where a project document and this chapter disagree, this chapter governs.
 
 ## 1. Motivation
 

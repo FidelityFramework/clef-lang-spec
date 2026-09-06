@@ -604,6 +604,14 @@ can be inferred), or use the required number of parameters, as the following exa
 let throw<'T,'U> (x:'T) (y:'U) = x
 ```
 
+### Generalization, immutable sharing, and deferred computation
+
+The type and measure variables free in the lexical environment SHALL remain shared with that environment. Generalization SHALL preserve each declared parameter's kind and declaration order, including parameters that are repeated, reordered, or absent from a value's representation. A nested or recursive function SHALL NOT lose measure polymorphism merely because its closure has captures; only variables established to be generalizable may be instantiated independently.
+
+Immutability of a binding and immutability of the storage reachable from its value are distinct. An immutable tuple or union may contain a shared mutable cell. An immutable lazy value may memoize a result containing such a cell. Neither case permits the cell's type or measure variables to be instantiated independently by its different users. Mutation SHALL preserve the established dimensional identity of the shared storage.
+
+Deferring evaluation does not discharge a typing constraint and does not, by itself, prohibit generalization. The implementation SHALL use the value's sharing and effect properties, together with its lexical constraints, to establish whether independent instantiations are sound. A flat closure's immutable captures retain their values; its mutable captures retain shared storage ([Closure Representation §2.2](closure-representation.md#22-capture-semantics)). Range facts carried into deferred bodies obey the validity rules of [Width Inference §2.2](width-inference.md#22-deferred-demand-and-capture). These are Clef semantic requirements across native and JSIR lowering; the host compiler's allocation and evaluation mechanisms are not a substitute for them.
+
 ### Condensation of Generalized Types
 
 After a function or member definition is generalized, its type is condensed by removing generic type

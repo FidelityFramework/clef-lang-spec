@@ -7,7 +7,9 @@ status: normative
 
 > **Status**: Draft
 > **Normative**: Yes
-> **Last Updated**: 2026-09-04
+> **Last Updated**: 2026-09-06
+>
+> **Normative Scope**: This chapter defines the canonical NTU naming and identity model. Project-level documentation outside this specification is informative only. The NTU rules in this chapter take precedence over any historical or ephemeral documentation that suggests other names, width semantics, or conversion rules.
 
 ## 1. Overview
 

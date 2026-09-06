@@ -9,15 +9,15 @@ status: normative
 
 ## 1. Overview
 
-Clef does not fix numeric representations by declaration and then coerce between them. It **infers** the representation a value needs — the bit width of an integer, or the posit / IEEE-float / fixed-point form of a real — from the value's **range**, traced through the program's dataflow. Width inference is the spatial half of numeric lowering: *how many bits does each value actually need?*
+Clef infers numeric representation from the value's range, traced through the program's dataflow. For an integer, this determines the required bit width. For a real, the range and target declarations determine the posit, IEEE float, or fixed-point representation ([Numeric Selection](numeric-selection.md)).
 
-The discipline is: representation follows from analyzed range, precision loss is explicit and tracked, and an unanalyzable range is a reported error, never a silent default. Signedness is part of this — a value's range determines whether it is signed or unsigned (§3), so a representation is never selected by a target type name independent of the range the value actually occupies.
+The compiler tracks explicit arithmetic loss and derives signedness from the range (§3). Where required facts remain unresolved at representation commitment, it emits a located diagnostic (§6).
 
-> **Lineage.** Width inference derives from F\*'s refinement-typed machine integers, where an integer carries its range as a refinement and operations are proven in-bounds. Clef takes the further step of *inferring* the range — and therefore the width — by interval analysis over the [Program Semantic Graph](program-semantic-graph.md), rather than requiring the developer to declare it. The position aligns with Clash (Haskell→FPGA), which sizes hardware to inferred widths rather than to machine-word defaults.
+> **Lineage.** F\*'s refinement-typed machine integers informed the separation between value ranges and representations. Clef infers ranges over the [Program Semantic Graph](program-semantic-graph.md), including the relationships established by branch guards. Clash's hardware-width inference provides a further precedent for sizing hardware from program constraints.
 
 ## 2. Value-Range Analysis
 
-Width inference begins with interval analysis over the PSG dataflow. Each numeric node is assigned a value range `[a, b]`:
+Width inference combines interval analysis with the constraints over the PSG dataflow. An established range is recorded as `[a, b]`:
 
 - **Literals** are point intervals: `124` has range `[124, 124]`.
 - **Arithmetic** propagates intervals: `x + y` has range `[a_x + a_y, b_x + b_y]`; products, shifts, and so on follow standard interval arithmetic.
@@ -26,13 +26,27 @@ Width inference begins with interval analysis over the PSG dataflow. Each numeri
 
 For example, in a working FPGA design a wave-chase counter is free-running `mod (defaultPeriodMs * ticksPerMs * 2)` ≈ 10⁹, giving range `[0, ~10⁹]`.
 
+### 2.1 Relational guards and immutable values
+
+A branch guard establishes a relationship between values. For dimensionally compatible integer expressions, `count <= length - offset` establishes `offset + count <= length` on the true branch. Replacing that relationship with independent bounds for `offset` and `count` can lose the bound the program established. The implementation SHALL preserve such integer-affine guard constraints through aliases, operand reordering, and substitution through a pure Boolean helper. Integer-affine expressions here are sums of integer constants and integer-valued terms multiplied by constant integer coefficients. Further constraint fragments remain governed by the tiered verification discipline.
+
+A carried constraint SHALL identify its originating guard and polarity, the value identities it relates, and the dependencies on mutable storage, if any. An interval consequence used for representation selection SHALL retain this derivation provenance on the PSG. Naming the sum before testing it and recomputing the same sum from unchanged operands on the guarded branch SHALL yield the same usable constraint. A strict integer guard `total < limit` entails `total <= limit - 1`. Each branch SHALL use the constraint corresponding to its comparison and polarity.
+
+An immutable binding preserves the identity of its value. Rebinding another name or mutating storage reachable through a different value does not invalidate a fact about that immutable scalar. For an immutable reference to mutable storage, this stability applies to the reference value. Facts about the storage's contents require separate validity tracking. A write that can change a constraint's dependencies SHALL invalidate that constraint for later reads unless the analysis establishes its preservation. This applies to writes through aliases and calls whose effects can reach that storage.
+
+### 2.2 Deferred demand and capture
+
+A computation's dimensional type is established independently of when its result is demanded. Deferral SHALL preserve that type and its pending constraints. At a closure, lazy value, or sequence boundary, range facts over immutable captured values remain available: Clef's [flat closures](closure-representation.md#22-capture-semantics) capture immutable bindings by value. Mutable captures share storage by reference. A guard checked before construction establishes a fact about that storage at the check, while a later read requires the fact to remain valid. Storage-dependent constraints SHALL be established for the relevant demand or invocation, or remain unresolved. [Memoization](lazy-representation.md) preserves the result already computed. The assumptions used to compute it SHALL hold at the relevant reads.
+
+These rules constrain the compiler's joint analysis and every target realization, including native flat environments and host closures on the JSIR pathway. Eager traversal of a compiler graph SHALL NOT be treated as evidence that a deferred source computation has executed. A lowering may change the representation of a capture, but SHALL preserve the capture mode, dimensional identity, and the validity conditions of any range fact it uses ([Conformance §6](conformance.md#6-the-preservation-obligation-through-lowering)).
+
 ## 3. Width Derivation (Integers)
 
 From a range \([a, b]\), the minimal integer width is derived directly:
 
 \[\mathrm{width}([a, b]) = \begin{cases} \lceil \log_2(b + 1) \rceil & a \ge 0 \quad (\text{unsigned}) \\ 1 + \lceil \log_2(\max(|a|,\, b + 1)) \rceil & a < 0 \quad (\text{signed}) \end{cases}\]
 
-A value uses exactly the bits its range requires — no more. The following are inferred widths from a working FPGA design (Arty A7-100T):
+The inferred width is the minimum required by the range. The following are inferred widths from a working FPGA design (Arty A7-100T):
 
 | Value | Range | Inferred width |
 |---|---|---|
@@ -41,7 +55,7 @@ A value uses exactly the bits its range requires — no more. The following are 
 | `Phase` | cycles modulo `1024`, `[0, 1023]` | 10 bits, unsigned |
 | `PeriodMs` | the latched period, the join of four button values and the initial `4000`, `[500, 4000]` | 12 bits, unsigned |
 
-Each register uses exactly the bits its range requires; on the FPGA each `seq.compreg` flip-flop is narrowed accordingly, shortening carry chains. No width is declared by hand. A non-negative range spends no sign bit: signedness is a fact of the range (§1), and the zero-extension or sign-extension an operand needs when it meets a wider operand follows from that fact, never from a type name. An implementation that adds a sign bit to every range, or extends by a fixed rule, does not conform to this section.
+On the FPGA, each `seq.compreg` register is sized to the inferred width, with corresponding changes to its carry chain. No width is declared by hand. A non-negative range spends no sign bit: signedness is a fact of the range (§1), and the zero-extension or sign-extension an operand needs when it meets a wider operand follows from that fact, never from a type name. An implementation that adds a sign bit to every range, or extends by a fixed rule, does not conform to this section.
 
 ## 4. Representation Selection (Reals)
 
@@ -49,17 +63,21 @@ For real-valued quantities, the analyzed range selects a *representation*, not m
 
 \[r^* = \operatorname*{arg\,min}_{r \,\in\, R(\text{target})} \; \max_{x \,\in\, [a, b]} \; \frac{|x - \mathrm{round}_r(x)|}{|x|}\]
 
-— the representation minimizing worst-case relative error over the range. IEEE-754 distributes precision uniformly (≈ \(2^{-p}\)); posits taper precision toward 1.0; fixed-point fixes a scale. The choice is per target (e.g. IEEE-754 on CPU, posit on FPGA, fixed-point on a neuromorphic core) and is surfaced at design time. See [NTU Dimensional Architecture](ntu-dimensional-architecture.md) and [Units of Measure](units-of-measure.md); the dimensional range of a value is the primary input to this function.
+The objective minimizes worst-case relative error over the range. IEEE-754 has approximately uniform relative precision over its normal range (≈ \(2^{-p}\)). Posits taper precision toward magnitude 1.0, and fixed-point uses a fixed scale. The choice is per target (e.g. IEEE-754 on CPU, posit on FPGA, fixed-point on a neuromorphic core) and is surfaced at design time. See [NTU Dimensional Architecture](ntu-dimensional-architecture.md) and [Units of Measure](units-of-measure.md); the dimensional range of a value is the primary input to this function.
 
-The bare argmin above is the shape of the objective, not its sound form: for reals it is ill-posed without two side-conditions — a coverage constraint that excludes representations whose dynamic range does not cover `[a, b]`, and a zero-crossing floor on the error metric where the range straddles zero. The full, sound objective and both side-conditions are specified in [Numeric Selection §2](numeric-selection.md#2-the-selection-objective); this chapter states only the integer-width half of the discipline.
+The objective requires a coverage constraint excluding representations whose dynamic range does not cover `[a, b]`, and a floor on the error metric where the range approaches zero. The full, sound objective and both side-conditions are specified in [Numeric Selection §2](numeric-selection.md#2-the-selection-objective); the integer-width rules are specified here.
 
 ## 5. Width and Representation as a Coeffect
 
-The inferred width/representation is a **coeffect**: a requirement settled during design-time analysis and carried on the PSG, read (not recomputed) by every later lowering pass. The width-inference coeffect holds the range; the lowering pass that fixes the integer representation reads it and writes the chosen width into the operations it produces. This is the same coeffect discipline that governs allocation and lifetime (see [Incremental Computation §10](incremental-computation.md) and the coeffect model), so width inference composes with dimensional resolution and target reachability in a single analysis rather than a separate pass.
+The compiler settles width and representation as **coeffects** on the PSG, together with the range and declaration provenance used in selection. Later lowering passes read the settled choice and realize it in target operations. Allocation and lifetime use the same coeffect discipline ([Incremental Computation §10](incremental-computation.md)), with their constraints resolved jointly with dimensions and target reachability.
+
+Preservation concerns the property and its evidence across each lowering edge. The implementation may carry this correspondence in compiler metadata or a checked witness without introducing runtime type inspection. When a representation of the source type has served its structural purpose, releasing it SHALL preserve or re-check the obligations still required below that edge ([Conformance §6](conformance.md#6-the-preservation-obligation-through-lowering)).
 
 ## 6. Unobservable Ranges
 
-When interval analysis cannot bound a value's range, the compiler does **not** guess a width or fall back to a machine-word default. It reports an error asking the source for an annotation. This preserves the decidable-by-construction property: every width is either inferred from an observed range or supplied explicitly; none is silently assumed.
+An unresolved range is a pending inference obligation while the graph is being elaborated and the platform context is incomplete. An implementation MAY expose that obligation in the editing environment without rejecting an otherwise consistent partial program. A missing observation, an unreachable computation, an inconsistent constraint, and a known range with no covering representation are distinct states. An implementation SHALL NOT substitute one for another.
+
+At the boundary that commits a reachable integer value to a concrete representation, the required range and platform facts SHALL be established. If the range remains unobservable, the compiler SHALL report a located error tracing the missing provenance. It SHALL NOT guess a width or fall back to a machine-word default. The facts may come from arithmetic and guards, a checked domain law, or a platform or boundary declaration. The obligation need not be discharged by an annotation on the first line of source. If a known range has no covering representation, the hard coverage error of [Conformance §5](conformance.md#5-the-diagnostic-obligation) prevents that selection from being committed. The distinct real-valued unobservable cases, including the explicitly specified bare-real default, remain governed by [Numeric Selection §6](numeric-selection.md#6-the-default-and-unobservable-case).
 
 ## 7. Intended Loss Is Arithmetic
 
@@ -74,9 +92,7 @@ There is no explicit conversion in Clef, because there is nothing to convert bet
 
 Because the range of each of these is known, the width follows from it as it does everywhere, and no discipline is ever named at a site: the compiler never selects wrap or saturate, and never inserts a narrowing. A platform's declared boundary semantics for a representation (wrap on a two's-complement unit, saturate on a saturating block, exact on fabric: [Platform Bindings](platform-bindings.md)) are read only to realise `%` and `clamp` cheaply where the hardware does them natively, never to give a program its meaning.
 
-Where a value meets a **boundary**, a representation a declaration fixed rather than the range (a wire-schema field, an MMIO register, a C ABI parameter, an endpoint contract, an exported entry point at the platform's word), the obligation is coverage: the analysed range is contained in the boundary's declared range, else CCS8012, a warning promoted under `--warnaserror`, whose remedies are to bound the value or to change the declaration ([Numeric Selection §5](numeric-selection.md)). Overflow is therefore never undefined behaviour and never a runtime discipline: on analysed ranges it does not occur, and at a boundary it is a design-time finding.
-
-> **Settled.** The surface syntax this section once left open is closed by having none: the representation change and its consequence are visible at the site because the site is a `%`, a `clamp`, a rounding function or a boundary declaration, and the two ranges on the node are what a reader sees (`Dimensional_Range_Design.md`, clef `docs/fidelity/phg`).
+Where a value meets a **boundary**, a representation a declaration fixed rather than the range (a wire-schema field, an MMIO register, a C ABI parameter, an endpoint contract, an exported entry point at the platform's word), the obligation is coverage: the analysed range is contained in the boundary's declared range, else CCS8012, a hard error, whose remedies are to bound the value or to change the declaration ([Numeric Selection §5](numeric-selection.md)). Overflow is therefore never undefined behaviour and never a runtime discipline: on analysed ranges it does not occur, and at a boundary it is a design-time finding.
 
 ## 8. Target Lowering
 
@@ -93,9 +109,9 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 
 ## 9. Relationship to Other Features
 
-- **Dimensional Type System** — the dimensional range of a value is the principal input to representation selection (§4); width inference is the value-level realization of the dimensional discipline.
-- **[Native Type Universe](native-type-universe.md)** — inferred widths and representations are NTU representation choices carried through lowering.
-- **Conversion** — width inference, together with explicit conversion (§7), specifies numeric conversion in full; the `Convert` and `NTU Conversion` chapters are not part of this specification.
+- **Dimensional Type System**: the dimensional range of a value is the principal input to representation selection (§4); width inference is the value-level realization of the dimensional discipline.
+- **[Native Type Universe](native-type-universe.md)**: inferred widths and representations are NTU representation choices carried through lowering.
+- **Intended loss and boundaries**: range analysis of arithmetic and declared boundaries (§7) specifies representation changes; the `Convert` and `NTU Conversion` chapters are not part of this specification.
 
 ## 10. Normative Requirements
 
@@ -103,10 +119,13 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 2. **Exact width**: An integer value SHALL be representable in the minimal width its range admits; lowering MAY widen to a native size for arithmetic but SHALL NOT narrow below the range.
 3. **Representation selection**: For real-valued quantities, representation (IEEE-754 / posit / fixed-point) SHALL be selected per target as a function of the analyzed and dimensional range.
 4. **Coeffect carriage**: The inferred width/representation SHALL be recorded as a coeffect on the PSG and preserved through lowering without recomputation.
-5. **No silent default**: An unanalyzable range SHALL be reported as an error requesting annotation; the compiler SHALL NOT assume a default width.
+5. **No silent default**: An integer range still unobservable at representation commitment SHALL be reported as an error tracing missing provenance (§6); the compiler SHALL NOT assume a default width.
 6. **No conversion, no width-named type**: There SHALL be no width-named numeric type, no width-bearing literal suffix and no conversion between representations; an intended loss SHALL be written as arithmetic (§7) whose range is analysed like any other value's.
-7. **No undefined overflow**: Arithmetic on analysed ranges SHALL NOT overflow, its result's representation being selected to cover its range; a value whose range a boundary's declared representation does not cover SHALL be diagnosed (CCS8012, a warning promoted under `--warnaserror`) and SHALL NOT be silently truncated, wrapped or saturated.
-8. **JavaScript realization**: On the JSIR pathway, integer realization SHALL follow the JavaScript row of §8; the wide-integer mechanism SHALL be documented; a range exceeding the documented realization's exact envelope SHALL be diagnosed, not silently realized in binary64; fixed-width wrapping semantics SHALL be preserved observably.
+7. **No undefined overflow**: Arithmetic on analysed ranges SHALL NOT overflow, its result's representation being selected to cover its range; a value whose range a boundary's declared representation does not cover SHALL be diagnosed (CCS8012, a hard error) and SHALL NOT be silently truncated, wrapped or saturated.
+8. **JavaScript realization**: On the JSIR pathway, integer realization SHALL follow the JavaScript row of §8; the wide-integer mechanism SHALL be documented; a range exceeding the documented realization's exact envelope SHALL be diagnosed, not silently realized in binary64; the declared arithmetic boundary semantics SHALL be preserved observably.
+9. **Guard validity**: Integer-affine range constraints SHALL preserve their value identities, guard polarity, and derivation provenance; facts depending on mutable storage SHALL be re-established or invalidated when those dependencies may change (§2.1).
+10. **Demand boundaries**: Deferred computation SHALL preserve dimensional identity and pending obligations; immutable capture facts SHALL remain available, and a mutable capture SHALL NOT be treated as a frozen value (§2.2).
+11. **Deferred inference**: An unresolved obligation during elaboration SHALL NOT be silently replaced by a bound or representation; a required unresolved fact SHALL be diagnosed before the concrete representation is committed (§6).
 
 ## References
 
