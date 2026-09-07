@@ -39,7 +39,7 @@ The set of implementation files is checked as follows.
 
 1. **Initial environment**. Form an initial environment `env0` by adding all library dependencies in the order specified in the project file. For each dependency, add the top-level types, modules, and namespaces to the environment.
 
-   > **NORMATIVE**: Library imports SHALL be additive only. Clef does not honour the `[<AutoOpen>]` attribute on imported modules; library content becomes available in scope only via explicit `open` declarations in the consuming file.
+   > **NORMATIVE**: Library imports SHALL be additive only. Clef rejects `[<AutoOpen>]` rather than using it to inject names. A library module's accessible contents become available by unqualified name through an explicit `open` declaration in the consuming lexical scope; they can also be referenced by a qualified path without an `open`.
 
    > **Clef Note**: The native standard library is automatically included and provides the core types (`string`, `option`, `int`, etc.) with native semantics. See [Native Type Mappings](native-type-mappings.md).
 

@@ -5,7 +5,7 @@ category: Semantics
 status: normative
 ---
 
-Clef classifies every synchronous request-and-reply call between actors by its contribution to the program's wait-for graph. The classification is computed at compile time, governs whether deadlock freedom is statically guaranteed for that call, and is surfaced to the developer through diagnostics and an opt-in annotation. The design rationale and its relationship to the session-types literature are developed in the [Deadlock Freedom design note](https://clef-lang.com/docs/design/deadlock-freedom/); this section specifies the normative behavior.
+Clef classifies every synchronous request-and-reply call between actors by its contribution to the program's wait-for graph. The classification is computed at compile time, governs whether deadlock freedom is statically guaranteed for that call, and is surfaced to the developer through diagnostics and an opt-in annotation. The design rationale and its relationship to the session-types literature are developed in the [Deadlock Freedom design note](https://clef-lang.com/docs/design/concurrency/deadlock-freedom-as-an-obligation/). This section specifies the normative behavior.
 
 ## Scope
 
@@ -21,7 +21,9 @@ This section governs synchronous inter-actor calls: a call that suspends the cal
 
 Let \(W\) be a directed relation over actor behaviors. An edge `caller → callee` is in \(W\) whenever the caller issues a synchronous RPC to the callee and suspends until the reply. \(W\) is a may-wait over-approximation: a call site whose callee is selected from several candidates by control flow contributes an edge to each candidate.
 
-A program has a synchronous deadlock when \(W\) contains a cycle whose actors can be simultaneously in their blocked-on-reply state. For the fragment in which every callee is a statically resolvable actor reference, \(W\) is finite and deadlock freedom is equivalent to its acyclicity.
+Acyclicity of a sound may-wait relation is sufficient to exclude circular synchronous waits represented by that relation. A cycle in the over-approximation is a candidate: its edges may come from paths that cannot be taken together. A diagnostic asserting a feasible synchronous deadlock SHALL have evidence that the participating waits can be reached simultaneously. Without such evidence or a proved ordering that excludes the candidate, the static guarantee remains unresolved.
+
+A finite sound summary can resolve the possible callees of a value-carried reference. Classification SHALL use the established dependency information rather than treating value carriage itself as a proof of undecidability. The analysis must account for all possible blocking dependencies within the region for which it claims the static guarantee.
 
 The relation is carried on the joint-constraint axis of the [Program Semantic Graph](program-semantic-graph.md): each synchronous RPC node contributes a blocking-wait hyperedge whose source is the caller's suspended continuation and whose target is the callee's reply obligation.
 
@@ -31,20 +33,23 @@ Every synchronous RPC call site receives one classification:
 
 ```fsharp
 type WaitClass =
-    /// Callee statically resolvable, W acyclic at this site.
-    /// Deadlock-free by construction. No annotation, no diagnostic.
+    /// Possible callees covered by a sound summary, W acyclic at this site.
+    /// No circular wait through the represented dependencies.
+    /// No annotation, no diagnostic.
     | AcyclicStatic
 
-    /// Callee statically resolvable, participates in a connection cycle
-    /// that admits a consistent priority order. Deadlock-free by
-    /// construction. Priority inferred; no annotation required.
+    /// Connection cycle with a proved acyclic ordering of blocking actions.
+    /// Priority inferred from checked dependencies; no annotation required.
     | OrderedCyclic of priority: int
 
-    /// Callee identity is value-carried (passed reference, content-based
-    /// routing, runtime-spawned handle). Acyclicity is not statically
-    /// decidable. Static guarantee is withdrawn; the call falls back to
-    /// supervised execution with a timeout. Diagnostic emitted.
-    | Unresolved of routing: RoutingKind
+    /// Static ordering remains unproved, or supervision was requested.
+    /// Diagnostic emitted; supervised execution uses a timeout.
+    | Unresolved of reason: WaitReason
+
+and WaitReason =
+    | UnresolvedRouting of RoutingKind
+    | UnprovedWaitOrder
+    | RequestedSupervision
 
 and RoutingKind =
     | SelfReferencePassed     // Actor.self() sent for the callee to reply through
@@ -55,32 +60,34 @@ and RoutingKind =
 
 ### AcyclicStatic
 
-The callee is a statically resolvable reference and the strongly-connected-component analysis of \(W\) places this site in no cycle. The call is deadlock-free by construction. No annotation is written and no diagnostic is emitted.
+A sound summary covers the possible callees, and the strongly-connected-component analysis of \(W\) places this site in no cycle. This excludes circular synchronous waits through the represented dependencies. No annotation is written and no diagnostic is emitted.
 
 ### OrderedCyclic
 
-The callee is statically resolvable and the site lies on a connection cycle, but the action-dependency graph admits a topological order. A consistent priority assignment exists, and a strictly increasing priority along every blocking chain forbids a wait cycle. The priority is inferred from the wait-for edges. No annotation is written.
+The possible callees are covered by a sound summary and the site lies on a connection cycle, while the justified action-dependency graph admits a topological order. A connection cycle records references between actors. A blocking cycle records actions waiting on one another. A strictly increasing priority along every possible blocking chain excludes the latter. The priority is inferred from checked dependencies. No annotation is written.
 
-A developer may state the priority explicitly with `[<RpcPriority(n)>]` when inference cannot resolve a consistent order, or to fix an order the inference would otherwise leave to its default. An explicit priority that does not yield an acyclic order is a compile error.
+A developer may propose a priority with `[<RpcPriority(n)>]` or select among valid orders. The annotation supplies an ordering obligation. The implementation SHALL check it against the possible blocking actions and the premises used to exclude candidate edges. Labeling actions with priorities cannot remove a blocking dependency. An explicit priority that contradicts a required ordering, or whose required justification cannot be established, is a compile error.
 
 ### Unresolved
 
-The callee identity is value-carried, so the wait-for edge cannot be resolved at compile time and acyclicity over the relevant routing is not statically decidable. The static guarantee is withdrawn for this site. The compiler emits a diagnostic naming the routing kind, and the call lowers to supervised execution governed by a timeout. The program is accepted.
+The static guarantee is withheld when the possible routing lacks a sound summary or the required wait ordering remains unproved. `UnresolvedRouting` records the former. `UnprovedWaitOrder` includes a candidate cycle over known endpoints whose simultaneous feasibility remains unresolved. The compiler emits a diagnostic naming the missing justification, and the call lowers to supervised execution governed by a timeout. The program is accepted under that runtime contract.
+
+An explicit request for supervised execution records `RequestedSupervision`. A cycle proved to permit simultaneous blocking SHALL be diagnosed as a feasible synchronous deadlock and rejected unless the relevant calls explicitly use the supervised contract. A candidate cycle without that feasibility evidence SHALL be described as a conservative finding, with the unproved sites classified `Unresolved`.
 
 ## Compile-Time Behavior
 
-Classification runs over the resolved Program Semantic Graph after actor references are bound. The decision procedure is a strongly-connected-component pass over \(W\) for cycle detection and a topological ordering of the action-dependency graph for priority inference. Both are graph algorithms over structure the graph already carries; neither requires an SMT query.
+Classification runs over the resolved Program Semantic Graph using sound actor-reference summaries. A strongly-connected-component pass detects candidate cycles in \(W\), and a topological ordering constructs priorities for an acyclic action-dependency graph. These are graph algorithms and do not require an SMT query. Establishing the summaries or proving that candidate blocking edges cannot occur together can require additional evidence. A completed graph check can establish a cycle in the analyzed relation while leaving its runtime feasibility unresolved. Failure to compute or validate a rank discharges no static guarantee.
 
-The obligation discharged is a Tier 2 obligation in the verification architecture. Where a site's acyclicity depends on a property of a library actor (for example, that a supervised pool never calls back into its caller), the obligation lifts by a mode shift to the tier at which a library lemma supplies that property, then projects the verified ordering back.
+The ordering obligation is a Tier 2 obligation in the verification architecture. Where it depends on a library actor property, such as a pool never calling back into its caller, an applicable library lemma can supply that fact through a mode interface. The implementation SHALL establish the lemma's premises and retain the correspondence that makes its conclusion applicable to the wait relation.
 
-Classification is sound and conservative. A site classified `AcyclicStatic` or `OrderedCyclic` admits no execution that deadlocks through it. A site that no execution deadlocks through may still be classified `Unresolved` when its callee is value-carried.
+Classification is sound and conservative. `AcyclicStatic` and `OrderedCyclic` exclude circular synchronous waits through the represented dependencies under their checked premises. An execution-safe site may remain `Unresolved` when the required summary or ordering is unavailable. Scheduler progress and any blocking outside this chapter's scope require their own realization contracts.
 
 ## Developer Override
 
 The classification is visible and steerable at the call site. Three resolutions are available when a site is flagged:
 
 ```fsharp
-// 1. State an explicit priority to break a cycle the inference leaves open.
+// 1. Propose a priority whose ordering obligations the compiler checks.
 [<RpcPriority(2)>]
 let response = inventory.PostAndReply (Query item)
 
@@ -92,13 +99,13 @@ inventory <! Query (item, replyTo)
 let response = router.PostAndReply (Route msg)
 ```
 
-`[<RpcPriority(n)>]` and `[<SupervisedRpc(...)>]` are CCS attributes. A call carrying `[<SupervisedRpc(...)>]` is classified `Unresolved` regardless of its callee resolvability, which lets a developer accept the runtime discipline deliberately for a call that would otherwise be statically guaranteed.
+`[<RpcPriority(n)>]` and `[<SupervisedRpc(...)>]` are CCS attributes. A call carrying `[<SupervisedRpc(...)>]` is classified `Unresolved RequestedSupervision` regardless of its callee resolvability, which lets a developer accept the runtime discipline deliberately for a call that would otherwise be statically guaranteed.
 
-> Attribute names are provisional. `RpcPriority` and `SupervisedRpc` are placeholders pending the final attribute vocabulary; the semantics specified here are stable.
+> Attribute names are provisional. `RpcPriority` and `SupervisedRpc` are placeholders pending the final attribute vocabulary. The semantics specified here are stable.
 
 ## Compiler Intrinsic Status
 
-Wait classification is performed by CCS (Clef Compiler Service) during graph resolution. The classification is recorded as an annotation on the RPC node:
+CCS (Clef Compiler Service) SHALL perform wait classification during graph resolution and record it on the RPC node. The following annotation and diagnostic sketches specify the required association:
 
 ```fsharp
 // In CCS graph annotation
@@ -107,32 +114,30 @@ type NodeAnnotation =
     | RpcWait of WaitClass
 
 // Diagnostic emission for the Unresolved case
-| Unresolved routing ->
+| Unresolved reason ->
     diagnostic CCS8030 node.Span
-        (sprintf "synchronous RPC callee is %s; static deadlock-freedom \
-                  guarantee withdrawn, call lowered to supervised timeout"
-                 (describeRouting routing))
+        (sprintf "synchronous RPC uses supervised timeout: %s"
+                 (describeWaitReason reason))
 ```
 
-A flagged cycle in the statically resolvable fragment reports the wait-for path:
+A cycle diagnostic SHALL report the candidate chain and whether simultaneous blocking has been established. CCS8031 reports an error for a feasible blocking cycle in the statically guaranteed path. For an unresolved candidate, it explains the conservative finding alongside CCS8030 and the supervised classification:
 
 ```fsharp
-| StaticCycle path ->
-    diagnostic CCS8031 node.Span
-        (sprintf "synchronous wait cycle: %s"
-                 (renderWaitPath path))   // e.g. "A.handleFoo → B.query → A.handleBar"
+| WaitCycle (path, feasibility) ->
+    reportWaitCycle CCS8031 node.Span feasibility
+        (renderWaitPath path)   // e.g. "A.handleFoo → B.query → A.handleBar"
  
 ```
 
-Alex lowers `AcyclicStatic` and `OrderedCyclic` calls to direct continuation suspend-and-resume against the callee's reply obligation. It lowers `Unresolved` calls through the supervised path, which arms a timeout and routes expiry to the caller's supervisor.
+Alex SHALL preserve the checked wait semantics when lowering `AcyclicStatic` and `OrderedCyclic` calls against the callee's reply obligation. It SHALL lower `Unresolved` calls through the supervised path, which arms a timeout and routes expiry to the caller's supervisor. The target contract SHALL provide the scheduling, cancellation, and cleanup behavior needed for timeout recovery. The static ordering classification does not establish those runtime properties by itself.
 
 ## Diagnostics
 
 | Code | Message |
 |------|---------|
-| CCS8030 | Synchronous RPC callee is value-carried; static deadlock-freedom guarantee withdrawn, call lowered to supervised timeout |
-| CCS8031 | Synchronous wait cycle detected among statically resolvable actors |
-| CCS8032 | Explicit `RpcPriority` does not yield an acyclic order |
+| CCS8030 | Synchronous RPC uses supervised timeout: unresolved routing, unproved wait order, or explicit supervision request |
+| CCS8031 | Synchronous wait cycle: candidate chain with feasibility unresolved, or established simultaneous blocking |
+| CCS8032 | Explicit `RpcPriority` ordering obligation is contradicted or remains unproved |
 | CCS8033 | `SupervisedRpc` timeout must be a positive integer |
 
 ## Grammar
@@ -146,6 +151,11 @@ wait-class :=
     AcyclicStatic
     OrderedCyclic
     Unresolved
+
+wait-reason :=
+    UnresolvedRouting of routing-kind
+    UnprovedWaitOrder
+    RequestedSupervision
 
 routing-kind :=
     SelfReferencePassed

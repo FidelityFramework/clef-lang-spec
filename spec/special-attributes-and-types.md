@@ -34,7 +34,7 @@ These attributes control F# language semantics and are fully supported:
 | `[<Interface>]` | Indicates that a type is an interface type. |
 | `[<Measure>]` | Indicates that a type or generic parameter is a unit of measure definition or annotation. Units of measure are erased at compile time. |
 | `[<ReferenceEquality>]` | When applied to an F# record or union type, indicates that the type should use reference equality for its default equality implementation. |
-| `[<RequireQualifiedAccess>]` | When applied to an F# module, warns if an attempt is made to open the module name. When applied to an F# union or record type, indicates that the field labels or union cases must be referenced by using a qualified path that includes the type name. |
+| `[<RequireQualifiedAccess>]` | When applied to a module, an attempt to open the module name is an error. When applied to a union or record type, indicates that the field labels or union cases must be referenced by using a qualified path that includes the type name. |
 | `[<RequiresExplicitTypeArguments>]` | When applied to an F# function or method, indicates that the function or method must be invoked with explicit type arguments. |
 | `[<StructuralComparison>]` | When added to a record, union, exception, or structure type, confirms the automatic generation of structural comparison. |
 | `[<StructuralEquality>]` | When added to a record, union, or struct type, confirms the automatic generation of structural equality. |

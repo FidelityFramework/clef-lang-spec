@@ -61,8 +61,7 @@ _Name Resolution in Module and Namespace Paths_ proceeds through the following s
 3. Concatenate all the results.
 
 If the `long-ident` starts with the special pseudo-identifier keyword `global`, the identifier is resolved
-by consulting the _ModulesAndNamespaces_ table and ignoring all `open` directives, including those
-implied by `AutoOpen` attributes.
+from the root _ModulesAndNamespaces_ table, ignoring `open` directives and local module abbreviations.
 
 For example, if the environment contains two referenced packages, and each package has namespace
 declaration groups for the namespaces `Fidelity`, `Fidelity.Collections`, and
@@ -71,6 +70,15 @@ declaration groups for the namespaces `Fidelity`, `Fidelity.Collections`, and
 from each package.
 
 ### Opening Modules and Namespace Declaration Groups
+
+An explicit `open` declaration introduces accessible names within its enclosing lexical scope.
+These imported names are not declarations exported by that scope, and the import does not carry
+into an unrelated module or namespace declaration group. Accessible contents can also be referenced
+by a qualified path without an `open`. Module abbreviations provide local, private paths, as specified
+in [Module Abbreviations](namespaces-and-modules.md#module-abbreviations).
+
+Clef rejects `[<AutoOpen>]`; opening a module does not implicitly open its submodules. See
+[Custom Attributes Recognized by Clef](special-attributes-and-types.md#custom-attributes-recognized-by-clef).
 
 When a module or namespace declaration group `F` is opened, the compiler adds items to the name
 environment as follows:
@@ -98,7 +106,6 @@ environment as follows:
     to the original order of declaration in `Fi`.
 5. Add each sub-module or sub-namespace declaration group in `Fi` to the _ModulesAndNamespaces_
     table according to the original order of declaration in `Fi`.
-6. Open any sub-modules that are marked with the `FSharp.Core.AutoOpen` attribute.
 
 ### Name Resolution in Expressions
 
@@ -484,4 +491,3 @@ Return the resolved record type `R` with:
 | CCS8703 | Record type lookup failed (internal error) |
 | CCS8704 | No single record type contains all specified fields |
 | CCS8705 | Record expression is incomplete (missing required fields) |
-

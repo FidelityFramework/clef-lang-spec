@@ -484,8 +484,12 @@ Import declarations make elements of other namespace declaration groups and modu
 by the use of unqualified names. For example:
 
 ```fsharp
-open FSharp.Collections
-open System
+module Geometry =
+    let origin = (0.0, 0.0)
+
+module Drawing =
+    open Geometry
+    let start = origin
 ```
 
 Import declarations can be used in:
@@ -512,7 +516,12 @@ module ident = long-ident
 For example:
 
 ```fsharp
-module Ops = FSharp.Core.Operators
+module Geometry =
+    let origin = (0.0, 0.0)
+
+module Drawing =
+    module G = Geometry
+    let start = G.origin
 ```
 
 Module abbreviations can be used in:
