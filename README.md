@@ -9,6 +9,13 @@
 
 **Toward a normative specification for Clef type semantics and memory management.**
 
+`main` is the canonical development branch. The
+[clef-lang-site](https://forge.spkez.dev/FidelityFramework/clef-lang-site)
+repository imports its `spec/` directory through Hugo Modules and publishes the
+[working draft](https://clef-lang.com/spec/draft/). The former `fidelity` branch
+has been consolidated into `main`; Git history and existing tags are retained.
+The inherited MkDocs/GitHub Pages publishing path has been retired.
+
 ## Table of Contents
 
 - [Overview](#overview)

@@ -16,7 +16,7 @@ We aim to use [CommonMark](https://spec.commonmark.org/0.31.2/) markdown, plus t
 
 We use [ATX headings](https://spec.commonmark.org/0.31.2/#atx-headings) without closing # characters.
 
-In the sources, the headings are not numbered. Numbering is added during the build process.
+Keep source headings unnumbered. The website owns their presentation.
 
 #### Links
 
@@ -24,7 +24,7 @@ Intra-spec links are made like this: `[§](inference-procedures.md#constraint-so
 
 As such, the links work directly in the spec sources (like on github or in VS Code preview).
 
-They are converted during the build process to include the section number.
+Check rendered links in the website preview when changing chapter paths.
 
 #### Other markdown guidelines
 
@@ -41,12 +41,16 @@ For `inline code` (including e.g. file and type names) use code spans.
 
 ## Viewing the result
 
-In most cases, checking your edits in a markdown viewer should be sufficient. But you can also view the final output by proceeding as follows.
+`main` is the canonical Clef specification branch. Create contribution branches
+from `main`; there is no special `dev` publishing branch.
 
-- Make your changes in the local clone of your forked repo in a branch called `dev`.
-- Push your changes. This will automatically create a branch gh-pages in your repo.
-- When you have done the above for the first time, go to github settings of your forked repo and enable github pages (Settings -> Pages -> Branch gh-pages -> Save).
-- You can view the spec with your changes at `https://<yourAccountName>.github.io/clef-lang-spec`.
+Review source changes in a Markdown viewer. The rendered specification is
+published at [clef-lang.com/spec/draft/](https://clef-lang.com/spec/draft/) by the
+sibling [clef-lang-site](https://forge.spkez.dev/FidelityFramework/clef-lang-site)
+repository. Its Hugo module mounts this repository's `spec/` directory; its F#
+deployment CLI refreshes the module from `main` and publishes to Cloudflare Pages.
 
-
-
+For a local website preview, follow the site's development instructions.
+Uncommitted spec edits require a local Hugo module replacement; refreshing the
+module from `main` only includes committed, pushed changes. This repository no
+longer generates a `gh-pages` branch or runs the inherited MkDocs deployment.
