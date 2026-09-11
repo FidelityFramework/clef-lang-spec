@@ -101,6 +101,6 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 ## Verification
 
-**tier** — a level of the decidable verification hierarchy. Tier 1 is the parametric "free" facts (dimensional and grade soundness); Tier 2 is quantifier-free linear obligations (integer `QF_LIA`, real `QF_LRA`) and bit-vector obligations (`QF_BV`); Tier 3 covers termination/probabilistic-bounded obligations; a relational/probabilistic concern beyond the decidable tiers is the separate top tier. Introduced across the verification chapters.
+**tier** — an organizational level of the verification architecture. Tier 1 covers admitted structural inference; Tier 2 covers local analysis and supported solver fragments, including `QF_LIA`, `QF_LRA` and `QF_BV`; Tier 3 covers parameterized domain and system theorem applications, including supported concurrent, distributed, termination and probabilistic results; Tier 4 covers relational judgments about executions, distributions or realizations. Each procedure has its own admitted domain and checking requirements. A tier does not by itself establish decidability, a latency bound or a trusted computing base. Evidence may compose between tiers under [Conformance §6.1](conformance.md#61-verification-evidence-and-composition).
 
 **seal** — an explicit developer commitment of a concrete representation at a site, turning the selection objective from a chooser into a coverage checker. Defined in [Numeric Selection §5](numeric-selection.md).

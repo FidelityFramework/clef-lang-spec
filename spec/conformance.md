@@ -66,6 +66,25 @@ A design-time property this specification requires an implementation to establis
 
 The obligation is two-sided. Lowering SHALL NOT introduce observable behavior that the program, this specification, and the target's declared platform description do not specify. Every observable fact of the emitted artifact — a boundary constant, a buffer extent, an emitted datum — SHALL trace to a declared origin: the source program, a requirement of this specification, or the platform declaration for the selected target. Observable behavior introduced during lowering with no declared origin is a conformance violation of the same class as a property silently lost, and it is diagnosable by the same means: the fact is present in the artifact and absent from every declaration.
 
+### 6.1 Verification evidence and composition
+
+An implementation that reports a property as verified SHALL identify the proposition, the program region and representation to which it applies, its premises, and the checking mechanism that establishes it. The evidence SHALL refer to the checked source and target context. A source-level result SHALL NOT by itself constitute evidence of preservation by an unchecked lowering or external execution environment.
+
+For every supported verification rule associated with a language operation or an admitted library contract, the implementation SHALL derive and dispatch the applicable obligations without requiring an application developer to restate that rule as a proof annotation. A domain-specific requirement not determined by the program or its contracts MAY require an explicit declaration. Such a declaration states an obligation; it SHALL NOT establish the obligation's truth. Optional editor presentation SHALL NOT control whether a required obligation is checked.
+
+When evidence is reused as a lemma or transported between reasoning modes, the implementation SHALL:
+
+1. Establish the correspondence between the original judgment and the receiving judgment, including the actual parameters, program participants, representations and applicable execution context.
+2. Establish the rule's premises at the use site, or retain them as explicit hypotheses on which the reported result is conditional. A required premise SHALL NOT be hidden by importing a library or naming a theorem.
+3. Preserve the resource discipline of the judgments, including restrictions on duplication, disposal and transfer of ownership evidence.
+4. Retain a checked derivation or an accepted checking justification for each imported result. A solver verdict, certificate, quotation, package declaration or foreign checker's success result SHALL NOT be treated as a new axiom merely because it is supplied as evidence.
+5. Document the permitted foundational axiom basis for the verification claim and check the transitive logical assumptions of imported theorems against it. Execution-environment hypotheses and dependencies on solvers, kernels, encodings and semantic adapters SHALL be recorded distinctly. The verification tier alone SHALL NOT determine those dependencies.
+6. Invalidate affected results when a premise, law, semantic interpretation, program participant, relevant target fact or source snapshot changes. Evidence whose continued applicability has not been established SHALL NOT be reported as current verification.
+
+Each supported inference, elaboration or checking procedure SHALL state its admitted domain and the scope of its termination or resource bounds. Finite obligation generation or checking a supplied derivation SHALL NOT be represented as a decision procedure for arbitrary theorem discovery. An unsupported obligation, an undecided solver query, a failed certificate check or an exhausted checking budget SHALL remain distinguishable from successful verification. At a commitment boundary requiring the property, an unresolved obligation SHALL be diagnosed according to §5.
+
+An implementation MAY satisfy this contract using different proof systems. This clause does not require a particular solver, proof assistant, library, certificate syntax or internal tier organization.
+
 ## 7. Profiles
 
 Some requirements of this specification bind an implementation only when it serves a class of target for which those requirements are relevant. A **profile** is a named body of normative content that binds an implementation when, and only when, the implementation claims that profile. An implementation claims a profile by stating that it does and by meeting every requirement the profile carries; the requirements of an unclaimed profile place no obligation on it.
@@ -99,3 +118,4 @@ Where this specification leaves a behavior implementation-defined, unspecified, 
 6. A conforming implementation **SHALL** preserve through lowering, or re-check at lowering, every design-time property this specification requires it to establish.
 7. A conforming implementation **SHALL** conform to the core unconditionally; it **SHALL** meet every requirement of each profile it claims, and a profile's requirements **SHALL NOT** bind an implementation that does not claim the profile.
 8. An extension **SHALL NOT** alter the behavior of a conforming program that uses only the specified language; an implementation **SHOULD** provide a specification-only checking mode.
+9. An implementation reporting verification **SHALL** meet the evidence, automatic-dispatch, composition and freshness requirements of §6.1, and **SHALL NOT** equate an unresolved obligation or unchecked imported assertion with an established property.

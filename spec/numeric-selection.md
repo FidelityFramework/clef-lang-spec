@@ -110,6 +110,8 @@ A contract about input values is a separate fact. Its bounds must be established
 
 This composition rule supplies no blanket decidability or cost claim for the combined analysis. Each analysis and proof dispatch must satisfy its own admitted-domain and termination requirements.
 
+Imported numerical laws and results used by another reasoning discipline SHALL satisfy [Conformance §6.1](conformance.md#61-verification-evidence-and-composition). Their checked evidence is used as lemma justification, not as an extension of the foundational axiom basis. Automatic instantiation SHALL preserve the identities of the values, partitions, representations and execution contexts on which the numerical result depends.
+
 ## 4. The `Fidelity.Physics` Mechanism (design sketch)
 
 `Fidelity.Physics` is **planned, not built.** This section is a design sketch, not a settled specification; the binding contract is **[Not yet specified]** (§11).
