@@ -15,7 +15,7 @@ nested modules. Signatures hide implementation details.
 
 Because Clef is closely related to F#, this position is stated explicitly rather than left to
 inference. F# inherited separate signature files (`.fsi`) from the ML tradition, in which a
-separately compiled, separately reified interface is a load-bearing part of the compilation model.
+separately compiled, separately reified interface supports compilation against a declared contract.
 Clef's model removes both preconditions that justify a separate interface artifact:
 
 - **The source is always available.** CCS computes compilation order from a whole-program syntactic
@@ -34,7 +34,7 @@ separate per-module artifact would impose maintenance overhead disproportionate 
 adds: every change to a module's surface would require editing two locations that the compiler can
 already reconcile from one. Where Clef does require an explicit cross-boundary contract that the
 compiler cannot infer — for instance a BAREWire descriptor for cross-processor memory layout — that
-contract is written once, at the boundary where it is load-bearing, rather than mirrored across every
+contract is written once, at the boundary it governs, rather than mirrored across every
 module interface.
 
 > **Note**: This position was settled during the 2026 specification audit informed by F#'s

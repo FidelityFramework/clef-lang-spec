@@ -85,7 +85,7 @@ There is no explicit conversion in Clef, because there is nothing to convert bet
 
 | Intent | Written as | Range |
 |---|---|---|
-| reduce modulo `2^n` | `x % 2^n` or `x &&& (2^n − 1)` | `[0, 2^n − 1]` |
+| reduce a nonnegative integer modulo `2^n` | `x % 2^n` or `x &&& (2^n − 1)` | `[0, 2^n − 1]` |
 | saturate to `[lo, hi]` | `clamp lo hi x` (`min hi (max lo x)`) | `[lo, hi]` |
 | real to integer | `floor`, `ceiling`, `round`, `truncate` | the integer image of the range |
 | integer to real | `float x` | `[a, b]`, exact where the selected real representation holds it |
@@ -93,6 +93,16 @@ There is no explicit conversion in Clef, because there is nothing to convert bet
 Because the range of each of these is known, the width follows from it as it does everywhere, and no discipline is ever named at a site: the compiler never selects wrap or saturate, and never inserts a narrowing. A platform's declared boundary semantics for a representation (wrap on a two's-complement unit, saturate on a saturating block, exact on fabric: [Platform Bindings](platform-bindings.md)) are read only to realise `%` and `clamp` cheaply where the hardware does them natively, never to give a program its meaning.
 
 Where a value meets a **boundary**, a representation a declaration fixed rather than the range (a wire-schema field, an MMIO register, a C ABI parameter, an endpoint contract, an exported entry point at the platform's word), the obligation is coverage: the analysed range is contained in the boundary's declared range, else CCS8012, a hard error, whose remedies are to bound the value or to change the declaration ([Numeric Selection §5](numeric-selection.md)). Overflow is therefore never undefined behaviour and never a runtime discipline: on analysed ranges it does not occur, and at a boundary it is a design-time finding.
+
+### 7.1 Encoding, intermediate capacity, and modular arithmetic
+
+Two's-complement encoding defines how signed integers are represented. An `n`-bit modular addition produces a result modulo `2^n`; interpreting that bit pattern as signed does not make it the exact integer sum. Defined wrapping behavior SHALL NOT be treated as evidence that ordinary arithmetic cannot overflow.
+
+Capacity SHALL cover the intermediates of the selected realization, not only its final result. For operands each in `[0, 255]`, an exact sum requires `[0, 510]`, hence nine unsigned bits. A subsequent reduction modulo 256 has range `[0, 255]`; that final bound alone SHALL NOT justify evaluating an earlier exact sum in eight bits. A narrower modular realization MAY be used when its equivalence to the complete source expression is established, including signed-remainder semantics where relevant.
+
+For parallel reductions, bounds SHALL cover all partial sums and merge intermediates allowed by the chosen decomposition. A small final sum after cancellation does not establish those bounds. The compiler SHALL separately establish operation preconditions, including division and shift definedness. These checks are part of ordinary compilation, independent of build mode; their discharge and diagnostic boundary follow [Numeric Selection §10.5.2](numeric-selection.md#1052-automatic-analysis-and-commitment).
+
+Integer exactness supplies the carrier-level argument for fixed-point arithmetic, but does not establish scale alignment, rescaling fidelity, or floating-point error. Those additional obligations are specified in [Numeric Selection §10.5.1](numeric-selection.md#1051-obligations-by-arithmetic-family) and [Rounding §6.1](rounding.md#61-fixed-point-scale-and-error).
 
 ## 8. Target Lowering
 
@@ -103,9 +113,15 @@ Where a value meets a **boundary**, a representation a declaration fixed rather 
 | NPU / GPU | Inferred width/representation informs tile/lane packing and accumulator selection. |
 | JavaScript (JSIR pathway) | Inferred widths at or below 32 bits realize as host numbers with integer semantics; widths in (32, 53] realize exactly as binary64-backed host numbers; widths above 53 require the pathway's documented wide-integer realization. Reals realize as binary64. |
 
-The JavaScript row rests on the host number model: IEEE-754 binary64, in which every integer of magnitude at most 2⁵³ is exact. Three consequences bind an implementation claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)). First, the wide-integer realization for widths above 53 bits (host `BigInt`, or a paired-word emulation) is implementation-defined and SHALL be documented ([Behavior Classification §2](behavior-classification.md)). Second, the no-narrowing clause of requirement 2 binds against that documented realization: a range that exceeds the exact envelope of the chosen realization SHALL be diagnosed under the coverage discipline of [Numeric Selection §2.1](numeric-selection.md), never silently realized in binary64. Third, the wrapping semantics of the fixed-width types ([Native Type Universe §2.3](native-type-universe.md)) SHALL be preserved observably, whatever realization carries them.
+The JavaScript row rests on the host number model: IEEE-754 binary64, in which every integer of magnitude at most 2⁵³ is exact. Three consequences bind an implementation claiming the **JavaScript Substrate** profile ([Conformance §7](conformance.md)). First, the wide-integer realization for widths above 53 bits (host `BigInt`, or a paired-word emulation) is implementation-defined and SHALL be documented ([Behavior Classification §2](behavior-classification.md)). Second, the no-narrowing clause of requirement 2 binds against that documented realization: a range that exceeds the exact envelope of the chosen realization SHALL be diagnosed under the coverage discipline of [Numeric Selection §2.1](numeric-selection.md), never silently realized in binary64. Third, the source arithmetic of §7, including deliberate modular operations, SHALL be preserved observably; host bitwise coercions SHALL NOT introduce unintended wrapping.
 
 Width inference is the *spatial* dimension of hardware lowering. It is necessary but not sufficient: a design may meet its width budget yet still violate timing through combinational depth, which a companion *pipeline* (temporal) inference addresses. The two are distinct analyses; this chapter specifies only the spatial one.
+
+### 8.1 Preserving established arithmetic
+
+Lowering SHALL retain or re-establish the correspondence between analyzed values and the emitted operations. A machine or IR operation that wraps MAY realize exact integer arithmetic only when coverage establishes that wrapping cannot occur, or when equivalence to deliberately modular source arithmetic is established. Any no-overflow assertion, narrowing, signedness change, or operation-specific optimization precondition SHALL have applicable justification. An optimization flag SHALL NOT serve as that justification.
+
+For example, LLVM `nsw` and `nuw` are assertions whose violation produces poison, whereas its overflow-reporting intrinsics produce an explicit status result. Neither mechanism generates a proof. A lowering SHALL use each only in accordance with the established operation and failure contract. See the [LLVM integer addition semantics](https://llvm.org/docs/LangRef.html#add-instruction) and [overflow intrinsics](https://llvm.org/docs/LangRef.html#arithmetic-with-overflow-intrinsics).
 
 ## 9. Relationship to Other Features
 
@@ -126,6 +142,7 @@ Width inference is the *spatial* dimension of hardware lowering. It is necessary
 9. **Guard validity**: Integer-affine range constraints SHALL preserve their value identities, guard polarity, and derivation provenance; facts depending on mutable storage SHALL be re-established or invalidated when those dependencies may change (§2.1).
 10. **Demand boundaries**: Deferred computation SHALL preserve dimensional identity and pending obligations; immutable capture facts SHALL remain available, and a mutable capture SHALL NOT be treated as a frozen value (§2.2).
 11. **Deferred inference**: An unresolved obligation during elaboration SHALL NOT be silently replaced by a bound or representation; a required unresolved fact SHALL be diagnosed before the concrete representation is committed (§6).
+12. **Intermediate and lowering obligations**: Capacity and operation definedness SHALL hold for every permitted intermediate and decomposition (§7.1). Lowering SHALL justify its widths, signedness, narrowing, and no-overflow assertions (§8.1); defined machine wrapping SHALL NOT substitute for exact source arithmetic.
 
 ## References
 

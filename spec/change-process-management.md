@@ -13,7 +13,7 @@ This specification is under active internal development by SpeakEZ Technologies.
 
 A language specification is trustworthy only if the *way it changes* is itself specified. Three commitments govern every change to Clef and to this document.
 
-1. **No silent normative change.** Once the process is active (§7), a normative requirement is added, altered, or removed only through a recorded process step. The provenance of every load-bearing requirement is recoverable from that record.
+1. **No silent normative change.** Once the process is active (§7), a normative requirement is added, altered, or removed only through a recorded process step. The provenance of each such requirement is recoverable from that record.
 2. **Status is always marked.** Every requirement carries an explicit maturity marker (§2). A reader can tell at a glance whether a statement is settled, an adopted design decision, or a genuinely open question. Presenting an open item as settled is itself a process violation.
 3. **Implementation and specification advance together.** A feature is not "done" because it is described, nor because it compiles. A change is complete only when the specification text, the compiler implementation, and the conformance expectation agree. The process is built around keeping these three in step.
 

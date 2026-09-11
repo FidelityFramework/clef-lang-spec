@@ -29,7 +29,7 @@ For a real value with range `[a, b]` on target `T` offering representation set `
 
 \[r^* = \operatorname*{arg\,min}_{r \,\in\, R_{\mathrm{cov}}(T,\, [a, b])} \; \max_{x \,\in\, [a, b]} \; \mathrm{err}_r(x)\]
 
-Three properties are load-bearing:
+Three properties define this objective:
 
 - **Accuracy-only objective.** The score is worst-case error over the range. There is no cost, latency, or area term. Performance is handled by *filtering the candidate set* (§6), never by perturbing the score.
 - **Deterministic and compile-time computable** once `[a, b]` is fixed.
@@ -352,6 +352,33 @@ Cost analysis SHALL apply to each candidate realization's operations, dependency
 
 The platform fact schema, construction registry, and automatic realization-selection procedure are **[Not yet specified]**. The requirements above specify admissibility and preservation; they do not assert that a compiler pass or target implementation is available.
 
+### 10.5 Capacity, error, and decomposition obligations
+
+**[Design decision.]** Representation coverage, numerical error, and reproducibility SHALL be established as separate properties. The selection score of §2 characterizes representation error over a range; it SHALL NOT be reported as an error bound for a computation composed of operations. A covering representation SHALL NOT, by itself, establish exactness, a sound enclosure, or permission to regroup the computation.
+
+#### 10.5.1 Obligations by arithmetic family
+
+1. **Integer arithmetic.** The compiler SHALL establish capacity for the operations and intermediates of each permitted realization, together with operation preconditions such as a nonzero divisor and valid shift counts. Two's-complement encoding or defined modular machine arithmetic SHALL NOT discharge a no-overflow obligation. Deliberate modular or clamped arithmetic SHALL retain its source meaning under [Width Inference §7](width-inference.md#7-intended-loss-is-arithmetic).
+2. **Fixed-point arithmetic.** The construction SHALL record the integer carrier, scale, and dimension of each value and intermediate. For binary scales, `x = X · 2^(-f)` and `y = Y · 2^(-g)` have exact product `(X · Y) · 2^(-(f+g))`. Aligning scales, multiplying, dividing, or rescaling SHALL establish intermediate capacity and whether information is discarded. An exactness claim requires exact representability at each such step; otherwise the permitted rounding and its justified error contribution SHALL be recorded. Same-scale addition MAY use integer exactness, subject to coverage of every permitted partial sum and merge. It SHALL NOT establish exactness of a surrounding calculation containing lossy rescaling.
+3. **Floating-point arithmetic.** Range coverage SHALL NOT substitute for an error analysis. A construction's claimed error bound SHALL account for its rounding points, intermediate precision, relevant dependencies and cancellation, and admitted underflow or exceptional behavior. Posit and IEEE rounded operations SHALL NOT be assumed associative. A fixed-tree result, an error-bounded result, and an order-independent result SHALL retain the distinct scopes of §10.3.1.
+4. **Exact accumulation.** Exact integer, fixed-point, superaccumulator, and quire reductions SHALL establish term formation, capacity, merge, and finalization under §10.3.2. Exact accumulation of represented terms SHALL NOT be reported as elimination of input quantization, term-formation error, or numerical-method error.
+
+An error claim SHALL identify its reference quantity, metric, admitted input domain, and assumptions. Error relative to exact operations on represented inputs is distinct from error relative to an ideal model or physical quantity. Input uncertainty, arithmetic error, and numerical-method error SHALL remain distinguishable when composing an application-level bound. Deterministic results SHALL NOT be reported as accurate solely because they repeat.
+
+#### 10.5.2 Automatic analysis and commitment
+
+Applicable numeric obligations SHALL be generated and checked as part of ordinary compilation, independently of optimization level or debug assertions. A developer SHALL NOT need an opt-in wrapper or per-operation annotation to activate these checks. Source and boundary contracts still determine the required arithmetic and admitted inputs; automatic analysis SHALL NOT invent missing premises or numerical goals.
+
+The implementation MAY combine sound interval and relational analysis, scale and congruence facts, loop invariants, error propagation, and proof procedures for supported theories. Facts SHALL retain the provenance and validity conditions of §3.4. The analysis itself SHALL preserve sound bounds; overflow or inward rounding in the bound computation SHALL NOT invalidate the claimed enclosure. Automatic generation of an obligation SHALL NOT be reported as successful discharge.
+
+Established, refuted, and unresolved obligations SHALL remain distinguishable. During elaboration an unresolved obligation MAY remain pending. Before commitment, an unresolved required obligation SHALL produce a located diagnostic identifying the property, missing evidence, and affected operation or boundary. An unsupported proof theory, resource limit, or conservative over-approximation SHALL NOT be reported as proof of safety or as a demonstrated failing execution. The bare-real default of §6 selects a representation only; it SHALL NOT discharge an otherwise required capacity, accuracy, or decomposition obligation.
+
+A runtime check MAY establish a fact on a successful path only where the source or boundary contract permits that check and defines its failure behavior. It SHALL NOT be substituted silently for a required static guarantee. Checks permitted by such a contract MAY be eliminated when their conditions are established; emitting fewer checks SHALL NOT weaken the obligation.
+
+Arithmetic eligibility SHALL remain separate from memory ownership, publication, lifetime, and progress requirements (§10.3.2). Parallel realization requires both sets of obligations. Cost analysis MAY choose among eligible realizations (§10.4); it SHALL NOT waive either set.
+
+The abstract domains, solver dispatch, error-composition algorithms, and evidence encoding used to implement this section are **[Not yet specified]**. These requirements establish a conformance contract, not a claim that general fixed-point or floating-point verification is implemented.
+
 ## 11. Design-Time Surfacing and Accuracy Preservation
 
 The selection objective is computable at design time, so the compiler can show — *before anything runs* — **how much relative accuracy each candidate representation preserves across the value's actual range.** This is the capability with the most direct leverage for users, and the clearest demonstration that the compiler is materially different from an IEEE-only framework: the **tapered-versus-uniform tradeoff is made visible and quantitative at authoring time**, not discovered empirically after a long run drifts. IEEE-754 spends precision uniformly because it makes no bet on where values cluster; a posit concentrates precision where the values are. Where a domain's values live near magnitude `1.0` — true after natural-unit normalization for most physics, and for normalized ML activations — a posit preserves materially more accuracy than IEEE-754 *at equal width*, and the developer sees exactly that, per target, at the point of writing the code. Surfacing that bet and its payoff at design time is the showcase capability of numeric selection.
@@ -401,6 +428,8 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 13. **Arithmetic semantics.** A construction SHALL preserve the admitted operands, term formation, accumulation, finalization, and observable behavior required by its contract (§10.3). Recognition of a reduction pattern SHALL NOT authorize reassociation, fusion, or removal of intermediate rounding.
 14. **Decomposition guarantees.** Claims of accuracy, reproducibility, and exactness SHALL identify their scope and required premises. Exact accumulation and merge SHALL satisfy §10.3.2 for all permitted decompositions; compensation or accumulator width alone SHALL NOT establish those properties.
 15. **Target realization.** Operation-specific arithmetic, resource, memory, and transfer requirements SHALL be established before committing a realization (§10.4). Lowering SHALL preserve those requirements; an unsupported requirement SHALL NOT be replaced by weaker arithmetic or an unproved memory assumption.
+16. **Separate numeric guarantees.** Capacity, arithmetic error, exactness, and reproducibility SHALL be justified independently under §10.5.1. Fixed-point scale changes and floating-point rounding SHALL retain their own obligations; integer width inference SHALL NOT be treated as sufficient verification of either family.
+17. **Automatic obligation checking.** Applicable numeric obligations SHALL be generated and checked without opt-in wrappers and independently of build mode (§10.5.2). Unresolved required obligations SHALL be diagnosed before commitment; a runtime check, assumed bound, or changed arithmetic SHALL NOT silently replace a required proof.
 
 ## 14. Genuinely-Open Items
 

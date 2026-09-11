@@ -182,7 +182,7 @@ let n  = truncate 3.7         // real to integer, range [3, 3]
 let r  = float n              // integer to real, exact
 ```
 
-A value meeting a declared boundary is checked for coverage of its range (CCS8012, a warning promoted under `--warnaserror`); it is never converted, truncated, wrapped or saturated by the compiler.
+A value meeting a declared boundary is checked for coverage of its range (CCS8012, a hard error); it is never silently truncated, wrapped or saturated by the compiler. Warning policy cannot authorize failed coverage. Capacity does not establish the fidelity of a real-valued transfer or a fixed-point rescaling; their separate obligations are specified in [Numeric Selection §10.5](numeric-selection.md#105-capacity-error-and-decomposition-obligations).
 
 ## 7. Platform Description Resolution
 
