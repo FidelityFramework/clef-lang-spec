@@ -11,7 +11,7 @@ status: normative
 
 Numeric selection is the **real-valued counterpart** of [Width Inference](width-inference.md). Width inference sizes an *integer* from the bit count its value range requires; numeric selection chooses the *representation* of a *real* — whether a value is best carried as a posit, an IEEE-754 float, or a fixed-point number — from that value's dimensional range. The two are halves of one discipline: representation follows from analyzed range, never from a target type name. Unresolved facts remain pending during elaboration and are diagnosed when required for representation commitment, subject to the explicit bare-float policy in §6.
 
-The objective is a single, deterministic, compile-time function: for a real value with range `[a, b]` on a target offering a set of representations `R`, select the representation that minimizes worst-case relative error over the range. This is the objective sketched in [Width Inference §4](width-inference.md), made sound here by two side-conditions the bare form requires; the present chapter specifies it in full, including those side-conditions, the range-evidence and boundary-constraint model, the unobservable-range contract split on dimensionedness, the capability-coeffect treatment of performance, the concrete/parameterized representation scope split, and the quire pass that realizes exact accumulation.
+The objective is a single, deterministic, compile-time function: for a real value with range `[a, b]` on a target offering a set of representations `R`, select the representation that minimizes worst-case relative error over the range. This is the objective sketched in [Width Inference §4](width-inference.md), made sound here by two side-conditions the bare form requires; the present chapter specifies it in full, including those side-conditions, the range-evidence and boundary-constraint model, the unobservable-range contract split on dimensionedness, the capability-coeffect treatment of performance, and the concrete/parameterized representation scope split. Section 10 specifies the subsequent arithmetic-construction obligations, including quire accumulation and permitted parallel decomposition.
 
 The single observation that unifies the design: **the dimensional range, not the dimension, is the input to selection.** Knowing that a value carries dimension *meters* does not distinguish nanometers from astronomical units. The dimensional algebra (see [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md)) establishes the *kind*; the concrete `[a, b]` establishes the *representation*. Range evidence constrains selection; target capabilities and boundary declarations determine which representations may be considered.
 
@@ -210,7 +210,7 @@ Two reasons performance is a filter and not a cost term:
 
 > **b-posit hardware.** b-posits close the float/posit hardware-efficiency gap by bounding the regime field to 6 bits, so one decoder and a five-way MUX serve 16/32/64-bit operands (the non-significand field is identical across precisions, which IEEE structurally cannot do). Jonnalagadda, Thotli, and Gustafson (arXiv:2603.01615) report a 32-bit b-posit decoder at 79% less power, 71% smaller area, and 60% less latency than a standard posit decoder, matching or beating IEEE-754 float, with the margin widening at 64-bit. On targets that carry b-posit hardware the capability gate reports `capability = native` and reduces to an accuracy-vs-range choice. The design stays robust to how each target actually ships: where hardware is absent the gate reports `capability = emulated` and filters under `native-only`, and the accuracy-vs-range conclusions do not change; only the size of the native candidate set does.
 
-The `allow-emulated-warn` policy lets emulated-ness influence *which diagnostic fires* — cost re-enters as a *reporting* side channel only, never as a selection input. The pure-accuracy invariant is scoped to the *choice*, not to what is reported about it.
+The `allow-emulated-warn` policy lets emulated-ness influence *which diagnostic fires* — cost re-enters as a *reporting* side channel only, never as a representation-selection input. The pure-accuracy invariant is scoped to the *representation choice*, not to what is reported about it. Comparison of implementations preserving that choice and the required numerical contract is specified separately in §10.4.
 
 ## 8. Concrete vs. Parameterized Representations
 
@@ -248,7 +248,9 @@ This is a new abstract interpreter of research-grade weight, materially harder t
 
 Width inference is the *spatial* reading (bits per value); pipeline/combinational-depth inference is the *temporal* reading (chained operations per register boundary). Numeric selection is the *third* reading of the same PSG traversal: it consumes the dimensional range and selects a representation. As in §9.1, "same traversal" is the graph traversal and carriage, not the transfer functions.
 
-## 10. The Preservation Chain and the Quire Pass
+<a id="10-the-preservation-chain-and-the-quire-pass"></a>
+
+## 10. The Preservation Chain and Arithmetic Construction
 
 ### 10.1 Preservation chain
 
@@ -268,27 +270,27 @@ Each step consumes the preceding inference's output; the chain is verified durin
 
 ### 10.2 The quire pass
 
-**[Design decision — placement.]** The quire pass is a Composer nanopass, **downstream of selection** (it depends on the selected posit width) and **before the target-lowering fork**. It recognizes accumulation, sizes the quire, writes a coeffect bundle, and defers lowering to target-binding — annotations, not instructions, the same coeffect discipline selection uses.
+**[Design decision — placement.]** The quire pass is a Composer nanopass, **downstream of selection** (it depends on the selected posit width) and **before the target-lowering fork**. It identifies eligible accumulation, sizes the quire, records its obligations and coeffects, and defers lowering to target binding. It is one instance of arithmetic construction under §10.3.
 
-- **Recognition.** An active pattern over PSG nodes recognizes `fma`/`fold`/`reduce`-of-products over a selected posit type, e.g. `Array.fold (fun acc (a, b) -> acc + a*b) zero`, and fuses it into a quire MAC.
+- **Recognition.** An active pattern over PSG nodes identifies `fma`/`fold`/`reduce`-of-products over a selected posit representation as candidates. Recognition alone SHALL NOT authorize fusion. A sequential fold whose contract specifies rounded multiplication and addition at each step SHALL retain those semantics unless equivalence is established for the admitted inputs. A contract permitting exact products and accumulation with one final rounding MAY be realized by a quire MAC once its obligations are established (§10.3).
 - **Sizing.** The quire width `Q` follows the selected format. A b-posit (arXiv:2603.01615) uses a fixed universal quire of 800 bits (25 32-bit integers) for any width `n > 12`, independent of `n`. A full-gamut posit (Posit Standard 2022) uses `16n` bits, precision-dependent — 512 bits for posit32.
-- **Coeffect carriage**: four coeffects on one PSG node: *allocation* (100 B for a b-posit quire; 64 B for a full-gamut posit32 quire; stack or arena by escape class); *lifetime* (loop scope unless escaping, via the existing escape analysis); *capability* (is exact accumulation available on this target?); *dimension* (an `fma` of `newtons × meters` accumulates as `joules`, with a single rounding at `Quire.toPosit` and the dimension verified at output).
-- **Per-capability lowering at the fork.** The quire is substrate-portable: it is placed on whichever processor the accumulation is advantaged, and each substrate carries it at its own cost. The b-posit's fixed 800-bit quire is the enabling property — one accumulator width for every precision, so the same recognition and coeffect emission lower to any of these without re-sizing per format.
+- **Coeffect carriage.** The construction records *allocation* (100 B of state for a b-posit quire; 64 B for a full-gamut posit32 quire, before alignment and implementation overhead), *lifetime*, *capability*, and *dimension*, together with the arithmetic contract and discharged obligations of §10.3. Storage residency and any private partial accumulators are properties of the selected realization. An accumulation of `newtons × meters` carries dimension `joules`; finalization SHALL preserve that dimension.
+- **Per-capability lowering at the fork.** A target realization SHALL establish the operation-specific requirements of §10.4. A common accumulator width does not establish common instruction semantics, resource availability, or cost. The following placements are illustrative, not declarations that every target in the named class implements them.
 
 | Target | b-posit 800-bit quire residency | Local cost character |
 |---|---|---|
 | x86_64 (AVX-512) | two 512-bit `zmm` registers (1024 bits, 224 bits slack); 25 32-bit lanes | possible vectorized shift-add, subject to register pressure, carry propagation, and the declared memory-coherence contract |
 | Xilinx FPGA | a fabric accumulator (fixed-point shift-add tree); many quires bank in parallel across the LUT budget | fabric implementation with latency and throughput established by synthesis for the selected target |
 | RISC-V + extended posit | an architectural quire register | latency and throughput supplied by the declared extension |
-| Neuromorphic | not available | **capability failure** |
+| Target without a permitted realization | unavailable | capability failure when the operation requires exact accumulation |
 
-Where the quire sits is a placement decision, not a fixed target: the accumulation is a sequential, stateful reduction, so the design weighs each substrate's *local* accumulate cost against the *transport* cost of the boundary it would otherwise cross. A quire co-located with the ALUs that feed it moves one rounded result across a slow boundary; a quire on the far side of that boundary moves every operand. For a full-gamut posit the residency figures scale with `16n` (a full-gamut posit32 quire is 512 bits, compared with 800 bits for a b-posit quire); the placement reasoning is identical.
+Placement MAY use one local accumulator or private partial accumulators with a merge satisfying §10.3.2. The cost comparison SHALL account for the selected realization's operand transfers, partial-state transfers, final-result transfers, and required coordination (§10.4); accumulator width alone does not determine placement. For a full-gamut posit, state size scales with `16n`.
 
 #### 10.2.1 The quire-adequacy invariant
 
-The quire width `Q` is fixed by the selected format. Its allocation size is independent of the number of products. Its capacity is finite, so exact accumulation requires bounds on the products and on every partial sum in the chosen evaluation order.
+The quire width `Q` is fixed by the selected format. The state size of each quire is independent of the number of products; the number of private quires depends on the realization. Capacity is finite, so exact accumulation requires bounds on the products and on every partial sum in every permitted evaluation order, partition, and merge tree.
 
-> **Quire adequacy.** The allocated accumulator SHALL match the selected format's field layout. Each product SHALL be exactly representable, and every reachable partial sum SHALL remain within the finite quire range. The compiler SHALL establish both obligations before committing an exact-accumulation lowering.
+> **Quire adequacy.** The allocated accumulator SHALL match the selected format's field layout. Each product SHALL be exactly representable, and every reachable local partial sum and merge result SHALL remain within the finite quire range. The compiler SHALL establish these obligations for the complete set of decompositions the implementation permits before committing an exact-accumulation lowering.
 
 An accumulation-length bound together with operand bounds can establish partial-sum coverage. A checked invariant can establish it without a fixed length bound, for example when every reachable partial sum stays in a bounded interval. The expression `k · bits-per-product ≤ Q` is not the capacity law for addition. Repeated positive products eventually exceed any fixed accumulator unless their number or accumulated magnitude is bounded.
 
@@ -297,6 +299,58 @@ A full-gamut posit quire has `16n` bits under the [Posit Standard (2022), §§3.
 #### 10.2.2 Why the quire matters
 
 A quire preserves exact sums of products of its represented inputs while the adequacy conditions hold. This prevents rounding during accumulation, including cancellation between those products, until the final conversion. It does not undo errors already introduced into the inputs or guarantee exact algebraic identities throughout a larger computation. A dimensional or grade proof and a numerical error bound remain separate obligations.
+
+### 10.3 Arithmetic construction contracts
+
+**[Design decision.]** An *arithmetic construction* realizes a source operation or computation region using a specified representation, intermediate state, primitive operations, and finalization. Representation selection alone SHALL NOT authorize a change to the operation's arithmetic semantics. A construction SHALL retain the committed input and output representations and satisfy the applicable source and boundary contracts.
+
+Before committing a construction, the compiler SHALL establish:
+
+1. **Operands and terms.** The admitted input values, their dimensions and representations, and the operation that forms each term. An exact sum of rounded products and an exact sum of exact products of represented operands are different contracts. Neither recovers information lost before those operands were represented.
+2. **Accumulation and finalization.** The initial value, accumulator interpretation, permitted intermediate rounding, and final result representation and format-defined rounding rule. The required initial value SHALL contribute exactly once to the complete reduction. Finalization SHALL occur only at boundaries permitted by the contract.
+3. **Decomposition.** The permitted term order, partitions, merge operations, and merge trees. A transformation SHALL preserve the required terms and their multiplicities. It SHALL preserve a specified sequential rounded fold or fixed reduction tree unless equivalence is established over the admitted inputs.
+4. **Observable behavior.** The required treatment of signed zero, non-finite values, invalid values such as NaR, exceptional conditions, and any observable arithmetic status. An implementation MAY exclude a case only when the admitted input and intermediate-value contracts justify that exclusion.
+5. **Evidence.** The premises, capacity and error bounds, operation identities, and preservation evidence on which the construction depends. Unresolved premises MAY remain pending during elaboration but SHALL be diagnosed before the construction is committed.
+
+The source or library contract MAY permit an exact reduction, a particular rounded evaluation structure, or a stated error bound. Improved accuracy alone SHALL NOT establish equivalence to an operation with specified intermediate rounding. The binding mechanism for additional library-supplied construction contracts is **[Not yet specified]**; this section introduces no source syntax or implicit reassociation permission.
+
+#### 10.3.1 Compensated, reproducible, and exact accumulation
+
+A construction using IEEE arithmetic MAY carry multiple components, compensation terms, bins, or an integer accumulator. Eligibility SHALL depend on the complete construction's established contract, including initialization, accumulation, merge, and finalization. The presence of a compensation term, an error-free primitive, or a wide accumulator SHALL NOT by itself establish an exact or order-independent reduction.
+
+An error-bounded result, a result reproducible for a fixed decomposition, a result independent of all permitted decompositions, and a correctly rounded exact reduction are distinct properties. A claimed property SHALL state the inputs, arithmetic environment, decomposition scope, and result observables to which it applies. A guarantee for one target configuration SHALL NOT imply agreement across targets with different operand formation, rounding, or special-value semantics.
+
+#### 10.3.2 Exact accumulation and merge
+
+For finite terms, let `D(a)` denote the exact value represented by accumulator state `a`. An exact construction SHALL establish, for every reachable state and admitted term `t`:
+
+- `D(initialize(v)) = v` for the specified initial value;
+- `D(accumulate(a, t)) = D(a) + t`;
+- `D(merge(a, b)) = D(a) + D(b)` for every permitted merge;
+- `finalize(a)` produces the result prescribed by the contract from `D(a)`.
+
+Capacity and primitive-operation obligations SHALL hold for every permitted intermediate state, including merge intermediates. A bound on the final sum alone is insufficient. A capacity proof for one evaluation order SHALL NOT authorize additional orders or partitions without establishing their capacity obligations.
+
+The resulting associativity and commutativity concern the accumulator's denotation. Internal encodings need not be identical. A claim of bit-identical final results additionally requires deterministic finalization and preservation of all result observables specified by the contract (§10.3). Rounding private partial sums to the output representation before merging SHALL NOT be used to realize an exact reduction unless the compiler establishes that those intermediate conversions are exact for every admitted partial sum.
+
+These arithmetic obligations do not establish race freedom, safe publication of partial states, lifetime safety, or liveness. The realization SHALL separately satisfy the applicable memory and concurrency contracts.
+
+### 10.4 Target eligibility and realization cost
+
+**[Design decision.]** The target context supplied through the platform description SHALL provide the facts needed to validate each construction. A format's `native`, `emulated`, or `unavailable` classification (§7) SHALL NOT substitute for operation-specific evidence. Required facts include, where applicable:
+
+- primitive input, intermediate, and output precision; rounding and subnormal behavior; overflow and exceptional behavior; and permitted contraction or reassociation;
+- accumulator capacities, supported vector or matrix operations, and carry or normalization requirements;
+- register, local-memory, and other storage requirements, including alignment and permitted placement;
+- memory visibility, publication, synchronization, and transfer requirements at execution and transport boundaries.
+
+Lowering SHALL preserve the construction's requirements through the emitted operations and their arithmetic modes. Unsupported requirements SHALL exclude that realization; they SHALL NOT authorize weaker arithmetic. An operation that requires a construction for which no permitted realization is available SHALL produce a capability diagnostic before commitment.
+
+The implementation MAY compare execution cost among realizations that preserve the selected representation and required numerical contract. This comparison SHALL NOT alter the representation-selection objective of §2 and §7, admit a non-covering representation, or weaken the numerical contract. A policy trading numerical results or guarantees against cost is **[Not yet specified]**.
+
+Cost analysis SHALL apply to each candidate realization's operations, dependency structure, storage, data movement, and coordination. Changing the construction can change work, span, and storage requirements. Estimates, measured results, and established bounds SHALL be distinguished and associated with the target configuration to which they apply. No cost estimate SHALL serve as proof of arithmetic eligibility or numerical accuracy.
+
+The platform fact schema, construction registry, and automatic realization-selection procedure are **[Not yet specified]**. The requirements above specify admissibility and preservation; they do not assert that a compiler pass or target implementation is available.
 
 ## 11. Design-Time Surfacing and Accuracy Preservation
 
@@ -327,6 +381,7 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 - **Dimensional Type System** — the dimensional range is the principal input; see [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md). The dimension establishes the *kind*; the range establishes the *representation*.
 - **Native Type Universe** — the source has one real kind, `float`; IEEE `f32` and `f64` are representation choices. The unobservable bare-float exception is specified in §6; see [NTU Types](ntu-types.md).
 - **Incremental Computation** — its inferred, bounded, and explicit levels describe developer involvement. They do not rank the truth of range evidence or determine verification tiers; see [Incremental Computation §12](incremental-computation.md).
+- **Parallel execution** — arithmetic construction specifies which decompositions preserve the numerical contract (§10.3). Memory safety, publication, lifetime, scheduling, and liveness obligations remain separate. Satisfying one group of obligations SHALL NOT discharge the other.
 - **Negative types and reversibility** *(non-normative)* — a typed reversibility contract (negative types) is **orthogonal** to representation selection: it checks *structurally* and is representation-agnostic, so IEEE and posit alike satisfy it. Representation selection makes no promise of numerical reversibility; it provisions the precision envelope within which a reversible computation's residual stays bounded, and the quire's exact accumulation extends that horizon. A symplectic integrator typed via negative types and lowered with the quire is a client of both disciplines; that composition lives in a `Fidelity.Numerics` library, not in this chapter.
 
 ## 13. Normative Requirements
@@ -334,7 +389,7 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 1. **Range-driven representation.** For a real-valued quantity, the representation (IEEE-754 / posit / fixed-point) SHALL be selected per target as a function of the analyzed and dimensional range, not from a target type name.
 2. **Feasibility constraint.** Selection SHALL be over the coverage-filtered candidate set `R_cov`; if it is empty, the implementation SHALL emit a hard coverage error (CCS8012) identifying the uncovered range and offered representations, and SHALL NOT select a non-covering representation.
 3. **Zero-crossing soundness.** The error metric SHALL be the ULP-floored form of §2.2 (or its equivalent neighborhood-exclusion form); a range straddling zero SHALL NOT yield an undefined argmin.
-4. **Accuracy-only objective.** The selection score SHALL be worst-case error over the range and SHALL NOT include a cost, latency, or area term; performance SHALL be expressed only as a candidate-set filter (§7).
+4. **Accuracy-only objective.** The representation-selection score SHALL be worst-case error over the range and SHALL NOT include a cost, latency, or area term; performance SHALL be expressed only as a candidate-set filter (§7). Cost comparison of realizations SHALL preserve that representation choice and the required numerical contract (§10.4).
 5. **Evidence composition.** Range facts SHALL retain their value identity, dimensional correspondence, context, premises, and justification. Applicable sound enclosures MAY refine jointly as specified in §3.4; provenance SHALL NOT grant override priority. A declared representation's capacity SHALL NOT substitute for evidence of the value's range. Inconsistent evidence and unresolved obligations SHALL be distinguished from established unreachability and diagnosed before commitment where applicable.
 6. **Unobservable range, dimensioned.** An unresolved range obligation MAY remain pending during elaboration. If a dimensioned real's required range is still unresolved at concrete representation commitment, the implementation SHALL emit a located error tracing the missing provenance and SHALL NOT assume a representation ([Width Inference §6](width-inference.md#6-unobservable-ranges)).
 7. **Unobservable range, bare.** A bare `float` with an unobservable range SHALL use IEEE `f64` under §6's exception when the target offers it and capability policy permits it; otherwise the missing capability SHALL be diagnosed before commitment. This exception SHALL NOT waive coverage of a known range. Bare reals SHALL still carry range propagation.
@@ -342,7 +397,10 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 9. **Boundaries.** A declared boundary representation SHALL be honored when coverage and the transfer requirements of §10.1 are established; a covering-but-suboptimal declaration that satisfies those requirements SHALL compile and SHALL be witnessed at design time with the representation the open argmin would have selected (§5); a non-covering one SHALL be the hard coverage error of requirement 2, never a conversion.
 10. **Coeffect carriage.** The selected representation SHALL be recorded as a coeffect (codata) on the PSG beside the dimension and preserved through lowering without recomputation.
 11. **Capability gating.** A representation unavailable on the target SHALL NOT be selected; an accuracy-optimal but emulated choice under an emulation-permitting policy SHALL be selected and MAY be accompanied by a performance diagnostic; a required exact-accumulation capability that the target lacks SHALL be a capability failure, never a silent fallback to lossy accumulation.
-12. **Quire adequacy.** A recognized accumulation over a selected posit SHALL use the format's fixed quire width: 800 bits for a b-posit of width `n > 12` (arXiv:2603.01615), or `16n` bits for a full-gamut posit of width `n` (Posit Standard 2022). The compiler SHALL establish exact per-product representation and coverage of every reachable partial sum before committing exact accumulation (§10.2.1). Missing or inconsistent capacity evidence SHALL be diagnosed, never replaced by an unlimited-capacity assumption.
+12. **Quire adequacy.** A quire construction authorized under §10.3 SHALL use the selected format's fixed quire width: 800 bits for a b-posit of width `n > 12` (arXiv:2603.01615), or `16n` bits for a full-gamut posit of width `n` (Posit Standard 2022). The compiler SHALL establish exact per-product representation and coverage of every reachable local partial sum and merge result in every permitted decomposition before committing exact accumulation (§10.2.1). Missing or inconsistent capacity evidence SHALL be diagnosed, never replaced by an unlimited-capacity assumption.
+13. **Arithmetic semantics.** A construction SHALL preserve the admitted operands, term formation, accumulation, finalization, and observable behavior required by its contract (§10.3). Recognition of a reduction pattern SHALL NOT authorize reassociation, fusion, or removal of intermediate rounding.
+14. **Decomposition guarantees.** Claims of accuracy, reproducibility, and exactness SHALL identify their scope and required premises. Exact accumulation and merge SHALL satisfy §10.3.2 for all permitted decompositions; compensation or accumulator width alone SHALL NOT establish those properties.
+15. **Target realization.** Operation-specific arithmetic, resource, memory, and transfer requirements SHALL be established before committing a realization (§10.4). Lowering SHALL preserve those requirements; an unsupported requirement SHALL NOT be replaced by weaker arithmetic or an unproved memory assumption.
 
 ## 14. Genuinely-Open Items
 
@@ -357,6 +415,15 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 7. **Type-directed posit hardware synthesis.** The FPGA parameterized-config search (§8, layer 3) is future work; the bias/asymmetry portion of the search is bounded-but-continuous, not enumerable, and the synthesis pipeline is not built.
 8. **Error precedence.** The ordering between `R_eff = ∅` (no native-policy-permitted format) and `R_cov = ∅` (no covering format) when a target both lacks native support and offers no covering format needs a stated precedence.
 9. **ULP-floor definition.** The exact `ulp_min(r)` per representation family (IEEE subnormal floor vs. posit smallest-regime magnitude vs. fixed-point LSB), and whether the ULP-floor form or the `[−δ, +δ]` exclusion form is canonical, must be pinned. Normative once chosen.
+10. **Arithmetic-construction integration.** The binding of additional source or library numerical contracts, construction registry and evidence format, and automatic realization-selection procedure remain unspecified (§10.3–§10.4). The requirements for preserving an existing contract do not create new source syntax or establish that the corresponding passes are implemented.
+11. **Operation-specific platform facts.** The shared fact schema, target-specific declarations, and validation of arithmetic modes, capacities, resources, and memory or transport requirements remain unspecified (§10.4). A format-level capability flag is insufficient to establish construction eligibility.
+
+## Non-normative companions
+
+- [Arithmetic Construction and Placement](https://clef-lang.com/docs/internals/numerics/arithmetic-construction-and-placement/) elaborates implementation boundaries, hardware facts, and validation strategies.
+- [Pondering Fearless Parallelism](https://clef-lang.com/blog/pondering-fearless-parallelism/) develops the motivation and proposed experiments.
+
+These companions provide explanation and examples; they do not add or weaken the requirements of this chapter.
 
 ## References
 

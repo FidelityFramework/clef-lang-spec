@@ -247,6 +247,8 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8206 | Error | An element of the platform description the compiler cannot read (a field that is not a literal, an element that is not the record its list is declared over, a `Core` that is neither `Some core` nor `None`), reported at the declaration |
 | CCS8207 | Error | An element of the platform description outside its vocabulary (a capability, family or boundary tag not in its closed set, a width or representation of no bits, a name declared twice, a Register width disagreeing with the word size), reported at the declaration |
 | CCS8208 | Error | A second platform description of one form among the platform binding's sources; the first is read, each other is reported at its declaration |
+| CCS8209 | Error | Malformed, inconsistent or ambiguous device-access declaration or plan selection |
+| CCS8210 | Error | A used MMIO operation lacks established access evidence, including a contradicted or pending required predicate |
 | CCS8300 | Warning | Exception-style error handling detected; use the Result-based pattern |
 | CCS8400 | Error | Code generation error |
 | CCS8401 | Error | Unsupported construct in code generation |

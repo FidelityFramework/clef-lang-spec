@@ -2772,7 +2772,7 @@ A quotation is a phase-distinct structure. The enclosed expression is type-check
 
 What the compiler reads out of a quotation:
 
-- **Declarations**, read structurally by type name and field name and never evaluated: the platform descriptor ([Platform Bindings](platform-bindings.md)), platform predicates ([Platform Predicates](platform-predicates.md)), the binding descriptors a generator emits (`Expr<TypeDescriptor>`, `Expr<FunctionDescriptor>`), a peripheral descriptor ([Native Type Mappings](native-type-mappings.md), "Quotations as Semantic Carriers"). A quoted record is read exactly as a plain record value is; the quotation is kept because it carries the record's type over facts that arrive stringly typed or untyped.
+- **Declarations**, read structurally by type name and field name: the platform descriptor ([Platform Bindings](platform-bindings.md)), the binding descriptors a generator emits (`Expr<TypeDescriptor>`, `Expr<FunctionDescriptor>`), a peripheral descriptor ([Native Type Mappings](native-type-mappings.md), "Quotations as Semantic Carriers"). A quoted record is read exactly as a plain record value is. [Platform predicates](platform-predicates.md) additionally carry typed Boolean syntax: CCS decides the supported closed expression fragment at a required boundary, with no runtime quotation evaluation.
 - **Laws**, evaluated at compile time in a total, terminating, closed-form sub-language: the range law of [Numeric Selection §4](numeric-selection.md), whose bound is an image computation in the outward-rounded interval domain, not a run-time evaluation.
 
 Both readers belong to the compiler. No reader is a library, and no reader reflects over a tree apart from the program graph.

@@ -5,353 +5,163 @@ category: Platform
 status: normative
 ---
 
-> **Status**: Draft
-> **Normative**: Yes
-> **Last Updated**: 2026-01-04
+> **Scope**: Implemented static device-access predicate fragment; extensions are identified below.
+> **Last Updated**: 2026-09-10
 
-## 1. Overview
+## 1. Predicate authority
 
-This chapter specifies the platform predicate system for Fidelity. Platform predicates are abstract propositions that enable conditional compilation without runtime checks, following the F* pattern of erased type-level assumptions.
+A Clef predicate preserves a proposition, its declaration dependencies and its
+standing until a concrete use requires a decision. CCS owns that decision.
+Composer consumes the resulting evidence; it SHALL NOT reinterpret quotations
+or infer hardware capabilities from architecture names.
 
-## 2. Design Principles
+This chapter supersedes the earlier Alex-time capability-resolution design.
+The implemented consumer is static MMIO binding. General capability dispatch,
+runtime mapping guards and program-wide relational proofs are not implemented
+by this fragment.
 
-### 2.1 F* Inspiration
+## 2. Source declaration
 
-F* uses predicates like `fits_u32` and `fits_u64` as abstract propositions:
+Fidelity.Platform.Contracts declares:
 
-```fstar
-(* F* pattern *)
-assume val fits_u32 : bool
-assume val fits_u64 : bool
-
-(* Width is erased - only affects type checking *)
-let platform_word = if fits_u64 then U64 else U32
-```
-
-Fidelity adopts this pattern using F# quotations as the carrier mechanism.
-
-### 2.2 Abstract During Checking, Resolved During Generation
-
-| Phase | Predicate Treatment |
-|-------|---------------------|
-| CCS (Clef Compiler Service) Type Checking | Abstract - values unknown |
-| SemanticGraph | Carried as quotations |
-| Alex Code Generation | Resolved from platform library |
-| MLIR Output | Concrete - dead code eliminated |
-
-## 3. Core Platform Predicates
-
-### 3.1 Word Size Predicates
-
-| Predicate | Type | Meaning |
-|-----------|------|---------|
-| `fits_u32` | `Expr<bool>` | Platform supports 32-bit word operations |
-| `fits_u64` | `Expr<bool>` | Platform supports 64-bit word operations |
-
-**Implication**: `fits_u64 ==> fits_u32`
-
-A 64-bit platform always supports 32-bit operations.
-
-### 3.2 Vector Extension Predicates
-
-| Predicate | Type | Meaning |
-|-----------|------|---------|
-| `has_avx512` | `Expr<bool>` | Platform has AVX-512 vector support |
-| `has_avx2` | `Expr<bool>` | Platform has AVX2 vector support |
-| `has_sse42` | `Expr<bool>` | Platform has SSE4.2 support |
-| `has_neon` | `Expr<bool>` | Platform has NEON vector support (ARM) |
-| `has_sve` | `Expr<bool>` | Platform has SVE vector support (ARM) |
-| `vector_width_max` | `Expr<int>` | Maximum vector width in bits |
-
-**Implications**:
-- `has_avx512 ==> has_avx2`
-- `has_avx2 ==> has_sse42`
-
-### 3.3 Atomics Predicates
-
-| Predicate | Type | Meaning |
-|-----------|------|---------|
-| `has_atomics_32` | `Expr<bool>` | Platform has 32-bit atomic operations |
-| `has_atomics_64` | `Expr<bool>` | Platform has 64-bit atomic operations |
-| `has_atomics_128` | `Expr<bool>` | Platform has 128-bit CAS operations |
-
-### 3.4 Memory Model Predicates
-
-| Predicate | Type | Meaning |
-|-----------|------|---------|
-| `has_cache_coherent` | `Expr<bool>` | Platform has cache coherency |
-| `has_mmio` | `Expr<bool>` | Platform supports memory-mapped I/O |
-| `cache_line_size` | `Expr<int>` | Cache line size in bytes |
-
-### 3.5 Substrate Predicates
-
-Two predicates distinguish a managed substrate (a JavaScript isolate reached through the JSIR pathway) from an instruction-set platform. Platform libraries SHALL define them alongside the predicates of §3.1 through §3.4.
-
-| Predicate | Type | Meaning |
-|-----------|------|---------|
-| `has_shared_memory` | `Expr<bool>` | Concurrent execution contexts can share mutable memory |
-| `exact_int_width` | `Expr<int>` | Widest integer width whose arithmetic the platform's native integer representation carries exactly, without a wide-integer mechanism |
-
-On instruction-set platforms, `has_shared_memory` follows the threading model (true on the desktop and server platforms of §4.1; per target on embedded), and `exact_int_width` is the platform word width. On a JavaScript isolate, `has_shared_memory` is false unless the host enables shared buffers, and `exact_int_width` is 53, the exact-integer envelope of IEEE-754 binary64; widths beyond it require the documented wide-integer realization of [Width Inference §8](width-inference.md).
-
-## 4. Platform Predicate Matrices
-
-### 4.1 Desktop/Server Platforms
-
-| Predicate | Linux_x86_64 | Linux_ARM64 | Windows_x86_64 | MacOS_ARM64 |
-|-----------|--------------|-------------|----------------|-------------|
-| fits_u32 | true | true | true | true |
-| fits_u64 | true | true | true | true |
-| has_avx512 | CPU-dep | false | CPU-dep | false |
-| has_avx2 | true | false | true | false |
-| has_neon | false | true | false | true |
-| has_atomics_64 | true | true | true | true |
-| has_atomics_128 | true | true | true | true |
-
-### 4.2 Embedded Platforms
-
-| Predicate | BareMetal_ARM32 | BareMetal_RISCV32 | BareMetal_Cortex_M0 |
-|-----------|-----------------|-------------------|---------------------|
-| fits_u32 | true | true | true |
-| fits_u64 | false | false | false |
-| has_neon | varies | false | false |
-| has_atomics_32 | varies | varies | false |
-| has_atomics_64 | false | false | false |
-| has_mmio | true | true | true |
-
-### 4.3 Managed-Substrate Platforms (JavaScript Substrate profile)
-
-The column below describes the JavaScript isolate class the JSIR pathway targets ([Backend Lowering Architecture](backend-lowering-architecture.md)). It is one platform class; a concrete platform library documents its own values ([Behavior Classification §2](behavior-classification.md)).
-
-| Predicate | JS_Isolate |
-|-----------|------------|
-| fits_u32 | true |
-| fits_u64 | impl-defined (true where a wide-integer realization is provided; [Width Inference §8](width-inference.md)) |
-| has_avx512 / has_avx2 / has_sse42 / has_neon / has_sve | false |
-| vector_width_max | 0 |
-| has_atomics_32 / has_atomics_64 / has_atomics_128 | false (impl-defined where the host enables shared buffers) |
-| has_cache_coherent | true (vacuous: no observable cache) |
-| has_mmio | false |
-| cache_line_size | 0 (not observable) |
-| has_shared_memory | false (impl-defined where the host enables shared buffers) |
-| exact_int_width | 53 |
-
-## 5. Predicate Declaration in Platform Libraries
-
-### 5.1 Capabilities.fs Structure
-
-```fsharp
-// Fidelity.Platform/Linux_x86_64/Capabilities.fs
-namespace Fidelity.Platform.Linux_x86_64
-
-// `Expr<'T>` is intrinsic ([Expressions, Quoted Expressions](expressions.md)): nothing is opened.
-module Capabilities =
-    // Word size predicates
-    let fits_u32: Expr<bool> = <@ true @>
-    let fits_u64: Expr<bool> = <@ true @>
-    
-    // Vector extension predicates
-    let has_avx512: Expr<bool> = <@ false @>  // CPU-dependent
-    let has_avx2: Expr<bool> = <@ true @>     // Baseline for x86_64
-    let has_sse42: Expr<bool> = <@ true @>
-    let has_neon: Expr<bool> = <@ false @>    // ARM only
-    let vector_width_max: Expr<int> = <@ 256 @>
-    
-    // Atomics predicates
-    let has_atomics_32: Expr<bool> = <@ true @>
-    let has_atomics_64: Expr<bool> = <@ true @>
-    let has_atomics_128: Expr<bool> = <@ true @>
-    
-    // Memory model predicates
-    let has_cache_coherent: Expr<bool> = <@ true @>
-    let has_mmio: Expr<bool> = <@ true @>
-    let cache_line_size: Expr<int> = <@ 64 @>
-```
-
-### 5.2 A Predicate Is a Declared Fact
-
-A predicate's quotation holds a literal (`<@ true @>`, `<@ 64 @>`): the compiler reads it structurally at saturation as a fact of the platform description, and a predicate the description does not declare is never defaulted. A capability that can only be known when the program runs (a CPU feature detected at start-up) is not a predicate: it is an ordinary function the program calls, and the compiler makes no selection on it. A quotation whose body is not a literal is a defect of the declaration, reported at the declaration (CCS8206), never a run-time check generated below the graph.
-
-## 6. Using Predicates in Application Code
-
-### 6.1 Conditional Compilation Pattern
-
-```fsharp
-// Application or library code
-let vectorAdd (a: array<float>) (b: array<float>) : array<float> =
-    if Platform.has_avx512 then
-        vectorAdd_avx512 a b
-    elif Platform.has_avx2 then
-        vectorAdd_avx2 a b
-    elif Platform.has_neon then
-        vectorAdd_neon a b
-    else
-        vectorAdd_scalar a b
-```
-
-### 6.2 Dead Code Elimination
-
-After Alex resolves predicates, unreachable branches are eliminated:
-
-**Before (source):**
-```fsharp
-if Platform.has_avx512 then avx512_impl()
-elif Platform.has_avx2 then avx2_impl()
-else scalar_impl()
-```
-
-**After (on x86_64 without AVX-512):**
-```mlir
-// Only avx2_impl remains
-func.call @vectorAdd_avx2(%a, %b) : (memref<?xf64>, memref<?xf64>) -> memref<?xf64>
-```
-
-Predicate resolution and dead-code elimination run in the portable middle end, so the surviving branch is expressed in a portable dialect (`func`, `memref`). The choice of vector implementation is settled here; the pointer representation of each `array<float>` argument is not, and is realized only in the target pathway selected for the platform.
-
-## 7. Predicate Implications
-
-### 7.1 Implication Rules
-
-The following implications are normatively defined:
-
-```
-fits_u64 ==> fits_u32
-
-has_avx512 ==> has_avx2
-has_avx2 ==> has_sse42
-has_sse42 ==> has_sse2
-
-has_sve2 ==> has_sve
-has_sve ==> has_neon
-
-has_atomics_128 ==> has_atomics_64
-has_atomics_64 ==> has_atomics_32
-```
-
-### 7.2 Implication Usage
-
-CCS may use implications to simplify predicate checking:
-
-```fsharp
-// If fits_u64 is known true, fits_u32 need not be checked
-if checkPredicate "fits_u64" ctx then
-    // fits_u32 is implicitly true
- 
-```
-
-## 8. CCS Handling of Predicates
-
-### 8.1 Abstract Predicate Values
-
-During type checking, predicates are abstract:
-
-```fsharp
-// CCS does NOT know the value of Platform.fits_u64
-// It carries the predicate through unchanged
-type PredicateContext = {
-    Predicates: Map<string, Expr<bool>>
-    Implications: (string * string) list
+```clef
+type ClefPredicate = {
+    Name: string
+    Condition: Expr<bool>
+    Source: string
 }
 ```
 
-### 8.2 Predicate-Dependent Type Checking
+`Condition` SHALL be a typed Clef quotation. A quotation is compile-time syntax
+and has no runtime value ([quoted expressions](expressions.md)). `Source`
+identifies the requirement or provenance; its text is not proof evidence.
 
-Some type validity depends on predicates:
+A relation may refer to immutable declaration values:
 
-```fsharp
-// Using int64 requires fits_u64
-let x: int64 = 100L  // Valid only if fits_u64
- 
-```
-
-CCS may emit warnings/errors for predicate-dependent types on constrained platforms.
-
-## 9. Alex Resolution of Predicates
-
-### 9.1 Quotation Evaluation
-
-Alex evaluates predicate quotations to constant values:
-
-```fsharp
-let resolvePredicate (name: string) (ctx: PlatformContext) : bool =
-    match ctx.Predicates.TryFind name with
-    | Some expr -> evaluateConstBool expr
-    | None -> 
-        // Check implications
-        resolveViaImplications name ctx
-```
-
-### 9.2 Branch Elimination
-
-Resolved predicates enable branch elimination:
-
-```mlir
-// Before predicate resolution
-scf.if %has_avx512 {
-    call @avx512_impl()
-} else {
-    scf.if %has_avx2 {
-        call @avx2_impl()
-    } else {
-        call @scalar_impl()
-    }
+```clef
+let pwmTicks: ClefPredicate = {
+    Name = "whole-pwm-clock-ticks"
+    Condition = <@ pwmInterruptHz > 0 && applicationIclkHz % pwmInterruptHz = 0 @>
+    Source = "Application clock and SysTick plan"
 }
-
-// After resolution (has_avx512=false, has_avx2=true)
-call @avx2_impl()
 ```
 
-## 10. Conformance Requirements
+The identifiers in this example must be declared in scope. The condition checks
+the relationship between those declarations. It does not measure a clock or
+prove the correctness of the code that establishes it.
 
-### 10.1 Platform Library Requirements
+## 3. Implemented expression fragment
 
-1. **MUST** define all core predicates listed in Section 3
-2. **MUST** use F# quotations as the carrier mechanism
-3. **MUST** honor implication rules from Section 7
-4. **SHOULD** document CPU-dependent predicates
+The evaluator supports integer and Boolean literals, immutable references,
+fields of declaration-only records, arithmetic, comparisons, same-kind equality,
+Boolean operators and conditional expressions. Integer arithmetic in this
+fragment is mathematical, with no host-width truncation.
 
-### 10.2 CCS Requirements
+Explicit fixed-width arithmetic, conversions, general function calls, mutable
+bindings and records accessible by runtime code are outside the fragment.
+Division by zero is undecided. A source type error in a dependency SHALL prevent
+a used condition from establishing access, even when the quotation is erased
+from executable reachability.
 
-1. **MUST** carry predicates through SemanticGraph unchanged
-2. **MUST NOT** assume predicate values during type checking
-3. **MAY** use implications for constraint simplification
-4. **MAY** emit warnings for predicate-dependent constructs
+The implementation SHALL retain the declaring node, expression node, dependency
+nodes, source provenance and one of these states:
 
-### 10.3 Alex Requirements
+| State | Meaning at the declared dependencies |
+| --- | --- |
+| Established | The supported relation evaluates to true |
+| Contradicted | The supported relation evaluates to false |
+| Pending | Required information or supported semantics are missing |
 
-1. **MUST** resolve all predicates before MLIR generation
-2. **MUST** eliminate dead code based on resolved predicates
-3. **MUST** use consistent resolution across compilation unit
+Pending SHALL NOT be interpreted as either Boolean value. An unused declaration
+may remain pending. A used binding that needs it SHALL be rejected until it can
+be established; this implementation does not synthesize a runtime guard.
 
-## 11. Error Handling
+## 4. Device access consumer
 
-### 11.1 Unknown Predicate
+Contracts separates `DeviceRegion`, `DeviceRegister`, `DeviceMapping`,
+`DeviceGrant` and `DeviceAccessPlan`. Regions reference the actual BAREWire
+`MemorySpace` declarations in the selected platform. Availability of a register
+SHALL NOT imply a workload grant.
 
-If a predicate is referenced but not defined:
+A selected plan closes raw-address MMIO construction for that workload.
+`Mmio.bind8/16/32 grantName registerName` selects a register within a named grant.
+The names SHALL be immutable static strings; they are erased from executable
+storage. The existing read/write accessors consume the resulting opaque handle.
 
-```
-Error CCS4001: Unknown platform predicate 'has_avx1024'
-```
+Before lowering, CCS SHALL establish:
 
-### 11.2 Predicate Conflict
+- Region containment, mapping/address extent, alignment and granularity.
+- Agreement between the accessor width and declared hardware transaction.
+- Both register and workload permissions for the requested operation.
+- Full unsigned range coverage for a written value.
+- Supported byte order and ordering semantics.
+- The mapping establishment and lifetime requirements of this implementation.
+- Every additional predicate required by the grant.
 
-If predicate values violate implications:
+An additional condition, including `<@ true @>`, SHALL NOT waive these checks.
+Source integers and memory/transaction requirements remain distinct from the
+concrete Pointer width in the platform. Current lowering supports 32-bit and
+64-bit pointers with volatile 8/16/32-bit transactions.
 
-```
-Error CCS4002: Platform defines has_avx512=true but has_avx2=false
-               (has_avx512 implies has_avx2)
-```
+Only nonzero static bases and image-lifetime mappings are currently lowered.
+`reset-identity` requires equal region/mapping bases and address-space names.
+`boot-contract` admits a CPU-visible placement supplied by an external boot
+contract. A missing base, runtime establishment or scoped lifetime remains
+pending when used. Unused declarations may retain these requirements or
+transaction widths for which no accessor has yet been implemented.
 
-### 11.3 Missing Platform Definition
+## 5. Evidence and trust boundary
 
-If platform library lacks required predicates:
+CCS stores per-site `MmioAccessEvidence` in graph codata, including the resolved
+address, transaction, grant/declaration identities and predicate evidence.
+Composer lowers this established information. With intermediates enabled, it
+serializes the evidence to `device-access.json`.
 
-```
-Error CCS4003: Platform library missing required predicate 'fits_u32'
-```
+Hardware documentation and boot mapping assertions SHALL be recorded separately
+as external premises. Arithmetic does not prove physical wiring, page tables,
+memory attributes, DMA visibility or lifetime of an external mapping. Grants
+also do not themselves establish MPU/MMU/TrustZone isolation. Assembly and
+foreign code remain explicit trust boundaries.
 
-## 12. Related Specifications
+The current closed-expression checks are compiler evidence, not an SMT solver
+certificate. Existing typed `ObligationBody` families and their proof dispatch
+remain separate mechanisms. A future symbolic or runtime extension must connect
+its evidence to the actual operation and its scope before claiming support.
 
-- [ntu-types.md](ntu-types.md) - NTU type nomenclature
-- [platform-bindings.md](platform-bindings.md) - Platform binding architecture
-- [native-type-universe.md](native-type-universe.md) - Complete type universe
+## 6. Capability declarations and remaining design work
+
+The legacy `PlatformPredicate` union and Boolean `PlatformContext.Predicates`
+map are retained in CCS, but no general resolver/consumer populates that map.
+Literal Ariel capability quotations do not by themselves implement automatic
+pthread selection or conditional compilation.
+
+Future capability consumers must distinguish instruction availability, numeric
+representation, concurrency support and deployment permission. Neither a
+64-bit word size nor an architecture name establishes vector extensions,
+atomicity, cache behavior or access to a particular device.
+
+Managed-substrate requirements such as shared-memory availability and the exact
+integer envelope remain relevant to [width inference](width-inference.md) and
+[behavior classification](behavior-classification.md). They need a concrete
+host/platform declaration and consumer. This fragment does not enforce a
+universal capability list or the old cross-architecture implication matrices.
+
+## 7. Diagnostics
+
+| Code | Meaning |
+| --- | --- |
+| CCS8209 | Malformed, inconsistent or ambiguous device-access declaration/selection |
+| CCS8210 | A used MMIO operation lacks established access evidence, including a required false/pending predicate |
+
+Ordinary source type errors retain their original diagnostics. CCS8210 may also
+identify a source declaration error that would otherwise be hidden by erased
+reachability. CCS8066 continues to reject quotations used as runtime values.
+The diagnostic registry is [error handling](error-handling.md).
+
+## 8. Implementation references
+
+- [Contracts and acceptance scope](../../Fidelity.Platform/docs/MMIO_CONTRACTS.md).
+- [Predicate evaluator](../../clef/src/Compiler/PSGSaturation/SemanticGraph/Predicates.fs).
+- [Device-access settlement](../../clef/src/Compiler/PSGSaturation/SemanticGraph/DeviceAccess.fs).
+- [Composer F# regression runner](../../Composer/tests/DeviceAccess/Program.fs).
+- [Platform bindings](platform-bindings.md) and [numeric types](ntu-types.md).

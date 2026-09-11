@@ -525,7 +525,7 @@ The record vocabulary of `PlatformDescriptor` presumes an instruction-set target
 3. the host API surface that bindings are generated against, and its version ([JavaScript Boundary Semantics §7](javascript-boundary.md)); and
 4. the wide-integer realization ([Width Inference §8](width-inference.md)).
 
-The substrate predicates of [Platform Predicates §3.5 and §4.3](platform-predicates.md) are resolved from this descriptor the same way the instruction-set predicates are resolved from `PlatformDescriptor`.
+The managed-substrate capability requirements discussed in [Platform Predicates §6](platform-predicates.md) require a consumer of these descriptor facts. The implemented static MMIO predicate fragment does not resolve managed-substrate capabilities or provide general instruction-set capability dispatch.
 
 > **Not yet specified.** The concrete record shape of the managed-substrate descriptor.
 

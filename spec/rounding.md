@@ -106,7 +106,7 @@ An intended loss is written as arithmetic, `x % 2^n`, `clamp lo hi x`, `floor`, 
 
 ## 7. Capability and Design-Time Surfacing
 
-**[Design decision.]** A target's support for a required rounding mode is **three-valued** — *native*, *emulated*, or *unavailable* — the same capability gate [Numeric Selection §7](numeric-selection.md) applies to representations, applied here to rounding modes. The per-target *support facts* it ranges over are the boolean platform predicates of [Platform Predicates](platform-predicates.md); the three-valued gate is built over them, it is not their pattern. The rule, not the per-target realization, is normative here:
+**[Design decision.]** A target's support for a required rounding mode is **three-valued** — *native*, *emulated*, or *unavailable* — the same capability gate [Numeric Selection §7](numeric-selection.md) applies to representations, applied here to rounding modes. The per-target support facts require their own declaration and consumer; the implemented static MMIO fragment of [Platform Predicates](platform-predicates.md) does not supply a rounding-capability resolver. The rule, not the per-target realization, is normative here:
 
 - A rounding mode a target supports in hardware is *native*.
 - A rounding mode a target can realize only by additional work (a CPU switching its global rounding-mode register between operations; a posit interval synthesized by ULP widening, §4.2) is *emulated*, and its cost MAY raise a design-time diagnostic under an emulation-warning policy.
