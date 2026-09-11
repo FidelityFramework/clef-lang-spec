@@ -39,7 +39,7 @@ The dependency direction is part of the contract's purpose. Prospero's supervisi
 
 An actor that is ready SHALL be dispatched within a finite number of scheduling events. The bound MAY vary with load and with implementation profile, and it SHALL exist in every execution.
 
-This clause is the premise the liveness results would utilize. The rank witness of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md) establishes that the wait-for relation is acyclic for the resolvable fragment. Acyclicity rules out the cycle. Fairness completes the argument: given an acyclic wait-for relation, every awaited reply is eventually dispatched.
+This clause supplies a dispatch premise for liveness results. The rank witness of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md) establishes that the wait-for relation is acyclic for the resolvable fragment. Acyclicity rules out cycles; fairness ensures dispatch of ready actors. A claim that an awaited reply eventually arrives SHALL additionally identify the required turn-progress, delivery, and external-completion premises. Fairness SHALL NOT be used to infer successful completion of an unavailable or failed external operation.
 
 ## 4. Turn Discipline
 
@@ -77,8 +77,12 @@ Each implementation SHALL publish an assumption manifest partitioning the clause
 | MicroVM | §4, §5, §6 | vCPU progress and timer delivery against a quota named in the deployment specification |
 | Container | §4, §5, §6 | carrier-thread progress against a budget that is observable rather than declared |
 | Hosted (OS process, .NET fallback) | §4 as observed atomicity, §5, §6 per manifest | fairness of the substrate scheduler in full |
-| Isolate (managed JavaScript substrate, JSIR pathway) | §6 per manifest | §3 fairness and §4 turn atomicity from the single-threaded host event loop; §5 per manifest, with control-plane actions sharing the host's event loop and execution budgets |
+| Isolate (managed JavaScript substrate, JSIR pathway) | §4 actor-turn discipline through the adapter, §6 per manifest | Host callback serialization; §3 fairness and turn progress under explicitly named host assumptions; §5 per manifest, with control-plane actions sharing the host's event loop and execution budgets |
 | Simulated | §3 through §6 by construction over scripted sources | nothing |
+
+An isolate implementation SHALL NOT infer fairness or whole-handler atomicity solely from single-threaded JavaScript execution. Suspension ends a turn (§2); resumption SHALL preserve actor exclusivity and the validity conditions of facts used by that continuation. Host callback reentrancy and completion delivery SHALL follow the declared adapter contract. The assumption manifest SHALL distinguish host termination on budget exhaustion from a locally dispatched supervision action; a callback that does not yield cannot be assumed to admit another callback for supervision.
+
+For a platform-supplied isolate execution model, the implementation MAY realize this contract through existing host facilities; this contract does not require a separate scheduler. The manifest SHALL distinguish host-provided dispatch from application-defined orchestration expressed through supported host APIs. In the Cloudflare realization, execution and dispatch remain platform-provided; generated bindings and orchestration do not introduce an independent Ariel dispatch implementation. A required property unsupported by the host SHALL be reported rather than attributed to an unimplemented scheduling mechanism.
 
 > **Clef Note**: The determinism clause admits dispatch disciplines beyond mailbox order. A stabilization pass over the demanded, dirty fragment of a dependency graph, dispatched in dependency order, is a conforming implementation of this contract for the cold, pull-based side of the concurrency model. [Incremental Computation](incremental-computation.md) already places demand registration for actor-based nodes with the supervisor, and demand refines *ready*: an actor whose behavior is effect-free and whose outputs no consumer observes need not be dispatched at all.
 
