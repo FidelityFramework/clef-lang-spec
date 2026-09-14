@@ -235,6 +235,7 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8090 | Error | Internal invariant violated in the compiler service (reported, never swallowed) |
 | CCS8091 | Warning | A nullable annotation is ignored; native types are null-free by design |
 | CCS8092 | Warning | Type arguments applied to a value that is not a type scheme |
+| CCS8096 | Error | Invalid closed callback adapter declaration or application: factory/adapter are not unique immutable module functions, the factory body is not the exact zeroed placeholder, the native listener ABI is missing or incompatible, a handler is not a known closed module function, an adapter captures its handler in a nested closure, or a declared factory escapes without static specialization |
 | CCS8100 | Error | Region mismatch ([Memory Regions](memory-regions.md)) |
 | CCS8101 | Error | Lifetime error |
 | CCS8102 | Error | A reference escapes its region |
