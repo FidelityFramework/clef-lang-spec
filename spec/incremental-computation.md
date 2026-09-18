@@ -7,11 +7,11 @@ status: normative
 
 > **Normative specification for the `Incremental<'T>` intrinsic type, dependency-tracked change propagation, and target-specific stabilization lowering in Clef compilation.**
 
-> **Acknowledgment**: The design of `Incremental<'T>` takes direct inspiration from the elegant adaptive-computation model of **FSharp.Data.Adaptive** (the `aval`/`cval`/`aset` families and their change-propagation and cutoff semantics), as well as from Jane Street's `Incremental`. Clef adopts that model — demand-driven recomputation, automatic cutoff, and dependency tracking expressed through computation expressions — while relocating it from a runtime-resident dependency graph into a compile-time intrinsic the [Program Semantic Graph](program-semantic-graph.md) preserves through lowering. The credit is to the model's design; the departure is only in where it lives.
+> **Acknowledgment**: The design of `Incremental<'T>` takes direct inspiration from the adaptive-computation model of **FSharp.Data.Adaptive** (the `aval`/`cval`/`aset` families and their change-propagation and cutoff semantics), as well as from Jane Street's `Incremental`. The framework's cold-first posture also draws on Jimmy Byrd's [IcedTasks](https://github.com/TheAngryByrd/IcedTasks): deferred, explicitly started work is a foundational influence, distinct from the caching and invalidation supplied by `Incremental`. Clef adopts demand-driven recomputation, cutoff and dependency tracking as compiler-known semantics that the [Program Semantic Graph](program-semantic-graph.md) preserves through lowering. Computation expressions and the [Reactive Signals](reactive-signals.md) surface express that model. Compiler visibility permits static specialization; it does not eliminate the state or dynamic instances required by the program.
 
 ## 1. Overview
 
-Clef implements `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Unlike the library-level incremental computation found in systems such as Jane Street's `Incremental` for OCaml, `Incremental<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the Program Semantic Graph preserves through lowering, enabling Composer to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware.
+Clef specifies `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Its reactive plan is preserved in the Program Semantic Graph through lowering, enabling Composer to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware. Cached values, invalidation state and dynamically selected graph instances remain runtime facts, realized by the selected target rather than erased by intrinsic status.
 
 `Incremental<'T>` occupies a specific position in a spectrum of evaluation strategies that the compiler understands natively:
 
@@ -24,7 +24,7 @@ Clef implements `Incremental<'T>` as a compiler-known intrinsic type for depende
 | Cutoff (change detection) | No | No | No | Yes |
 | Propagation bound | Unbounded | N/A | N/A | Bounded by cutoff |
 
-Each position to the right provides the compiler with more information during lowering. An `Observable<'T>` is opaque: the compiler must assume every emission matters. An `Incremental<'T>` is transparent: the compiler knows the dependency graph, can reason about which downstream nodes are affected by a change, and can prove that unaffected subgraphs produce identical results. The proof obligation discharges by environment closedness: a recompute function is a flat closure that reads only its enumerated captures, those captures are exactly its tracked dependencies, and a node whose enumerated inputs are unchanged therefore cannot observe a change, so suppressing its recomputation is observationally sound ([Closure Representation §5](closure-representation.md#5-representation-properties)).
+Each position to the right provides the compiler with more information during lowering. An `Observable<'T>` is opaque: the compiler must assume every emission matters. An `Incremental<'T>` exposes dependency and cutoff semantics that let the compiler reason about selective recomputation. Suppressing recomputation requires establishing that every relevant observation is unchanged and that skipping the body omits no required effect. Read/effect analysis supplies that obligation, including behavior reached through calls and captured references. A flat environment enumerates captures, not necessarily active reads; environment layout alone does not prove dependency completeness or purity ([Closure Representation §2.2](closure-representation.md#22-capture-semantics)).
 
 ### 1.1 Relationship to Lazy Values
 
@@ -32,25 +32,27 @@ Each position to the right provides the compiler with more information during lo
 
 ### 1.2 Relationship to Actors
 
-In the Olivier/Prospero actor system, each `Incremental<'T>` node corresponds structurally to an actor:
+The following structural correspondence can inform integration with the Olivier/Prospero actor system. It is not a one-to-one runtime mapping:
 
 | Incremental Concept | Actor Concept |
 |---|---|
 | Cached value | Actor state in arena memory |
-| Recompute function | Actor receive handler |
-| Dependency edges | Message channels (BAREWire) |
-| Staleness flag | Incoming message differs from last processed |
+| Recompute function | Computation within an actor turn |
+| Dependency edges | Local data dependencies; BAREWire channels across admitted actor boundaries |
+| Staleness flag | Invalidated actor-owned cached state |
 | Cutoff predicate | Structural comparison on output |
-| Demand registration | Prospero supervision |
-| Stabilization order | Actor scheduling waves |
+| Demand registration | Local observation demand, integrated with Prospero for actor-owned nodes |
+| Stabilization order | Dependency-ordered local work within actor dispatch |
 
-An `Incremental<'T>` node's lifetime is the enclosing actor's lifetime. When Prospero retires an actor, the node, its cached value, and its dependency edges are deterministically freed with the arena. No garbage collection is involved.
+An actor may own many incremental nodes that stabilize locally without a mailbox or actor per node. A node's lifetime is bounded by its owning actor or region; actor retirement disposes the remaining owned graph. Native cached storage follows that region's reclamation rules. Non-actor contexts are also admitted (§6.3).
+
+Actor message ordering and admission do not by themselves establish consistent dependency-ordered recomputation. Local stabilization must preserve §6. A cross-actor or cross-process edge additionally needs a delivery and consistency contract; mailbox coalescing is not equivalent to a local batch. This chapter does not specify a distributed stabilization protocol.
 
 ### 1.3 Rationale for Intrinsic Status
 
 The ingredients for incremental computation exist across F#'s existing type system: `Lazy<'T>` provides caching, structural equality provides change detection, computation expressions provide dependency tracking via `let!` bindings, and interaction nets provide bounded propagation. These could be composed at the library level.
 
-However, library-level composition prevents the compiler from reasoning about the incremental graph during lowering. When `Incremental<'T>` is intrinsic, the compiler can:
+Library composition alone does not establish compiler-visible dependency, cutoff or stabilization semantics. Intrinsic status gives the compiler a stable semantic contract under which it can:
 
 1. Determine dependency graph structure statically for applicative subgraphs
 2. Infer cutoff functions from type equality semantics
@@ -106,12 +108,12 @@ type NativeType =
 
 ### 3.1 Logical Fields
 
-Each `Incremental<'T>` node in the PSG carries the following logical fields. These are not runtime struct fields in the traditional sense; they are PSG annotations that lower differently per target.
+Each `Incremental<'T>` construct in the PSG describes the following logical fields. The compiler plan identifies their meaning and lowering; runtime instances hold the values and active state needed by that plan. One construct may produce multiple instances. These fields do not prescribe one uniform runtime struct across targets.
 
 | Field | Type | Semantics |
 |-------|------|-----------|
 | `value` | `'T` | Cached result of the most recent computation |
-| `stale` | `bool` | Whether any dependency has changed since last computation |
+| `stale` | `bool` | Whether the cached value needs validation after possible input change |
 | `height` | `int` | Topological depth in the dependency DAG; determines evaluation order |
 | `dependencies` | `NodeId list` | PSG nodes this node reads from |
 | `dependents` | `NodeId list` | PSG nodes that read from this node |
@@ -120,15 +122,17 @@ Each `Incremental<'T>` node in the PSG carries the following logical fields. The
 
 ### 3.2 Arena Allocation
 
-In an actor context, the cached value is allocated in the enclosing actor's arena. The lifetime of the cache equals the lifetime of the actor. This connects directly to the lifetime inference model specified in [Memory Regions](memory-regions.md):
+In a native actor context, the cached value is placed in storage owned by the enclosing actor or an admitted shorter-lived region. Its lifetime must cover use across stabilization cycles; it need not equal the whole actor lifetime. This connects directly to the lifetime inference model specified in [Memory Regions](memory-regions.md):
 
-- **Level 1 (inferred):** The compiler determines that the cached value persists across stabilization cycles, therefore its lifetime exceeds a single message, therefore it resides in the actor's arena.
+- **Level 1 (inferred):** The compiler determines that the cached value persists across stabilization cycles and chooses storage that covers its inferred lifetime, such as the actor's arena when that lifetime is appropriate.
 - **Level 2 (bounded):** The developer marks a computation as incremental via the CE; the compiler infers arena placement.
 - **Level 3 (explicit):** The developer specifies arena placement directly.
 
+> **[Not yet specified]** Detailed reclamation of replaced dynamic subgraphs and the required lifetime orderings remain open. A bump arena reclaimed only at actor retirement does not establish bounded storage for arbitrarily repeated replacement. The JavaScript pathway uses host-managed storage under [Memory Regions' target reachability rules](memory-regions.md#target-reachability), while preserving logical disposal.
+
 ### 3.3 Memory Layout on CPU Target
 
-On CPU targets, an incremental node with element type `T` and `N` captured dependencies materializes as the struct below. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
+On CPU targets, an incremental node with element type `T` and `N` tracked dependencies can materialize with the fields below. This is a layout sketch, not a complete specification of dynamic dependency or invalidation bookkeeping. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
 
 ```
 IncrementalNode<T> with dependencies [d₁: T₁, ..., dₙ: Tₙ]
@@ -182,6 +186,8 @@ incremental {
 
 The compiler infers the category from the CE desugaring. `let!` followed by usage that does not influence subsequent `let!` bindings is applicative. `let!` whose result determines which subsequent `let!` executes is monadic.
 
+The same classification applies to tracked reads expressed through the Signals surface; CE syntax is not a requirement for static analysis or parallel realization. The PSG carries a dependency plan, including dynamic selection operations. Runtime instances retain active edges and identity where those depend on values unavailable at compile time. Analysis SHALL account for relevant helper calls, aliases and aggregate access; lexical capture enumeration alone is insufficient. Unsupported dependency behavior SHALL be diagnosed rather than silently approximated as a fixed read set.
+
 ### 4.2 Height Assignment
 
 Each node is assigned a height equal to the longest path from any leaf input to that node:
@@ -209,7 +215,7 @@ Staleness propagation is conservative: a node marked stale may not actually need
 
 ### 5.2 Cutoff Semantics
 
-The cutoff predicate determines whether a recomputed value differs from the cached value. If the cutoff returns `true` (values are equal), propagation stops at that node; its dependents are not marked stale.
+The cutoff predicate determines whether a recomputed value differs from the cached value. If the cutoff returns `true` (values are equal under that predicate), no output change propagates from that node. A dependent conservatively marked stale under §5.1 may still need validation because another dependency changed. Cutoff SHALL NOT erase an independent invalidation.
 
 **Default cutoff:** Structural equality derived from the `'T : equality` constraint. For records and discriminated unions, the compiler generates field-by-field comparison. For primitive types, hardware-native equality instructions are used.
 
@@ -243,21 +249,21 @@ let badCutoff (a: float<celsius>) (b: float<fahrenheit>) = abs(a - b) < 0.01  //
 
 ### 6.1 Algorithm
 
-Stabilization is the process of bringing all demanded incremental nodes up to date. The algorithm proceeds as follows:
+Stabilization brings the demanded incremental graph up to date in dependency order. Conservative staleness identifies candidates; it does not prove that every candidate's inputs changed. A conforming algorithm SHALL preserve the following discipline:
 
-1. Collect all stale nodes whose outputs are demanded by at least one observer.
-2. Sort by height (ascending). This produces a topological ordering.
-3. For each node in height order:
-   a. Recompute the node's value from its current dependencies.
-   b. Compare the new value against the cached value using the cutoff predicate.
-   c. If the cutoff returns `true` (unchanged): clear the stale flag, retain the cached value, and remove all dependents from the stale set.
-   d. If the cutoff returns `false` (changed): update the cached value, clear the stale flag, and leave dependents in the stale set for processing at their respective heights.
+1. Collect the demanded stale fragment, including dependencies needed to validate it.
+2. Process it in dependency order, using heights and maintaining that order when active dynamic dependencies change.
+3. For a node with an existing cache, reuse that cache only when every relevant input has been validated unchanged and no other invalidation requires recomputation. Otherwise, recompute from current dependencies and compare the result with the cache using its cutoff predicate. A node without a cache requires initial computation.
+4. If cutoff reports unchanged, retain the cached value and clear this node's stale state. Suppress output-change propagation from this node only; do not clear another node's unresolved invalidations.
+5. If the output changed, update the cache, clear this node's stale state and preserve the affected demanded dependents for validation at their dependency order.
 
-Step 3c is the critical optimization. It implements bounded propagation: when a node's output is unchanged despite changed inputs, the entire downstream subgraph is skipped.
+For example, let `A = X % 2`, `B = Y`, and `C = A + B`. A batch that changes `X` from 0 to 2 and `Y` from 0 to 1 leaves `A` unchanged but changes `B` and `C`. Cutoff at `A` must not remove `C` from the work required by `B`. A downstream subgraph may be skipped only when all relevant paths justify reuse, not merely because one incoming path reached cutoff.
+
+Implementations may use input versions, invalidation causes or an equivalent discipline; this chapter does not prescribe that bookkeeping representation. Cutoff reduces work where outputs remain unchanged; it does not by itself provide a fixed bound on the size or execution time of an arbitrary graph.
 
 ### 6.2 Stabilization Scope
 
-The compiler inserts stabilization at semantically appropriate boundaries, determined by context:
+The compiler inserts stabilization at context-specific boundaries. The following table records the intended integration points, not a complete timing contract:
 
 | Context | Stabilization Boundary |
 |---|---|
@@ -268,9 +274,11 @@ The compiler inserts stabilization at semantically appropriate boundaries, deter
 
 The developer does not call `stabilize()` manually. The compiler determines insertion points from the enclosing computation context.
 
+> **[Not yet specified]** Reads of derived values after writes and within a batch, nested batches, initial effect timing, ordering among effects, writes during effects, reentrancy, asynchronous suspension and failure behavior require a complete observable contract. Logical stabilization and frame presentation are distinct; the rendering row does not settle when an imperative read becomes current. An adapter to another reactive system must establish its supported behavior rather than infer parity from this table.
+
 ### 6.3 Demand Registration
 
-An `Incremental<'T>` node that no downstream consumer observes does not participate in stabilization, even if its inputs are stale. Prospero manages demand registration for actor-based nodes. For non-actor contexts, the compiler tracks demand statically through the PSG.
+An `Incremental<'T>` node that no downstream consumer observes does not participate in stabilization, even if its inputs are stale. Prospero manages demand registration for actor-based nodes. For non-actor contexts, the compiler derives demand from the PSG plan, with runtime state where observation depends on dynamic instances or lifetimes.
 
 ## 7. Computation Expression
 
@@ -322,6 +330,8 @@ This distinction determines whether the lowered code uses static dispatch (appli
 ### 8.1 CPU Target
 
 On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values. The `llvm.*` operations below are the CPU/MCU target pathway, not what the portable middle end emits. The middle end forms the stabilization control flow in portable dialects only (the staleness branch as `scf`/`cf`, the node struct and its fields as `memref` load and store), commits to no target, and hands that form to a target pathway. The LLVM pathway shown here is one such target commitment; the NPU pathway (§8.2) and GPU pathway (§8.3) realize the same portable form differently. Read the block below as the LLVM pathway's output after that commitment, not as middle-end output.
+
+This sketch shows the recompute/cutoff step for a node already selected for processing. It omits the dependency-validation bookkeeping required by §6.1 and is not a complete stabilization algorithm.
 
 ```mlir
 // Stabilization check for a single node
@@ -388,7 +398,7 @@ Height 2 tiles: Activated when height 1 outputs land in ObjectFIFO
 ...
 ```
 
-Cutoff at any tile means its output ObjectFIFO is not written, so downstream tiles (at height + 1) see no new data in their input FIFOs and remain idle.
+Cutoff at a tile suppresses its output update. A downstream tile still needs evaluation when another input changed; the realization must preserve the cached input or equivalent availability information for the unchanged path. Absence of a new ObjectFIFO write alone is not sufficient to decide that a join remains idle. The target-specific synchronization details are **[Not yet specified]**.
 
 ### 8.3 GPU Target (RDNA)
 
@@ -496,17 +506,23 @@ These are resolved by the standard coeffect resolution pipeline specified in [In
 
 ### 11.1 Incremental + Lifetime Inference
 
-An `Incremental<'T>` node's cached value persists across stabilization cycles. Level 1 lifetime inference detects this: the value is used after the recompute function returns, therefore it escapes the call frame, therefore it is allocated in the enclosing actor's arena.
+An `Incremental<'T>` node's cached value persists across stabilization cycles. Lifetime analysis therefore requires storage that outlives a single recompute call. In a native actor context this can be the owning actor's arena or an admitted shorter-lived region (§3.2); escaping the call frame alone does not establish that the cache must live until actor termination.
 
 ### 11.2 Incremental + UMX / DTS
 
 Dimensional types on `Incremental<float<meters/seconds>>` constrain the cutoff function. The DTS verifies that comparison operands in the cutoff share compatible units. It also constrains cross-node connections: a dependency edge from `Incremental<float<celsius>>` to a node expecting `float<fahrenheit>` is a compile-time error.
 
-### 11.3 Incremental + Observable (Rx)
+<a id="113-incremental--observable-rx"></a>
+<a id="incremental--observable"></a>
 
-An `Observable<'T>` feeding into an `Incremental<'T>` is a common pattern: an event source drives a cached derived computation. Because both are intrinsic, the compiler fuses the observable subscription directly into the incremental node's invalidation trigger, eliminating the intermediate allocation and callback indirection that a library-level bridge would require. The `Memo<'T>` of the Reactive Signals surface API (see [Reactive Signals](reactive-signals.md)) desugars to an `Incremental<'T>` node in exactly this way.
+### 11.3 Incremental + Observable
 
-### 11.4 Incremental + Cold (Frosty)
+An `Observable<'T>` feeding into an `Incremental<'T>` is a common pattern: an event source drives a cached derived computation. Because both are intrinsic, the compiler can fuse the observable subscription into the incremental node's invalidation trigger without a mandatory separate bridge allocation. Fusion must preserve required event delivery and effects; marking a cache stale does not itself authorize dropping or coalescing emissions. The `Memo<'T>` of the [Reactive Signals](reactive-signals.md) surface desugars to an `Incremental<'T>`; its dependencies may include settable sources and other incremental nodes, without requiring an observable bridge for every memo.
+
+<a id="114-incremental--cold-frosty"></a>
+<a id="incremental--cold"></a>
+
+### 11.4 Incremental + Cold
 
 A `Cold<Incremental<'T>>` represents a deferred incremental subgraph. The subgraph is not constructed (and no dependencies are registered) until the cold value is forced. On NPU targets, this means DMA descriptors are configured but not activated until demand arrives.
 
@@ -567,7 +583,7 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 | `Incremental.set_cutoff` | Inferred from type equality semantics or `[<IncrementalCutoff>]` attribute |
 | `Incremental.bind` / `Incremental.map` | `let!` and `return` in incremental CE; desugars to PSG edges |
 | `Incremental.Observer` | Prospero demand registration for actor nodes |
-| Manual graph construction | PSG is the graph; compiler builds it from code structure |
+| Manual graph construction | Compiler derives the PSG reactive plan and realizes static or dynamic instances |
 | Manual height computation | Compiler assigns heights statically for applicative subgraphs |
 
 ## 14. Implementation in the CCS/Composer Pipeline
@@ -616,15 +632,16 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 
 1. **Intrinsic Status**: `Incremental<'T>` SHALL be a compiler-known intrinsic type, not a library type.
 2. **Equality Constraint**: The element type `'T` SHALL satisfy the `equality` constraint. Types without equality SHALL be rejected at compile time.
-3. **No Heap Allocation**: Incremental nodes SHALL NOT be allocated on a GC-managed heap. Cached values SHALL reside in arena memory.
+3. **Native Storage**: On native targets, incremental nodes SHALL NOT be allocated on a GC-managed heap; cached values SHALL use storage covering their inferred region lifetime. The JavaScript pathway uses host-managed storage under the target rules of [Memory Regions](memory-regions.md#target-reachability).
 4. **Cutoff Default**: When no custom cutoff is specified, structural equality on `'T` SHALL be the default cutoff predicate.
 5. **Staleness Transitivity**: Staleness propagation SHALL be transitive through all dependency edges.
 6. **Height Ordering**: Stabilization SHALL process nodes in ascending height order.
-7. **Cutoff Termination**: When cutoff determines a value is unchanged, propagation to dependents SHALL stop.
+7. **Cutoff Termination**: When cutoff determines a value is unchanged, propagation attributable to that output change SHALL stop. Independent invalidations of shared dependents SHALL be preserved (§6.1).
 8. **Demand Gating**: Nodes with no downstream observers SHALL NOT participate in stabilization.
-9. **Deterministic Cleanup**: Node lifetime SHALL be tied to the enclosing actor or arena lifetime, with deterministic deallocation.
+9. **Deterministic Cleanup**: Node lifetime SHALL be bounded by its owning actor or region, with deterministic logical disposal. Native storage reclamation SHALL follow the owning region's lifetime; JavaScript storage reclamation remains host-managed.
 10. **Applicative Detection**: The compiler SHALL detect applicative subgraph structure from CE desugaring and generate static dispatch configurations where applicable.
 11. **Target Fidelity**: Hardware target annotations via measure types SHALL survive through the PSG to code generation without erasure.
+12. **Dependency Completeness**: Reuse of a cached computation SHALL be justified by its relevant reads and effects, not by lexical capture identity alone. Static specialization and supported dynamic realization SHALL preserve that dependency plan; unsupported behavior SHALL be diagnosed.
 
 ## References
 

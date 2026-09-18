@@ -9,7 +9,9 @@ status: normative
 
 ## 1. Overview
 
-Clef implements `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Unlike a library reactive framework layered on a managed runtime (such as .NET's `IObservable<'T>`/`IObserver<'T>` with `Subject` plumbing), `Observable<'T>` in Fidelity is not a runtime abstraction. It is a compile-time annotation that the [Program Semantic Graph](program-semantic-graph.md) preserves through lowering, enabling the compiler to place observer state in arena memory and to fuse an observable directly into the demand-driven computation it feeds.
+Clef specifies `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Its subscription and delivery plan is preserved in the [Program Semantic Graph](program-semantic-graph.md) through lowering. Active subscriptions, observer closures and dynamically created sources remain runtime instances with owned state. The compiler can specialize their representation and fuse an observable into the demand-driven computation it feeds; intrinsic status does not eliminate that runtime state or require a separate reactive package.
+
+This chapter specifies the intended semantics and lowering contracts. Its representation and lowering sketches are not evidence that each target pathway is implemented.
 
 `Observable<'T>` occupies the push pole of the spectrum of evaluation strategies that the compiler understands natively (the same spectrum specified in [Incremental Computation §1](incremental-computation.md)):
 
@@ -38,7 +40,7 @@ let fused        : Incremental<Decision> =
     }
 ```
 
-Because both are intrinsic, the compiler fuses the observable subscription directly into the incremental node's invalidation trigger, eliminating the intermediate allocation and callback indirection a library bridge would require (see [Incremental Computation §11.3](incremental-computation.md)). The observable supplies *change events*; the incremental supplies *bounded, cached recomputation* in response.
+Because both are intrinsic, the compiler can fuse the observable subscription directly into the incremental node's invalidation trigger, avoiding a separate bridge representation where the semantics permit (see [Incremental + Observable](incremental-computation.md#incremental--observable)). The observable supplies *change events*; the incremental supplies *bounded, cached recomputation* in response. Fusion must preserve required event delivery and effects; merely marking a cache stale does not establish that multiple emissions may be discarded.
 
 The developer-facing `Signal`/`Memo`/`Effect` surface (see [Reactive Signals](reactive-signals.md)) is built on this pair: a `Signal` is a settable source, a `Memo` is an `Incremental`, and an `Effect` is a demanded sink.
 
@@ -50,29 +52,31 @@ The delimited-continuation substrate underlying `MailboxProcessor<'Msg>` and `In
 
 ### 1.3 Relationship to Actors
 
-In the Olivier/Prospero actor system, an `Observable<'T>` corresponds structurally to a producing actor and its supervised subscribers:
+The following structural correspondence can inform integration with the Olivier/Prospero actor system. It is not a one-to-one runtime mapping:
 
 | Observable Concept | Actor Concept |
 |---|---|
-| Producer / source | Actor emitting messages |
-| Observer (registered continuation) | Subscribing actor's receive handler |
-| Subscription | Supervised link (Prospero) |
-| Emission | Message send (BAREWire channel) |
-| Subscription lifetime | Supervised link lifetime |
-| Unsubscribe / teardown | Arena release on link retirement |
+| Producer / source | Event source within an actor, or an actor emitting messages |
+| Observer (registered continuation) | Local continuation; receive handler when delivered across actors |
+| Subscription | Local registration; supervised link where actor integration requires it |
+| Emission | Local continuation dispatch; message send across admitted actor boundaries |
+| Subscription lifetime | Bounded by its owner; may end before that owner retires |
+| Unsubscribe / teardown | Logical registration removal, followed by safe resource reclamation |
 
-An observer's lifetime is the lifetime of its subscription. When Prospero retires the subscribing link, the observer closure and its captured state are deterministically freed with the arena. No garbage collection is involved, and no `Dispose` call is required.
+An owner may contain many sources and subscriptions without an actor or mailbox per observer. Non-actor ownership is also admitted. Owner retirement releases remaining subscriptions, but an individual subscription may end earlier. Logical unsubscribe is distinct from reclaiming closure storage or shared captured resources; native regions and JavaScript-managed storage realize that lifetime differently (§3.2).
+
+Local delivery follows §4.2. Actor message admission adds a delivery boundary; it does not itself establish a shared synchronous clock or distributed incremental stabilization. Cross-actor ordering and failure handling require an explicit protocol.
 
 ### 1.4 Rationale for Intrinsic Status
 
 The ingredients for reactive observation exist at the library level: a callback is a function, a subscriber list is a collection, and `MailboxProcessor<'Msg>` provides message delivery. These could be composed without compiler knowledge.
 
-However, library-level composition forces observer closures onto a managed heap and inserts callback indirection that the compiler cannot see through. When `Observable<'T>` is intrinsic, the compiler can:
+Library composition alone does not establish compiler-visible subscription, lifetime or fusion semantics. It does not inherently require a managed heap. Intrinsic status gives the compiler a stable semantic contract under which it can:
 
-1. Place observer closures in the subscriber's arena, with subscription-scoped lifetime.
-2. Fuse an observable into an `Incremental<'T>` invalidation trigger, removing the bridge allocation.
-3. Lower emission as a direct flat-closure dispatch rather than a virtual `IObserver` call.
-4. Track subscription lifetime through region inference, so unsubscribe is deterministic rather than finalizer-driven.
+1. Place native observer storage in an inferred or explicit owning region.
+2. Fuse an observable into an `Incremental<'T>` invalidation trigger when event and effect semantics are preserved.
+3. Lower emission as flat-closure dispatch on native targets, or target-appropriate closure dispatch elsewhere.
+4. Track subscription lifetime so logical unsubscribe does not depend on finalization or garbage collection.
 
 ## 2. Type Definition
 
@@ -100,7 +104,7 @@ type NativeType =
 
 ### 3.1 Logical Fields
 
-Each `Observable<'T>` node in the PSG carries the following logical fields. As with incremental nodes, these are PSG annotations that lower differently per context, not fixed runtime struct fields.
+Each `Observable<'T>` node in the PSG describes the following logical roles. These are a compile-time plan, not a complete enumeration of every active runtime registration or a fixed runtime struct. Dynamic source instances and subscription changes require corresponding runtime state, represented by the selected target.
 
 | Field | Type | Semantics |
 |-------|------|-----------|
@@ -111,15 +115,19 @@ An observable node carries **no** `value`, `stale`, `height`, or `cutoff` field.
 
 ### 3.2 Arena Allocation
 
-An observer closure is allocated in the **subscriber's** arena, and its lifetime equals the subscription's lifetime. This follows the lifetime inference model of [Memory Regions](memory-regions.md):
+An observer's logical lifetime is bounded by its subscription owner. Native closure storage follows the lifetime inference model of [Memory Regions](memory-regions.md); it must outlive every permitted invocation and cannot remain registered after release:
 
-- **Level 1 (inferred):** The compiler determines that an observer closure outlives the `subscribe` call (it is invoked on later emissions), therefore it resides in the subscription's arena, not the call frame.
-- **Level 2 (bounded):** The developer establishes a subscription within an actor; the compiler infers arena placement and subscription-scoped lifetime.
-- **Level 3 (explicit):** The developer specifies the subscription's arena directly.
+- **Level 1 (inferred):** An observer that escapes the `subscribe` call requires storage beyond that call frame; inference determines an admissible owning region.
+- **Level 2 (bounded):** The developer establishes a subscription within an actor or other owner; the compiler infers placement within that lifetime bound.
+- **Level 3 (explicit):** The developer specifies the native subscription's region directly.
+
+On JavaScript targets, closures may reside in host-managed storage. Logical unsubscribe and owned resource cleanup remain deterministic and do not wait for host garbage collection. On native targets, removing a subscription does not imply that an individual allocation can immediately be reclaimed from a longer-lived bump arena.
+
+> **Not yet specified.** Dynamic subscription reclamation within a continuing owner, teardown ordering, and subscription changes or retirement during an active emission require a precise protocol. Pending invocations and shared captured resources must be accounted for before physical reclamation; arena placement alone does not supply this protocol.
 
 ### 3.3 Memory Layout on CPU Target
 
-On CPU targets, an observable with `N` registered observers materializes as a source reference and a flat list of observer closures:
+The following CPU representation sketch uses a source reference and a flat list of `N` observer closures. It omits the bookkeeping needed for dynamic registration, safe removal and active delivery:
 
 ```
 Observable<T>
@@ -144,7 +152,7 @@ A `ptr` here is the platform word: `sizeof(ptr)` is 4 bytes on thumbv8m/M33 and 
 val subscribe : ('T -> unit) -> Observable<'T> -> Subscription
 ```
 
-The observer (`'T -> unit`) is the consumer's continuation. The returned `Subscription` is a region-scoped handle; its release (on scope exit or actor retirement) unsubscribes the observer deterministically — no `IDisposable` ceremony.
+The observer (`'T -> unit`) is the consumer's continuation. The returned `Subscription` is an owner-scoped handle; its release unsubscribes the observer deterministically, with remaining handles released when the owner retires. This language-level lifetime contract does not require a .NET `IDisposable` interface. Physical reclamation follows §3.2.
 
 ### 4.2 Emission
 
@@ -173,7 +181,7 @@ val distinctUntilChanged : Observable<'T> -> Observable<'T>   // requires 'T : e
  
 ```
 
-This mirror is exact: `Incremental<'T>` suppresses *recomputation* on an unchanged input; `distinctUntilChanged` suppresses *emission* on an unchanged output. The difference is that suppression is intrinsic to `Incremental<'T>` (it is what the type is for) and optional for `Observable<'T>` (the default observable delivers every emission).
+`distinctUntilChanged` suppresses *emission* when its output is unchanged. Incremental cutoff suppresses change propagation along the unchanged node's path; a dependent with another changed input may still need recomputation. Cutoff is intrinsic to `Incremental<'T>`; duplicate suppression is optional for `Observable<'T>` (the default observable delivers every emission).
 
 > **Not yet specified.** The full operator surface (e.g. `filter`, `merge`, `scan`, scheduling/backpressure combinators) and whether a `reactive { ... }` computation-expression builder is provided are not yet normative. When a builder is specified it SHALL desugar to PSG observer edges by the same discipline the `incremental` CE uses for dependency edges ([Incremental Computation §7](incremental-computation.md)).
 
@@ -192,7 +200,7 @@ and ObserverEdge = {
 }
 ```
 
-The PSG node references the producer and the list of registered observer continuations. When an `ObservableExpr` feeds an `IncrementalExpr`, the corresponding `ObserverEdge` is rewritten during fusion (§7) into the incremental node's invalidation edge rather than materializing a standalone subscription.
+The PSG node references the producer and observer-registration plan. Repeated or conditional execution can realize multiple instances or different active registrations. When an `ObservableExpr` feeds an `IncrementalExpr`, fusion (§7) can realize the corresponding `ObserverEdge` as an incremental invalidation edge where delivery and effect semantics are preserved.
 
 ## 7. Target-Specific Lowering
 
@@ -224,7 +232,7 @@ Other pathways realize the same indirect dispatch through their own lowering (a 
 
 ### 7.2 Fusion into Incremental (Accelerator Path)
 
-An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity gives the compiler nothing to schedule statically. When an observable feeds an `Incremental<'T>`, the compiler fuses the subscription into the incremental node's invalidation trigger: the `ObserverEdge` becomes a staleness-marking edge, and the incremental node's lowering (CPU inline, AIE tile activation, or HSA dispatch, per [Incremental Computation §8](incremental-computation.md)) carries the schedule. The observable contributes the *event*; the incremental contributes the *bounded, target-specific response*.
+An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity gives the compiler nothing to schedule statically. When an observable feeds an `Incremental<'T>`, fusion can realize the subscription as an invalidation trigger, subject to preservation of event delivery and effects. The incremental node's lowering (CPU inline, AIE tile activation, or HSA dispatch, per [Incremental Computation §8](incremental-computation.md)) then carries the computation schedule. The observable contributes the *event*; the incremental contributes the *bounded, target-specific response*.
 
 > **Not yet specified.** Standalone lowering of an observable whose consumer is itself an accelerator-resident actor (i.e., push delivery across a hardware boundary without an intervening `Incremental<'T>`) is open. The expected path is BAREWire-mediated event delivery (§8.3), but the scheduling discipline is not yet normative.
 
@@ -232,9 +240,12 @@ An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity g
 
 ### 8.1 Observable + Incremental
 
-The canonical composition (§1.1, §7.2): an event source drives a cached derived computation; subscription fuses into invalidation. See [Incremental Computation §11.3](incremental-computation.md).
+The canonical composition (§1.1, §7.2): an event source drives a cached derived computation; subscription can fuse into invalidation while preserving required event delivery. See [Incremental + Observable](incremental-computation.md#incremental--observable).
 
-### 8.2 Observable + Cold (Frosty)
+<a id="82-observable--cold-frosty"></a>
+<a id="observable--cold"></a>
+
+### 8.2 Observable + Cold
 
 A `Cold<Observable<'T>>` represents a deferred subscription: the producer is not connected and no observer is registered until the cold value is forced. This expresses a reactive source whose side effects (opening a device, joining a stream) are withheld until demand arrives.
 
@@ -244,7 +255,7 @@ Emissions delivered to an observer on a different hardware target or address spa
 
 ### 8.4 Observable + Lifetime Inference
 
-An observer closure outlives the `subscribe` call frame (it is invoked on later emissions). Level 1 lifetime inference detects this escape and allocates the closure in the subscription's arena, with deterministic release on unsubscribe.
+An observer closure can outlive the `subscribe` call frame because it is invoked on later emissions. Lifetime inference must assign storage and ownership that cover those invocations. Logical unsubscribe is deterministic; target-specific physical reclamation follows §3.2.
 
 ## 9. Coeffect Model
 
@@ -272,7 +283,7 @@ let sub = source |> subscribe (fun reading -> handle reading)
 
 ### 10.2 Level 2: Bounded
 
-The developer establishes a reactive derivation; the compiler infers subscription placement and lifetime (and fuses into any consuming `Incremental<'T>`).
+The developer establishes a reactive derivation; the compiler infers subscription placement and lifetime, and can fuse into a consuming `Incremental<'T>` where event and effect semantics permit.
 
 ### 10.3 Level 1: Inferred
 
@@ -285,7 +296,7 @@ When `Observable<'T>` is intrinsic, the following library-level constructs are s
 | Library Construct | Compiler Equivalent |
 |---|---|
 | `IObservable<'T>` / `IObserver<'T>` interfaces | Intrinsic type; emission is flat-closure dispatch |
-| `Subject` / `BehaviorSubject` plumbing | Producer node in the PSG |
+| `Subject` producer plumbing | Intrinsic source and subscription plan; retained current state belongs to the Signal/Incremental surface |
 | `IDisposable` / manual `Dispose` on subscriptions | Region-scoped `Subscription`; deterministic unsubscribe |
 | `ObserveOn` / `SubscribeOn` scheduler ceremony | Thread coeffect on the delivery context |
 | Manual bridge from events to derived state | Fusion of `Observable<'T>` into `Incremental<'T>` |
@@ -295,9 +306,9 @@ When `Observable<'T>` is intrinsic, the following library-level constructs are s
 1. **Intrinsic Status**: `Observable<'T>` SHALL be a compiler-known intrinsic type, not a library type.
 2. **No Equality Constraint**: `Observable<'T>` SHALL NOT require `'T : equality`. Emission comparison SHALL occur only via an explicit operator (e.g. `distinctUntilChanged`).
 3. **Unbounded Delivery**: Every active observer SHALL receive every emission. The compiler SHALL NOT assume emissions may be dropped or coalesced absent an explicit operator.
-4. **No Heap Allocation**: Observer closures SHALL NOT be allocated on a GC-managed heap. They SHALL reside in the subscription's arena.
-5. **Deterministic Unsubscribe**: A subscription's lifetime SHALL be tied to its enclosing scope or actor, with deterministic release; no finalizer or GC SHALL be required to unsubscribe.
-6. **Fusion Availability**: An `Observable<'T>` feeding an `Incremental<'T>` SHALL be fusible into the incremental node's invalidation trigger, without an intermediate heap-allocated bridge.
+4. **Target-Appropriate Storage**: Native observer closures SHALL reside in inferred or explicit owning regions, without requiring a GC-managed heap. JavaScript lowering MAY use host-managed closure storage; logical lifetime requirements SHALL remain the same.
+5. **Deterministic Unsubscribe**: A subscription's lifetime SHALL be bounded by its owner, with deterministic release; no finalizer or GC SHALL be required to unsubscribe. Physical reclamation SHALL account for permitted pending invocations and resource ownership.
+6. **Fusion Availability**: An `Observable<'T>` feeding an `Incremental<'T>` SHALL admit fusion into the incremental node's invalidation trigger without a mandatory separately allocated bridge. Fusion SHALL preserve required event delivery and effects; it SHALL NOT authorize implicit event dropping or coalescing.
 7. **Opacity**: The compiler SHALL treat an observable as opaque for scheduling purposes and SHALL NOT elide or reorder emissions.
 
 ## References

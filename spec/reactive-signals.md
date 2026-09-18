@@ -7,7 +7,7 @@ status: normative
 
 > **Status**: Revised
 > **Normative**: This chapter normatively specifies the **surface API** and its **desugaring**. The underlying reactive semantics are normative in [Observable Computation](observable-computation.md) and [Incremental Computation](incremental-computation.md); this chapter does not restate them.
-> **Last Updated**: 2026-06-14
+> **Last Updated**: 2026-09-18
 
 ## 1. Overview
 
@@ -21,8 +21,8 @@ Signals are a **thin surface layer**, not a separate reactive engine. Each const
 
 Two consequences follow from being a surface over the intrinsics, and they are the substance of this revision:
 
-1. **Reactive callbacks are flat closures, not function pointers.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). The set of signals it reads is its capture set, and the capture set *is* its dependency-edge set. This restores the closure ergonomics SolidJS depends on and removes the top-level-function restriction of the earlier formulation.
-2. **The dependency graph is the [Program Semantic Graph](program-semantic-graph.md), not a runtime signal table.** Dependency tracking is the compile-time capture analysis already used by `Incremental<'T>`; there is no runtime slot table, no `CurrentTracking` global, and no manual subscription bookkeeping.
+1. **Reactive callbacks are flat closures, not function pointers.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). Captures describe its environment; tracked reads determine its reactive dependencies. These sets are not generally identical. This preserves closure ergonomics without the top-level-function restriction of the earlier formulation.
+2. **The reactive plan is compiler-visible in the [Program Semantic Graph](program-semantic-graph.md).** Read and effect analysis determines static dependencies and the operations that select dynamic dependencies. Target lowering specializes proven static structure and realizes the remaining state and dynamic graph instances. No mandatory global `CurrentTracking` mechanism or generic runtime signal table is prescribed.
 
 `FnPtr` (function pointers) is retained only as a **C FFI interop primitive** for platform callbacks (event loops, Wayland/GTK listeners); it is **not** the reactive callback mechanism. See [§9](#9-function-pointers-are-for-ffi-not-reactivity).
 
@@ -31,13 +31,13 @@ Two consequences follow from being a surface over the intrinsics, and they are t
 | Signals surface | Desugars to | Semantics specified in |
 |---|---|---|
 | `Signal<'T>` (settable cell) | Settable source leaf: `set` emits invalidation (Observable side); `get` registers a dependency (Incremental side) | [Observable](observable-computation.md) / [Incremental](incremental-computation.md) |
-| `Memo<'T>` | `Incremental<'T>` node; closure captures are dependency edges; cutoff from `'T : equality` | [Incremental Computation](incremental-computation.md) |
+| `Memo<'T>` | `Incremental<'T>` node; tracked reads establish dependencies; cutoff from `'T : equality` | [Incremental Computation](incremental-computation.md) |
 | `Effect` | Always-demanded `Incremental` sink (an observer that performs effects) | [Incremental §6.3](incremental-computation.md) |
 | `Batch` | Stabilization-boundary control (coalesce to one stabilization) | [Incremental §6.2](incremental-computation.md) |
 | `Store<'T>` | Per-field signals (sugar over `Signal`) | this chapter |
-| Automatic dependency tracking | Flat-closure capture analysis (compile time) | [Closure Representation](closure-representation.md) |
+| Automatic dependency tracking | Read/effect analysis over the typed graph, including closure environments and called computations | [§8](#8-dependency-tracking-by-capture) |
 
-Because both ends are intrinsic, a `Signal` driving a `Memo` lowers with the same fusion the intrinsics already specify ([Incremental §11.3](incremental-computation.md)); no library bridge or callback indirection is materialized.
+Because both ends are intrinsic, a `Signal` driving a `Memo` can lower directly through the shared reactive plan without a mandatory separate library bridge ([Incremental + Observable](incremental-computation.md#incremental--observable)). The selected target still realizes the dependency notifications and runtime state the program requires.
 
 ## 3. Signal — Settable Reactive Source
 
@@ -52,7 +52,7 @@ val set    : Signal<'T> -> 'T -> unit    // emits invalidation to dependents if 
 val update : Signal<'T> -> ('T -> 'T) -> unit
 ```
 
-**Desugaring.** A `Signal<'T>` is a settable source leaf. `set` performs an `Observable`-style emission (invalidation) to the dependent `Incremental` nodes; when read within a `Memo`/`Effect` closure, the read is a capture and becomes a dependency edge in the PSG. Change detection on `set` uses the same `'T : equality` cutoff as `Incremental`.
+**Desugaring.** A `Signal<'T>` is a settable source leaf. `set` performs an `Observable`-style emission (invalidation) to the dependent `Incremental` nodes; a tracked read within a `Memo`/`Effect` computation establishes a dependency represented by the PSG's reactive plan. Capturing a signal handle without reading it does not establish that dependency. Change detection on `set` uses the same `'T : equality` cutoff as `Incremental`.
 
 ```fsharp
 let count = Signal.create 0
@@ -66,12 +66,12 @@ A `Memo<'T>` is a derived value that recomputes when its dependencies change and
 ```fsharp
 type Memo<'T>
 
-val create : (unit -> 'T) -> Memo<'T>    // the thunk is a flat closure; its captures are the edges
+val create : (unit -> 'T) -> Memo<'T>    // flat closure; tracked reads establish dependencies
 val get    : Memo<'T> -> 'T               // demand
  
 ```
 
-**Desugaring.** `Memo.create f` constructs an `Incremental<'T>` node whose recompute function is the flat closure `f`. The signals and memos that `f` reads are its captures, which the compiler records as dependency edges (applicative when unconditional, monadic when conditional — see [Incremental §4.1](incremental-computation.md)). Cutoff is structural equality on `'T`, or an `[<IncrementalCutoff>]` predicate.
+**Desugaring.** `Memo.create f` constructs an `Incremental<'T>` node whose recompute function is the flat closure `f`. The compiler analyzes tracked reads, including those reached through helper calls and captured aggregates, to represent dependencies (applicative when fixed, monadic when selected by runtime values — see [Incremental §4.1](incremental-computation.md)). Lexical captures alone do not determine the active read set. Cutoff is structural equality on `'T`, or an `[<IncrementalCutoff>]` predicate.
 
 ```fsharp
 let doubled = Memo.create (fun () -> Signal.get count * 2)   // captures `count`
@@ -90,9 +90,11 @@ val createWithCleanup : (unit -> (unit -> unit)) -> Effect   // returns a cleanu
 val dispose           : Effect -> unit
 ```
 
-**Desugaring.** `Effect.create f` registers `f` (a flat closure) as an always-demanded sink. The signals/memos `f` reads are its dependencies. The effect runs once to establish dependencies, then re-runs when any dependency changes. `createWithCleanup` returns a cleanup closure that runs before each re-execution and on disposal.
+**Desugaring.** `Effect.create f` registers `f` (a flat closure) as an always-demanded sink. Its tracked signal/memo reads determine dependencies. The effect runs initially, then re-runs when its dependencies change under the stabilization discipline. `createWithCleanup` returns a cleanup closure that runs before each re-execution and on disposal. An effect's `unit` result is not a value cutoff that permits suppressing its required side effects.
 
-**Lifetime.** An effect's lifetime is its enclosing actor or region. `dispose` is deterministic region/subscription release; there is no finalizer and no GC. In an actor context, Prospero retiring the actor disposes the effect and frees its captured state with the arena.
+**Lifetime.** An effect's lifetime is bounded by its enclosing actor or region and may end earlier through `dispose`. Disposal detaches the effect and runs its cleanup; it does not depend on a finalizer. In an actor context, Prospero retiring the actor disposes its remaining effects. Native captured storage follows the region lifetime; the JavaScript target uses host-managed storage while preserving deterministic logical cleanup.
+
+> **[Not yet specified]** The detailed ownership and reclamation rules for repeatedly replaced dynamic subgraphs, ordering among multiple cleanups, cleanup failure, and pending asynchronous work remain open. An actor-lifetime arena alone does not establish early reclamation of a removed child scope. The lifetime ordering obligations in [Memory Regions](memory-regions.md#lifetime-constraints) must also be satisfied.
 
 ```fsharp
 let logger =
@@ -130,19 +132,25 @@ val subscribe : Store<'T> -> (unit -> unit) -> (unit -> unit)   // returns an un
 
 A `Store<'T>` provides nested reactive objects in the TanStack Store style. Each reactive field desugars to a `Signal`; `subscribe` registers an effect and returns an unsubscribe closure whose invocation (or whose owning region's release) detaches it. `Store` is sugar; it introduces no mechanism beyond `Signal` and `Effect`.
 
-## 8. Dependency Tracking by Capture
+<a id="8-dependency-tracking-by-capture"></a>
 
-The earlier formulation maintained a runtime signal table (slots, dirty flags, subscriber lists) with a `CurrentTracking` global set during effect execution. **That runtime machinery is removed.** Dependency tracking is the flat-closure capture analysis:
+## Dependency Tracking by Reads and Effects
 
-- The signals and memos a `Memo`/`Effect` closure reads are its **captures**; the capture set is the node's **dependency-edge set** in the PSG.
-- **Applicative tracking** (the closure reads a fixed set of signals unconditionally) yields static edges known at compile time.
-- **Dynamic tracking** (the closure reads signals conditionally, so the dependency set varies per run) is the monadic case: the subgraph is rebuilt on demand from thunks and flat closures allocated in the enclosing region, exactly as specified for dynamic incremental subgraphs ([Incremental §4.1](incremental-computation.md)). No garbage collector is involved; lifetime is region/supervision-bounded.
+Capture analysis supplies environment and lifetime information; dependency analysis additionally examines tracked reads and effects. The earlier formulation's generic runtime table and `CurrentTracking` global are not the required mechanism:
 
-This makes the reactive graph transparent to the compiler (it is the PSG), which is what permits fusion, cutoff proofs, and target-specific lowering — none of which a runtime signal table could provide.
+- A closure may capture a signal only to install a later event handler, capture an aggregate containing several signals, or call a helper that performs tracked reads. Captures and active read dependencies SHALL NOT be equated without establishing that relationship.
+- **Applicative tracking** of a proven fixed set of read dependencies yields static edges. Analysis includes the relevant behavior of called computations and access through captured values.
+- **Dynamic tracking** represents dependencies selected by runtime values, including conditional reads and runtime-selected sources. The PSG carries the plan for selection and graph construction; its runtime instances carry the active dependencies, cached values and ownership state required by that plan ([Incremental §4.1](incremental-computation.md)). Static specialization can remove this state only where its absence preserves behavior.
+
+The dependency plan SHALL account for every observation needed to justify memo reuse; capture layout alone establishes neither purity nor the immutability of referenced storage. A supported dynamic realization SHALL preserve the required active-dependency behavior. Unsupported cases SHALL be diagnosed rather than silently treated as fixed dependencies.
+
+This retains compiler visibility for fusion, cutoff reasoning and target-specific lowering without identifying one compiler graph node with every runtime instance. It does not require a process-global tracking context, a managed native heap, or a separate library reactive engine.
+
+> **[Not yet specified]** The admitted interprocedural read/effect analysis, representation of dynamic dependency selection and diagnostic boundary require further specification and conformance cases. This chapter does not claim that arbitrary closures can be resolved by lexical capture enumeration alone.
 
 ## 9. Function Pointers Are for FFI, Not Reactivity
 
-Reactive callbacks (`Memo`, `Effect`, `Batch`, `Store.subscribe`) take **flat closures**. They may capture signals and local state; that capture is what makes automatic dependency tracking work. They are never `FnPtr` values, and there is no top-level-function restriction.
+Reactive callbacks (`Memo`, `Effect`, `Batch`, `Store.subscribe`) take **flat closures**. They may capture signals and local state; read/effect analysis uses that environment together with the callback's operations to establish dependencies. They are never `FnPtr` values, and there is no top-level-function restriction.
 
 `FnPtr<'F>` remains in the language as a **C FFI interop primitive** — the representation for passing a function address across a C boundary (platform event loops, Wayland/GTK listener structs). Its normative home is the [FFI Boundary](ffi-boundary.md) chapter, not this one. A platform callback (an `FnPtr`-level C shim, ideally Farscape-generated) typically does nothing more than `set` a `Signal`; from that point the reactive graph is closures and PSG nodes. `FnPtr` lives at the OS edge; the reactive layer above it is closures.
 
@@ -154,7 +162,7 @@ Signals are the scaffolding between the application core and a front end, and th
 
 - **Native renderer.** Flat closures lower through the native target pathway (the LLVM pathway off the portable middle end — see [Closure Representation §6.3](closure-representation.md) and [Backend Lowering §4.2](backend-lowering-architecture.md)) to region-allocated closure records plus a function address. Signal writes drive re-render through the same stabilization model that governs any `Incremental` graph; a render function is an `Effect` demanded by the frame boundary.
 - **WebView / JavaScript front end.** Through JSIR — Composer's JavaScript-as-MLIR backend — flat closures lower to native JavaScript closures (captured scope is exactly what a JS function object carries). The *same* `Signal`/`Memo`/`Effect` source therefore compiles to JavaScript, enabling interop with JS-side reactive libraries (e.g. SolidJS) and genuine frontend/backend consistency. This target-polymorphism is the reason the reactive primitive is a closure rather than an `FnPtr`: a closure rides JSIR's bidirectional MLIR↔JavaScript mapping idiomatically, whereas a raw function pointer has no natural JavaScript form.
-- **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire; a `Signal` on one side is mirrored to the other without a bespoke serialization layer.
+- **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire and can update a local signal mirror. Encoding alone does not give the two sides one synchronous stabilization boundary. Ordering, resynchronization and failure behavior belong to the transport/application contract and are **[Not yet specified]** here.
 
 ## 11. Event-Loop and Platform Integration
 
@@ -177,8 +185,8 @@ The same pattern applies to GLib/GTK signal connection and to a Wayland `wl_surf
 |---|---|
 | `FnPtr.ofFunction` for every callback | Flat closure capturing signals and local state |
 | Effects restricted to top-level functions | Effects capture local state freely |
-| Runtime signal table (slots / dirty / subscribers) | PSG dependency graph |
-| `CurrentTracking` global for dependency tracking | Compile-time capture analysis |
+| Required generic runtime signal table | PSG reactive plan with target-specific state and dynamic instances |
+| Required `CurrentTracking` global for dependency tracking | Read/effect analysis and supported static or dynamic realization |
 | Manual `dispose`/unsubscribe bookkeeping | Region/actor-scoped deterministic release |
 | `dlsym` symbol resolution for callbacks | Only at the C FFI boundary (Farscape-generated) |
 
@@ -205,30 +213,32 @@ let reset ()     = Signal.set count 0
 
 [<EntryPoint>]
 let main _ =
-    increment ()   // logs "Count: 1, Doubled: 2"
-    increment ()   // logs "Count: 2, Doubled: 4"
-    reset ()       // logs "Count: 0, Doubled: 0"
+    increment ()
+    increment ()
+    reset ()
     0
 ```
+
+The example shows source, derivation and effect construction. Exact logging order and whether intermediate values are observed depend on the enclosing stabilization boundary; the remaining timing contract is recorded in [Incremental §6.2](incremental-computation.md#62-stabilization-scope).
 
 ## 14. Comparison with SolidJS
 
 | SolidJS | Clef Signals | Notes |
 |---|---|---|
-| `createSignal(v)` | `Signal.create v` | Same semantics |
+| `createSignal(v)` | `Signal.create v` | Settable reactive source |
 | `signal()` (getter) | `Signal.get s` | Explicit call; registers dependency in a reactive scope |
-| `setSignal(v)` | `Signal.set s v` | Same semantics |
-| `createMemo(fn)` | `Memo.create fn` | `fn` is a closure; captures are dependencies |
+| `setSignal(v)` | `Signal.set s v` | Change-filtered invalidation |
+| `createMemo(fn)` | `Memo.create fn` | `fn` is a closure; tracked reads establish dependencies |
 | `createEffect(fn)` | `Effect.create fn` | `fn` is a closure; no top-level restriction |
 | `batch(fn)` | `Batch.run fn` | Single stabilization boundary |
 
-Unlike the earlier Clef formulation, **closures are used exactly as in SolidJS** — the prior departure to function pointers is removed. The difference from SolidJS is in the implementation, not the surface: dependency tracking is compile-time capture analysis over the PSG rather than a runtime tracking stack, and there is no GC.
+Clef adopts SolidJS's familiar closure-based vocabulary; this table is not a claim of complete semantic equivalence. Clef preserves reactive intent in the PSG and realizes it per target. Native resource cleanup does not require GC; JavaScript storage remains host-managed. A Solid adapter must establish the admitted equality, dependency, timing and cleanup behavior rather than infer compatibility from API spelling. The unresolved timing questions are recorded in [Incremental §6.2](incremental-computation.md#62-stabilization-scope).
 
 ## 15. Normative Requirements
 
 1. **Surface, not engine**: `Signal`, `Memo`, `Effect`, `Batch`, and `Store` SHALL desugar to `Observable<'T>` / `Incremental<'T>`; their reactive semantics SHALL be those specified in the corresponding intrinsic chapters.
 2. **Closures, not function pointers**: Reactive callbacks SHALL be flat closures. The compiler SHALL NOT require `FnPtr` for any reactive callback, and SHALL NOT restrict effects/memos to top-level functions.
-3. **Capture-based tracking**: Dependency tracking SHALL be derived from flat-closure capture analysis. No runtime signal table SHALL be required.
+3. **Read-based tracking**: The PSG reactive plan SHALL be derived from tracked reads and effect analysis, including relevant closure environments and called computations. Lexical capture identity alone SHALL NOT establish dependency completeness. Static specialization and supported dynamic realization SHALL preserve those dependencies; no mandatory global tracking context or generic runtime signal table is prescribed.
 4. **Memo is Incremental**: `Memo.create` SHALL construct an `Incremental<'T>` node, with cutoff from `'T : equality` or an `[<IncrementalCutoff>]` predicate.
 5. **Signal set is invalidation**: `Signal.set` SHALL emit an invalidation to dependents per the Observable/Incremental model, subject to change detection.
 6. **Batching**: `Batch.run` SHALL coalesce contained writes into a single stabilization boundary.
