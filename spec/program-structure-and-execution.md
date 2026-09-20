@@ -179,18 +179,36 @@ The following directives are valid in all files:
 >
 > On the JSIR pathway ([Backend Lowering Architecture](backend-lowering-architecture.md)), the artifact is a JavaScript module executed by a host runtime that supplies JIT compilation and garbage collection. The lifetime lattice still classifies every value at design time; the host collector realizes reclamation. The clauses of this chapter that presume a native binary are scoped to the native pathways; the JSIR-pathway entry contract is the module-export mode below.
 
-Execution of Clef code begins when the native binary is loaded by the operating system. During execution, the program can use the functions, values, static members, and object constructors that the compiled modules define.
+Execution begins through the entry selected by the target's startup contract,
+whether the target uses an operating-system loader or freestanding bring-up.
+The program uses the functions and values admitted in its semantic graph.
 
 ### Execution of Static Initializers
 
 Each implementation file involves a _static initializer_. In Clef, static initialization is deterministic and occurs at program startup:
 
-- For executables with an explicit entry point function, the static initializers for all files are executed in compilation order before the entry point function is called.
+- For executables with an explicit entry point function, the static initializers of all active implementation units execute in compilation order before the entry point function is called.
 - For executables with an implicit entry point, the static initializer for the last file is the body of the implicit entry point function.
 
 > **Clef Note**: Static initialization is eager and deterministic. All module-level bindings with observable initialization are evaluated at program startup, in compilation order. This provides predictable behavior essential for embedded and real-time systems.
 
 At startup, the static initializer evaluates, in order, the definitions in each file that have observable initialization. Definitions with observable initialization in nested modules and types are included in the static initializer for the overall file.
+
+The executable's own implementation files are active units. Importing library
+declarations into the checking environment does not alone activate their runtime
+initializers. An executable demand for a dependency's module-level value or
+function activates that implementation unit, including its observable eager
+initializers. Their dependencies can activate further units; Baker settles this
+closure before startup. Type references and platform descriptor inspection alone
+do not establish executable demand. A dependency unit's unknown initializer
+effects cannot be discarded once that unit is active.
+
+The PSG retains the compilation-unit roots, activation dependencies, ordered
+initializer occurrences, and the call to the source entry. These are available
+to design-time tooling, including when native prerequisites remain pending.
+Alex witnesses the settled startup body. Storage authority, layout, capacity and
+residence remain separate obligations; an initialization-order proof does not
+supply any of them.
 
 All definitions have observable initialization except for the following definitions in modules:
 
@@ -200,7 +218,7 @@ All definitions have observable initialization except for the following definiti
 - Value definitions that are generalized to have one or more type variables
 - Non-mutable values that are bound to an _initialization constant expression_, which is an expression whose elaborated form is one of the following:
   - A simple constant expression.
-  - A use of the `sizeof<_>` operator or the `defaultof<_>` operator from `Unchecked`.
+  - A compile-time layout observation whose required type and platform facts have settled.
   - A let expression where the constituent expressions are initialization constant expressions.
   - A match expression where the input is an initialization constant expression, each case is a test against a constant, and each target is an initialization constant expression.
   - A use of one of the unary or binary operators `=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, `<<<`, `>>>`, `|||`, `&&&`, `^^^`, `~~~`, `enum<_>`, `not`, `compare`, prefix `-`, and prefix `+` on one or two arguments, respectively. The arguments themselves must be initialization constant expressions, but cannot be operations on decimals or strings.
@@ -208,7 +226,10 @@ All definitions have observable initialization except for the following definiti
   - A use of a case from an enumeration type.
   - A use of a value that is defined in the same compilation unit and does not have observable initialization.
 
-If the execution environment supports concurrent execution of multiple threads, each static initializer runs as a mutual exclusion region. A static initializer runs only once, on the first thread that acquires entry to the mutual exclusion region.
+The startup activation evaluates each selected initializer once before calling
+the source entry. Worker launch or hardware access during initialization requires
+its own ordering, capability and lifetime obligations; there is no implicit
+runtime first-access initialization protocol.
 
 > **Clef Note (JSIR pathway)**: On the JSIR pathway the static initializer runs at module evaluation, once per host instantiation of the module. An isolate host MAY instantiate the module many times over a deployment's life and MAY restrict what module-evaluation code is permitted to do. "Once at program startup" therefore reads as "once per instantiation" on this pathway, in compilation order as on every other pathway, and a program SHALL NOT rely on the static initializer executing exactly once per logical deployment.
 

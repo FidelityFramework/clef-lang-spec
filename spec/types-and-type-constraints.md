@@ -316,7 +316,7 @@ typar : null    -- NOT SUPPORTED in Clef
 
 The nullness constraint syntax is accepted for source compatibility but produces a compile-time error (CCS8010) indicating that null is not permitted in Clef code.
 
-Code that requires optional values MUST use `option<'T>` (which compiles to stack-allocated `voption<'T>` semantics):
+Code that requires optional values MUST use the native `option<'T>` algebra:
 
 ```fsharp
 // Managed F# pattern (NOT supported):
@@ -391,7 +391,7 @@ During constraint solving (see [§](inference-constraint-solving.md#constraint-s
 - Enum types
 - Single-case discriminated unions (which are optimized to their payload representation)
 
-> **Clef Note**: There is no `System.Nullable<_>` in Clef. Optional values are represented by `option<'T>`, which in Clef compiles to stack-allocated `voption<'T>` semantics - a tagged value type, not a nullable reference. The `option` type can wrap any type, including other options, without the restrictions that apply to `System.Nullable` in managed code.
+> **Clef Note**: There is no `System.Nullable<_>` in Clef. Optional values are represented by the native `option<'T>` algebra. Its case and payload representation follows retained NTU, layout and residence facts. The `option` type can wrap any type, including other options, without the restrictions that apply to `System.Nullable` in managed code.
 
 ### Reference Type Constraints
 
@@ -758,7 +758,7 @@ let maybeString : string = null
 let maybeString : string option = None
 ```
 
-The `option<'T>` type in Clef compiles to stack-allocated `voption<'T>` semantics - a tagged value type with `None = 0` as a tag value, not a null pointer.
+The `option<'T>` type in Clef has `None` and `Some` cases. Case discrimination, payload layout and allocation residence follow the [native union contract](discriminated-union-representation.md); no CLR representation or null pointer is implied.
 
 **API Implications (Null-Freedom Cascades)**:
 
@@ -766,9 +766,9 @@ Standard library APIs that use sentinel values in managed F# return `option` in 
 
 | Managed F# Pattern | Clef Pattern |
 |-------------------|-------------------|
-| `string.IndexOf(c)` returns `-1` | `String.indexOf c s` returns `voption<int>` |
-| `dict.TryGetValue(k, &v)` | `Map.tryFind k m` returns `voption<'V>` |
-| `Seq.head` throws on empty | `Seq.tryHead` returns `voption<'T>` |
+| `string.IndexOf(c)` returns `-1` | `String.indexOf c s` returns `option<int>` |
+| `dict.TryGetValue(k, &v)` | `Map.tryFind k m` returns `option<'V>` |
+| `Seq.head` throws on empty | `Seq.tryHead` returns `option<'T>` |
 | Nullable reference types | Not applicable - all types non-nullable |
 
 **Nullness Constraint Not Supported**:

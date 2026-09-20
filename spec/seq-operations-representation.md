@@ -5,455 +5,438 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-01-19
-> **Depends On**: [Closure Representation](../closure-representation.md), [Seq Representation](../seq-representation.md)
+> **Normative language and representation requirements.** Implementation coverage
+> is recorded separately in [Composer C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md)
+> and the [coverage waypoints](../../Composer/docs/Language_Coverage_Waypoints.md).
+> A source signature or a graph recipe is not evidence of native conformance for
+> every callback, lifetime, composition or target.
+>
+> **Reconciled:** 2026-09-20. The earlier fixed wrapper field order, fixed state
+> widths, mandatory whole-environment inline copies and fixed SSA formulas are
+> superseded by the sequence and closure contracts cited below.
 
 ## 1. Overview
 
-Clef implements sequence operations (`Seq.map`, `Seq.filter`, `Seq.take`, `Seq.fold`, `Seq.collect`) as **wrapper sequences** that compose the flat closure architecture. This chapter specifies the memory representation, copy semantics, and composition model for sequence transformations.
-
-**Key Insight**: Seq operations create wrapper sequences that contain both an inner sequence AND a transformation closure, both inlined (copied by value), following the flat closure model.
-
-## 2. Relationship to Prior Chapters
-
-Sequence operations build on:
-
-- **[Closure Representation](../closure-representation.md)** - Mapper/predicate closures are flat closures
-- **[Lazy Representation](../lazy-representation.md)** - Extended closure pattern with state prefix
-- **[Seq Representation](../seq-representation.md)** - Base seq struct with MoveNext state machine
-
-**Progressive Extension Pattern**:
-```
-PRD-11 (Closures)     → Flat closure: (fn, {cap₀, cap₁, ...})
-         ↓ extends
-PRD-14 (Lazy)         → Extended closure: (thunk, {computed, value, cap₀...})
-         ↓ extends
-PRD-15 (SimpleSeq)    → State machine: (moveNext, {state, current, cap₀..., internal₀...})
-         ↓ composes
-PRD-16 (SeqOperations)→ Wrapper seq: (moveNext, {state, current, inner_env, closure_env, ...})
-```
-
-## 3. Operation Classification
-
-### 3.1 Transformers vs Consumers
-
-| Category | Operations | Behavior | Returns |
-|----------|------------|----------|---------|
-| **Transformer** | `Seq.map`, `Seq.filter`, `Seq.take` | Creates wrapper sequence | `seq<'T>` |
-| **Consumer** | `Seq.fold` | Eagerly iterates, accumulates | `'S` |
-| **Nested Transformer** | `Seq.collect` | Creates wrapper with nested iteration | `seq<'T>` |
-
-**Transformers** create a new seq struct that wraps the input sequence. Iteration is lazy.
-
-**Consumers** immediately iterate the input sequence and return a non-sequence value.
-
-### 3.2 Closure Requirements
-
-Each operation takes a function argument:
-
-| Operation | Function Type | Role |
-|-----------|---------------|------|
-| `Seq.map` | `'a -> 'b` | Mapper - transforms each element |
-| `Seq.filter` | `'a -> bool` | Predicate - selects matching elements |
-| `Seq.take` | (none) | Count parameter, not a closure |
-| `Seq.fold` | `'s -> 'a -> 's` | Folder - accumulates state |
-| `Seq.collect` | `'a -> seq<'b>` | Mapper - produces inner sequences |
-
-These function arguments are **flat closures** (per [Closure Representation](../closure-representation.md)) and may capture variables from their defining scope.
-
-## 4. Memory Layout Specifications
-
-### 4.1 MapSeq Structure
-
-```
-MapSeq<A, B> with inner: Seq<A>, mapper: Closure<A -> B>
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32              (4 bytes) - wrapper state (always 0 or 1)       │
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: B              (sizeof(B) bytes) - current transformed value   │
-├─────────────────────────────────────────────────────────────────────────┤
-│ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED, copied        │
-├─────────────────────────────────────────────────────────────────────────┤
-│ mapper: Closure         (sizeof(Closure) bytes) - INLINED, copied       │
-└─────────────────────────────────────────────────────────────────────────┘
-
-Field Indices:
-  [0] = state
-  [1] = current
-  [2] = inner_seq (the inner sequence's environment, entire struct, not pointer)
-  [3] = mapper (the mapper's environment, entire struct, not pointer)
-```
-
-A wrapper sequence is, like every seq, the pair `(moveNext, env)` of [Seq Representation §4.1](seq-representation.md): `MapMoveNext` is the function-value half and the struct above is its environment. No function address is stored in the environment.
-
-**CRITICAL**: Both `inner_seq` and `mapper` are **inlined** (copied by value into the wrapper struct), not stored by pointer. This follows the flat closure principle of self-contained structs. What is inlined is each one's *environment*; their function values are bound at saturation: the inner sequence's `MoveNext` and the mapper's implementation are known at the `Seq.map` site whenever the arguments are lambda literals or named functions — the common case — and the wrapper's `MoveNext` then calls them directly (the known-callee form of [Closure Representation §7](closure-representation.md)). Where a mapper arrives as a function-value *parameter*, the wrapper must carry that value; its memory form is the open placement decision recorded in `clef/docs/fidelity/phg/Closure_Retooling_Plan.md` and is not a cast.
-
-### 4.2 FilterSeq Structure
-
-```
-FilterSeq<A> with inner: Seq<A>, predicate: Closure<A -> bool>
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32              (4 bytes)                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: A              (sizeof(A) bytes) - current matching value       │
-├─────────────────────────────────────────────────────────────────────────┤
-│ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│ predicate: Closure      (sizeof(Closure) bytes) - INLINED                │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4.3 TakeSeq Structure
-
-```
-TakeSeq<A> with inner: Seq<A>
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32              (4 bytes)                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: A              (sizeof(A) bytes)                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│ inner_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│ remaining: i32          (4 bytes) - count of elements still to take      │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**Note**: `Seq.take` does not have a closure parameter. The `remaining` counter serves as the configuration.
-
-### 4.4 CollectSeq Structure (flatMap)
-
-```
-CollectSeq<A, B> with outer: Seq<A>, mapper: Closure<A -> Seq<B>>
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32              (4 bytes) - 0=initial, 1=iterating_inner, -1=done│
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: B              (sizeof(B) bytes)                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│ outer_seq: Seq<A>       (sizeof(Seq<A>) bytes) - INLINED                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│ mapper: Closure         (sizeof(Closure) bytes) - INLINED                │
-├─────────────────────────────────────────────────────────────────────────┤
-│ inner_seq: Seq<B>       (sizeof(Seq<B>) bytes) - current inner seq       │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**Complexity Note**: `Seq.collect` requires storing the current inner sequence state. The `inner_seq` field is updated when advancing to a new outer element.
-
-## 5. Copy Semantics (NORMATIVE)
-
-### 5.1 Value Copy at Wrapper Creation
-
-When creating a wrapper sequence:
-
-```fsharp
-let mapped = Seq.map mapper innerSeq
-```
-
-The wrapper creation **copies both `innerSeq` and `mapper` by value** into the wrapper struct:
-
-```mlir
-// Middle end — portable dialects only. E, E_inner, and E_mapper are literals at saturation.
-%env = memref.alloca() : memref<Exi8>                          // the wrapper's environment
-%c0 = arith.constant 0 : index
-%sv = memref.view %env[%c0][] : memref<Exi8> to memref<1xi32>
-memref.store %zero, %sv[%c0] : memref<1xi32>                   // state = 0 at [0]
-%inner_dst = memref.view %env[%off_inner][] : memref<Exi8> to memref<E_innerxi8>
-memref.copy %inner_env, %inner_dst : memref<E_innerxi8> to memref<E_innerxi8>   // COPY inner env
-%mapper_dst = memref.view %env[%off_mapper][] : memref<Exi8> to memref<E_mapperxi8>
-memref.copy %mapper_env, %mapper_dst : memref<E_mapperxi8> to memref<E_mapperxi8> // COPY mapper env
-%mn = func.constant @MapMoveNext_site : (memref<Exi8>) -> i1   // the function-value half
-// (%mn, %env) is the wrapper value.
-```
-
-### 5.2 Why Copy Semantics?
-
-**Independence**: Each wrapper owns its own copy of the inner seq's state. Multiple iterations of the same wrapper are independent.
-
-**Independent Iteration State**: Wrappers created from the same source have independent iteration state. Copying a supplied callback value preserves the identities of any mutable cells or referenced storage in its captures, according to [Closure Representation §2.2](closure-representation.md#22-capture-semantics). Independence of iteration state does not imply a deep copy of that captured storage.
-
-**Lifetime Simplicity**: The wrapper struct contains everything it needs, with no interior pointers into a separately-allocated inner seq or closure, so it has no dangling references. Because the inner seq and closure are inlined, the whole wrapper is one value with a single lifetime, and that lifetime is classified and placed by the four-point lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap only the stack and static placements exist, and a wrapper that would classify as dynamic there is a compile-time lifetime error, not a silent heap allocation.
-
-**Example**:
-```fsharp
-let source = seq { yield 1; yield 2; yield 3 }
-let doubled = Seq.map (fun x -> x * 2) source
-
-// First iteration
-for x in doubled do printfn "%d" x  // 2 4 6
-
-// Second iteration - independent, works correctly
-for x in doubled do printfn "%d" x  // 2 4 6 again
- 
-```
-
-Both iterations work because each `for` expression copies `doubled` into its own iteration state.
-
-### 5.3 Closure Invocation from Wrapper
-
-When invoking the mapper/predicate, its environment is viewed in place inside the wrapper's environment and its implementation is called with that view, per [Closure Representation §6](closure-representation.md):
-
-```mlir
-// Middle end — portable dialects only. In MapMoveNext(%env: memref<Exi8>):
-// 1. View the mapper's environment in place (no copy, no extraction of a code pointer).
-%mapper_env = memref.view %env[%off_mapper][] : memref<Exi8> to memref<E_mapperxi8>
-
-// 2. Call the mapper with its environment. The callee is known at saturation
-//    (lambda literal or named function at the Seq.map site), so the call is direct.
-%result = func.call @mapper_site(%mapper_env, %inner_val) : (memref<E_mapperxi8>, A) -> B
-```
-
-## 6. Composition Model
-
-### 6.1 Nested Struct Pattern
-
-When operations are composed:
-
-```fsharp
-let pipeline =
-    source
-    |> Seq.filter (fun x -> x % 2 = 0)
-    |> Seq.map (fun x -> x * 2)
-    |> Seq.take 5
-```
-
-The result is a **nested struct**:
-
-```
-TakeSeq env {
-    state, current,
-    inner: MapSeq env {
-        state, current,
-        inner: FilterSeq env {
-            state, current,
-            inner: source_seq env,
-            predicate env: {...}
-        },
-        mapper env: {...}
-    },
-    remaining: 5
-}
-// The MoveNext of each level is the function-value half of its pair, bound at
-// saturation; none is stored in the nested environment.
-```
-
-### 6.2 Struct Size Growth
-
-Struct size is **compile-time known** and grows with composition depth:
-
-```
-size(TakeSeq(MapSeq(FilterSeq(source)))) = 
-    base_TakeSeq + size(MapSeq(FilterSeq(source))) =
-    base_TakeSeq + base_MapSeq + size(FilterSeq(source)) = ...
-```
-
-**Trade-off**: For typical pipeline depths (3-5 operations), struct sizes remain reasonable (hundreds of bytes). Very deep pipelines may benefit from alternative strategies (future optimization).
-
-### 6.3 MoveNext Cascade
-
-Calling MoveNext on the outermost wrapper cascades inward:
-
-```
-TakeMoveNext:
-    if remaining > 0:
-        if MapMoveNext(inner_map):    // <- calls into nested struct
-            copy inner_map.current to current
-            remaining--
-            return true
-    return false
-
-MapMoveNext:
-    if FilterMoveNext(inner_filter):  // <- calls into nested struct
-        current = mapper(inner_filter.current)
-        return true
-    return false
-
-FilterMoveNext:
-    while SourceMoveNext(inner_source):
-        if predicate(inner_source.current):
-            current = inner_source.current
-            return true
-    return false
-```
-
-## 7. MoveNext Implementations
-
-### 7.1 MapMoveNext Algorithm
-
-```
-MapMoveNext(env: MapSeq<A,B> env) -> bool:
-    if inner.MoveNext():
-        self.current = self.mapper(inner.current)
-        return true
-    return false
-```
-
-**State Values**: `0` = not started (same as `1`), `1` = active, `-1` = done (not used, delegated to inner)
-
-### 7.2 FilterMoveNext Algorithm
-
-```
-FilterMoveNext(env: FilterSeq<A> env) -> bool:
-    while inner.MoveNext():
-        if self.predicate(inner.current):
-            self.current = inner.current
-            return true
-    return false
-```
-
-**Note**: Filter loops internally until finding a match or exhausting the inner sequence.
-
-### 7.3 TakeMoveNext Algorithm
-
-```
-TakeMoveNext(env: TakeSeq<A> env) -> bool:
-    if self.remaining > 0:
-        if inner.MoveNext():
-            self.current = inner.current
-            self.remaining--
-            return true
-    return false
-```
-
-**Note**: `remaining` is decremented on each successful iteration, providing count limiting.
-
-### 7.4 CollectMoveNext Algorithm
-
-```
-CollectMoveNext(env: CollectSeq<A,B> env) -> bool:
-    loop:
-        // Try advancing current inner sequence
-        if self.state == 1 and inner_seq.MoveNext():
-            self.current = inner_seq.current
-            return true
-        
-        // Inner exhausted or not started - advance outer
-        if outer_seq.MoveNext():
-            self.inner_seq = self.mapper(outer_seq.current)  // New inner seq
-            self.state = 1
-            continue loop
-        
-        // Outer exhausted
-        self.state = -1
-        return false
-```
-
-**Complexity**: `Seq.collect` maintains state for both outer and inner iteration.
-
-## 8. Seq.fold: Eager Consumer
-
-Unlike transformers, `Seq.fold` does **not** create a wrapper sequence. It immediately consumes the input:
-
-```fsharp
-let sum = Seq.fold (fun acc x -> acc + x) 0 source
-```
-
-**Implementation** on the LLVM target pathway (committed dialect, not middle-end output). The middle end emits the loop over portable `scf`/`memref`/`arith` and carries the closure over portable dialects; the LLVM pathway commits the `alloca`/`getelementptr`/`load`/`store` and the indirect `call` to the target ABI, per [Backend Lowering Architecture §4.2](../backend-lowering-architecture.md):
-```mlir
-func @seq_fold(%folder: !closure, %initial: i64, %source: !seq_type) -> i64 {
-    // Allocate source on stack for mutation
-    %seq_alloca = llvm.alloca 1 x !seq_type : !llvm.ptr
-    llvm.store %source, %seq_alloca
-    
-    // Accumulator
-    %acc_alloca = llvm.alloca 1 x i64 : !llvm.ptr
-    llvm.store %initial, %acc_alloca
-    
-    // Iteration loop
-    scf.while : () -> () {
-        %moveNext_ptr = llvm.getelementptr %seq_alloca[0, 2] : !llvm.ptr
-        %moveNext = llvm.load %moveNext_ptr : !llvm.ptr
-        %has_next = llvm.call %moveNext(%seq_alloca) : (!llvm.ptr) -> i1
-        scf.condition(%has_next)
-    } do {
-        // Get current element
-        %curr_ptr = llvm.getelementptr %seq_alloca[0, 1] : !llvm.ptr
-        %elem = llvm.load %curr_ptr : i64
-        
-        // Apply folder
-        %acc = llvm.load %acc_alloca : i64
-        %folder_code = llvm.extractvalue %folder[0] : !closure -> !llvm.ptr
-        %new_acc = llvm.call %folder_code(%acc, %elem) : (i64, i64) -> i64
-        llvm.store %new_acc, %acc_alloca
-        
-        scf.yield
-    }
-    
-    %result = llvm.load %acc_alloca : i64
-    return %result : i64
-}
-```
-
-## 9. SSA Cost Formulas
-
-### 9.1 Wrapper Creation Costs
-
-| Operation | Formula | Breakdown |
-|-----------|---------|-----------|
-| `Seq.map` | `4 + sizeof(inner) + sizeof(mapper)` | state(1) + `func.constant`(1, elided when the consumer knows MoveNext) + env stores + inner fields + mapper fields |
-| `Seq.filter` | `5 + sizeof(inner) + sizeof(predicate)` | Same structure |
-| `Seq.take` | `6 + sizeof(inner)` | +1 for remaining counter |
-| `Seq.collect` | `5 + sizeof(outer) + sizeof(mapper) + sizeof(inner_seq_type)` | Includes inner seq slot |
-
-### 9.2 MoveNext SSA Costs
-
-| Operation | Per-Invocation SSAs | Notes |
-|-----------|---------------------|-------|
-| MapMoveNext | `10 + N_mapper_caps` | GEP + load + call + extract + store |
-| FilterMoveNext | `12 + N_pred_caps` | +loop overhead |
-| TakeMoveNext | `14` | +remaining check and decrement |
-| CollectMoveNext | `20 + N_mapper_caps` | +inner seq management |
-
-## 10. Normative Requirements
-
-1. **Flat Representation**: Seq operation wrappers SHALL use flat struct representation with inner seq and closure inlined
-2. **Copy Semantics**: Wrapper creation SHALL copy inner seq and closure by value, not by pointer
-3. **Field Order**: Wrapper environment fields SHALL be ordered: state, current, inner_seq, closure/config; no function address SHALL be stored in the environment, and a wrapper SHALL be the pair `(moveNext, env)` of [Seq Representation §4.1](seq-representation.md)
-4. **Closure Invocation**: Mapper/predicate invocation SHALL follow the flat closure calling convention of [Closure Representation §6](closure-representation.md): call the implementation with a view of its environment as the first argument, directly where the callee is known at saturation
-5. **Lifetime-Driven Placement**: A wrapper sequence SHALL be placed by the four-point lifetime lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. A wrapper sequence SHALL NOT be allocated on a GC-managed heap. On a target without a heap, a wrapper that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation.
-6. **Composition = Nesting**: Composed operations SHALL produce nested structs, not linked structures
-7. **Eager Consumers**: `Seq.fold` SHALL consume immediately, not create wrapper
-
-## 11. Test Cases
-
-### 11.1 Seq.map with Captured Value
-
-```fsharp
-let scale factor xs = Seq.map (fun x -> x * factor) xs
-let scaled = scale 3 (seq { yield 1; yield 2; yield 3 })
-// Expected: 3 6 9
- 
-```
-
-**Validates**: Mapper closure captures `factor` correctly.
-
-### 11.2 Deep Composition
-
-```fsharp
-let pipeline =
-    source
-    |> Seq.filter (fun x -> x % 2 = 0)
-    |> Seq.map (fun x -> x * 2)
-    |> Seq.filter (fun x -> x > 10)
-    |> Seq.take 5
-```
-
-**Validates**: 4-level nested struct works correctly.
-
-### 11.3 Copy Semantics Independence
-
-```fsharp
-let doubled = Seq.map (fun x -> x * 2) source
-let iter1 = doubled |> Seq.take 3 |> Seq.toList  // [2; 4; 6]
-let iter2 = doubled |> Seq.take 3 |> Seq.toList  // [2; 4; 6] - same, independent
- 
-```
-
-**Validates**: Each pipeline copies `doubled`, maintaining independence.
+Sequence operations compose deferred producers and eager consumers over Clef
+`seq<'T>`. They preserve source NTU types, dimensions, evaluation order, capture
+identity and admitted storage lifetime through the PSG and its proof obligations.
+
+This chapter specifies operation behavior and the representation obligations of
+composition. It extends [Sequence Representation](seq-representation.md) and
+[Closure Representation](closure-representation.md); it does not define a second
+wrapper-layout or callback system. [Lazy Representation](lazy-representation.md)
+shares deferred formation, but sequence enumeration does not memoize a single
+result for all consumers.
+
+A producer retains its supplied configuration and values when formed. Each
+subsequent enumeration owns independent progress. Referenced mutable storage can
+remain shared across those enumerations. A consumer performs its required pulls
+when the consumer application executes.
+
+## 2. Source Contracts
+
+The type parameters below are independently quantified native types. Equal type
+parameters require agreement of the complete type, including dimensions; they do
+not license object widening or a substitute physical carrier.
+
+| Operation | Explicit parameter order | Source signature | Category |
+|-----------|--------------------------|------------------|----------|
+| `Seq.map` | `<'T,'U>` | `('T -> 'U) -> seq<'T> -> seq<'U>` | Deferred producer |
+| `Seq.filter` | `<'T>` | `('T -> bool) -> seq<'T> -> seq<'T>` | Deferred producer |
+| `Seq.append` | `<'T>` | `seq<'T> -> seq<'T> -> seq<'T>` | Deferred producer |
+| `Seq.collect` | `<'T,'U>` | `('T -> seq<'U>) -> seq<'T> -> seq<'U>` | Deferred producer |
+| `Seq.take` | `<'T>` | `int -> seq<'T> -> seq<'T>` | Deferred producer |
+| `Seq.fold` | `<'S,'T>` | `('S -> 'T -> 'S) -> 'S -> seq<'T> -> 'S` | Eager consumer |
+| `Seq.iter` | `<'T>` | `('T -> unit) -> seq<'T> -> unit` | Eager consumer |
+| `Seq.exists` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Eager consumer |
+| `Seq.forall` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Eager consumer |
+| `Seq.tryHead` | `<'T>` | `seq<'T> -> option<'T>` | Eager consumer |
+| `Seq.tryPick` | `<'T,'U>` | `('T -> option<'U>) -> seq<'T> -> option<'U>` | Eager consumer |
+
+`fold` state and input element types are independent. For example, a folder may
+consume `int<m>` elements and maintain an `int<s>` or `float<1/s>` state, provided
+its argument and result types satisfy the declared scheme. The accumulator's
+physical representation must follow its own range and target facts.
+
+The `take` count is a dimensionless `int`; it does not select a machine word
+size. Predicate results are `bool`, action results are `unit`, and a `collect`
+mapper returns the corresponding sequence type. The compiler retains those
+constraints at the operation's source application.
+
+These contracts do not register other search or materialization operations by
+analogy. `Seq.empty` follows [Sequence Representation §3](seq-representation.md#3-empty-and-zero-cut-sequences).
+Other operations require their own source admission and behavioral contracts.
+
+## 3. Formation and Application
+
+Ordinary [application and pipeline rules](expressions.md) govern supplied operand
+order. Every supplied expression is evaluated once in that order before the
+operation's body begins. A recipe must retain the resulting value or storage
+identity rather than moving the expression into a repeated pull or callback.
+
+For a producer, formation evaluates callback/count/input expressions but does not
+execute its deferred body, pull an input or invoke the callback. For a consumer,
+formation of its supplied operands likewise precedes enumeration. Input creation
+can itself have effects distinct from the deferred input body's effects.
+
+Partial application retains already supplied values at its formation boundary.
+Supplying the remaining operands later must not reevaluate earlier expressions.
+A stored or bare operation value follows the same type and application rules;
+these forms are not a distinct, weaker semantic API. For function-valued `fold`
+state, the three declared operation operands remain the boundary before applying
+the returned state function. Ordinary supplied-operand evaluation still governs
+any additional application; selecting or returning a function does not invoke it.
+
+An immutable captured binding contributes its formation-time value. A value
+containing references preserves their identities and sharing. A mutable binding
+contributes its original storage cell, not a replacement cell initialized from a
+scalar read. Re-enumeration does not rerun a producer operand initializer that
+already completed, copy another iterator's progress or deep-copy shared captures.
+
+Internal producer bindings are initialized when evaluation reaches them during a
+pull. They are not default-initialized at producer formation. This distinction
+also applies when a callback or child sequence is constructed inside a running
+producer.
+
+## 4. Deferred Producer Behavior
+
+Each successful input pull makes one current value available for that iterator
+and path. The following laws describe observations and demand; they are not
+instructions for an Alex source-body emitter.
+
+### 4.1 Map
+
+`Seq.map mapper input` pulls the input when an output is demanded. On success it
+reads current once, invokes the mapper once with that value and yields the
+mapper's result. Input exhaustion completes the mapped enumeration without
+invoking the mapper. Input order is preserved.
+
+A function-valued element is passed as a value; a function-valued mapper result
+is yielded as a value. Neither is implicitly invoked by the operation.
+
+### 4.2 Filter
+
+`Seq.filter predicate input` pulls until a value is accepted or the input
+exhausts. For each successful pull it reads current once and invokes the
+predicate once. A true result yields that same selected value; a false result
+continues pulling without an output element. Predicate and yield demands refer
+to the same retained current snapshot.
+
+An all-rejected finite input completes normally. Downstream demand may therefore
+cause multiple upstream pulls for one accepted element, but a downstream stop
+must prevent further pulls and predicate calls.
+
+### 4.3 Append
+
+`Seq.append first second` evaluates both supplied expressions during formation.
+Enumeration pulls the first input until it exhausts, then the second. It does not
+pull the second body merely because the first template has been formed, or after
+a downstream consumer has already stopped within the first input.
+
+Empty inputs contribute no elements. Their deferred exhaustion effects occur if
+and when enumeration actually pulls them. A chain of empty inputs must preserve
+those effects and proceed to the next input within the same outstanding demand.
+
+### 4.4 Collect
+
+`Seq.collect mapper outer` pulls one outer element, reads it once and invokes the
+mapper once to obtain an inner sequence. It enumerates that inner result to
+exhaustion before advancing the outer input. Inner values retain their order;
+an empty inner result yields nothing and continues to the next outer element.
+
+An outer suspension can retain an active inner iterator and its backing storage.
+The mapper's returned sequence must have an admitted lifetime covering that use.
+Storing its descriptor or identifying its code alone does not establish it.
+When an inner iterator exhausts, its storage may be reused only under the
+applicable lifetime and non-overlap premises.
+
+### 4.5 Take
+
+`Seq.take count input` yields at most `count` elements. A zero or negative count
+causes no input pull. Each attempted pull tests positive remaining demand first;
+a successful pull yields current and consumes one unit of that demand.
+Exhaustion before the requested count completes normally.
+
+After the limit is reached there is no further upstream pull. In particular, the
+operation must not pull first and discard an extra value, or run upstream
+post-yield effects solely to discover that demand is already zero. Its count
+updates require the same range and representation obligations as other integer
+operations. No F#/CLR short-input exception behavior is imported into this law.
+
+## 5. Eager Consumer Behavior
+
+### 5.1 Fold
+
+`Seq.fold folder initial input` starts with the already evaluated initial state.
+For each successful input pull, it reads current once, invokes `folder state
+current` once and uses that returned state for the next iteration. On exhaustion
+it returns the last state. An empty input returns the initial state without
+invoking the folder.
+
+The accumulator preserves `'S` throughout initialization, reads, callback
+application, writes and the result. It need not share the element's type,
+dimensions, signedness or physical width. Stored integer/real values require
+settled adaptation meets where their held representations differ; the witness
+must not assume a universal accumulator width.
+
+### 5.2 Iter
+
+`Seq.iter action input` pulls to exhaustion, reading current and invoking the
+action once per successful pull in input order. It returns unit. An empty input
+invokes no action; an effectful empty body still performs its effects on the
+pull that discovers exhaustion. Unit payload and result identities remain typed
+through the graph, whether or not they need physical payload storage.
+
+### 5.3 Exists and Forall
+
+| Consumer | Decisive predicate result | Returned decision | Exhausted-input result |
+|----------|--------------------------|-------------------|------------------------|
+| `Seq.exists predicate input` | `true` | `true` | `false` |
+| `Seq.forall predicate input` | `false` | `false` | `true` |
+
+Each consumer invokes the predicate once for each successful pull it requires.
+On the decisive result it returns immediately, with no further input pull or
+predicate invocation. Otherwise it continues until exhaustion. The exhausted
+result also applies to empty input, where no predicate is invoked. In particular,
+`forall` must stop on false; its demand guard must retain that polarity.
+
+These short-circuit laws preserve the complete input demand trace. Obtaining the
+correct Boolean after unnecessary pulls or callbacks is not conforming behavior.
+
+### 5.4 TryHead and TryPick
+
+`Seq.tryHead input` pulls once. Exhaustion returns `None`; a successful pull
+returns `Some current` and makes no further pull. An effectful empty input still
+performs the effects needed to discover exhaustion.
+
+`Seq.tryPick chooser input` invokes the chooser once per successful pull, in
+input order. A `None` result continues the search. The first `Some value` is
+returned unchanged, with no later pull or chooser invocation. If the input
+exhausts, the result is `None`. Chooser formation and input formation occur once
+before enumeration; testing the result must not reevaluate the chooser.
+
+The input type `'T` and result payload type `'U` are independent, including their
+dimensions. These consumers return the native `option` algebra described in
+[Option Operations](option-operations-representation.md). Payload admission and
+placement follow the retained type and proof facts; the source contract does
+not prescribe a runtime wrapper or a fixed allocation residence.
+
+## 6. Callable Values and Captured Environments
+
+Each producer retains the canonical `(moveNext, env)` sequence callable. Each
+callback retains the canonical `(fn, env)` function callable, with the capture
+semantics and lifetime requirements of [Closure Representation](closure-representation.md).
+No function address is stored as data in either environment.
+
+The compiler may elide a function half only where its exact implementation is
+established for the use. That proof does not establish an environment instance.
+Two callback formations with the same code can carry different immutable values,
+mutable cells and allocation identities. An invocation must receive the actual
+environment recalled at that use, including after an alias, capture or frame
+read; it must not substitute the environment of another formation.
+
+A function with no environment requires no invented empty address or null state.
+A function whose callable half cannot be elided retains the full pair through
+passing, return and control-flow joins under the closure contract. Persisting an
+unknown callable across suspension requires its own admitted representation;
+it is not resolved by storing a numeric address or relabeling a descriptor.
+
+The flat environment requirement rules out an implicit linked chain of enclosing
+activation environments. It does not require copying every captured sequence or
+callback environment byte-for-byte into every producer. Captured typed views and
+owned child regions must satisfy their explicit source, layout and lifetime
+relations. A byte copy is sufficient only when representation compatibility,
+reference validity, required sharing and code availability are established.
+
+## 7. Placement, Residence and Composition
+
+### 7.1 Logical roles and physical storage
+
+Producer configurations, live input iterators, callback environments, remaining
+demand and active inner iterators are logical storage requirements. They compose
+the state/current/capture/live-value/child-region roles of
+[Sequence Representation §4](seq-representation.md#4-memory-layout-specification).
+They do not prescribe field ordinals or operation-specific native struct layouts.
+
+Baker settles slot types, capture modes, ranges, offsets, extents and alignment
+against the selected target. Values surviving a yield occupy admitted persistent
+storage. Values needed only within one pull may use activation scratch. A retained
+mutable cell can require persistent storage after its last scalar read. Current
+needs physical storage only where an admitted successful yield can establish it.
+
+The earlier fixed-width state/current diagrams and mandatory nested inline
+wrapper structs are superseded. Physical fields and regions follow the settled
+requirements, not a capture-count formula or a source operation's name. Source
+NTU types remain intact while target representation is selected.
+
+### 7.2 Backing storage and independent instances
+
+A view descriptor denotes storage; its own finite size does not establish the
+backing allocation's lifetime or extent. A captured template or callback must
+have backing storage covering every admitted use. Exact activation/region,
+allocation, capture, iterator and use participants establish that relationship;
+lexical nesting alone does not.
+
+Caller-owned factory destinations and parent-owned child regions may provide
+such storage where their premises hold. Distinct simultaneously retained
+allocation occurrences require distinct storage or an explicit sharing proof.
+Knowing a child layout owner does not identify which runtime instance holds a
+particular iterator's state. A new enumeration must initialize fresh progress
+from the retained template and captures, not copy a prior enumeration's progress.
+
+Allocation follows the lifetime classes and target capabilities of
+[Closure Representation §3.3](closure-representation.md#33-escape-analysis).
+An escaping value does not automatically require a heap; a finite frame does not
+automatically permit static residence. Undeclared allocation mechanisms or
+unproved escaping storage remain compile-time residuals. A caller-owned result
+frame does not extend the lifetime of a cell in a returning factory activation.
+Sequence composition SHALL NOT introduce a garbage-collected heap allocation.
+
+### 7.3 Composed demand
+
+A filter/map/take pipeline combines the operation laws rather than imposing a
+physical nesting formula. While remaining demand is positive, filtering may pull
+and reject multiple source elements; mapping runs once for each accepted input;
+take counts the resulting outputs. Once take's limit is reached the entire
+upstream demand chain stops.
+
+Every stage retains its callback/configuration values and admitted environment
+instances. Optimizing composition or sharing storage must preserve operand
+formation, callback order, current identity, suspension ownership and observable
+pulls, including effects on exhaustion. No fixed number of stages or capture
+slots establishes a bound on total live program storage.
+
+## 8. Graph and Witness Obligations
+
+The common Baker ingredients and recipes establish ordered operand snapshots,
+iterator creation, successful-pull guards, current snapshots, callback
+applications and source results. Producer bodies use the same sequence owner,
+generator and yield contracts as source sequence expressions; consumers establish
+their ordinary loops and state updates through the graph.
+
+The following premises remain distinct:
+
+- **Type and application:** input, callback, state and result types satisfy the
+  native scheme; logical argument boundaries and source ranges are retained.
+- **Evaluation and current:** exact control occurrences preserve formation,
+  short circuit and repeated loop evaluations. A current read requires a
+  successful pull for that same iterator on its applicable path.
+- **Range:** current-range evidence joins all applicable yielded payload sources
+  under the current-read premise. Unknown alternatives cannot justify narrowing.
+  Mutable accumulator ranges incorporate writes and call effects rather than
+  reusing a prior observation's bounds.
+- **Storage and lifetime:** definite assignment, live-across values, borrowed
+  cells, callback environments and child instances have their required placed
+  storage and complete-use residence premises.
+- **Proof and provenance:** layout, discriminant, application and residence
+  obligations retain their exact participants through recipe fan-out/fold-in and
+  lowering. A layout proof or a recorded evidence edge does not discharge the
+  other obligations.
+
+Invalid source types retain their source diagnostics; target frame synthesis
+must not manufacture additional settlement errors from that rejected premise.
+Admitted source with unresolved control, representation or residence requirements
+still receives the responsible settlement diagnostic before unsupported witnessing.
+
+Alex pulls settled child regions through its positional Huet zipper interface
+and composes standard operations. It does not choose a wrapper layout, recover a
+callback's captures from its source body or rediscover source yields to construct
+control. [Backend Lowering Architecture](backend-lowering-architecture.md) owns
+standard target conversion. SSA identities and counts derive from witnessed
+operations and settled representation meets, not fixed per-operation formulas.
+
+Storage accounting includes actual persistent frames, activation scratch, owned
+regions and the backing storage retained by views. Symbolic code elision does not
+elide an environment's formation effects or lifetime requirements.
+
+## 9. Normative Requirements
+
+1. Operations SHALL preserve the native schemes in §2, including independent
+   accumulator/element types and exact callback argument/result constraints.
+2. Supplied expressions SHALL follow ordinary application order and be evaluated
+   once at their actual formation boundary; repeated pulls SHALL use the retained
+   values rather than rerun their initializers.
+3. Producers SHALL defer their bodies and callbacks until demanded. Consumers
+   SHALL execute their required pulls when applied, following §§4–5.
+4. Every enumeration SHALL have independent progress while retaining original
+   mutable capture identity and immutable formation-time values.
+5. `take`, `exists` and `forall` SHALL stop upstream demand at their respective
+   decisions. Empty input SHALL obey each operation's result and callback laws.
+6. Current reads SHALL retain the successful-pull prerequisite for their exact
+   iterator; empty or failed pulls SHALL NOT supply a default element.
+7. Callback code elision SHALL require exact callable identity and SHALL preserve
+   the actual environment instance. Unsupported full-pair or stored-callable
+   requirements SHALL remain explicit residuals, not an alternative encoding.
+8. Placement SHALL follow complete typed layout, lifetime and target premises.
+   Mandatory whole-environment copying, fixed state widths, ordinal wrapper
+   fields and fixed SSA costs SHALL NOT replace those premises.
+9. Recipes SHALL preserve source/reference/proof participants through graph
+   elaboration. Witnessing SHALL consume those facts without reconstructing
+   missing operation semantics or storage contracts.
+10. Optimizations SHALL preserve the complete demand/effect trace and sharing
+    laws, not merely the final list of values or Boolean result.
+
+## 10. Behavioral and Negative Conformance
+
+These are required observations, not completed test results or additional public
+APIs. The compiler/native conformance record belongs to the linked C-07 waypoint.
+
+| Contract | Required observation |
+|----------|----------------------|
+| Captured mapping | Scaling `1,2,3` by a retained factor of three produces `3,6,9`; distinct formations preserve their own factors |
+| Filter and take | Taking the first three doubled even values from `1..10` produces `4,8,12` and performs no demand beyond the third output |
+| Count boundaries | Zero/negative take makes no pull; a shorter input completes without manufacturing elements |
+| Independent enumeration | Two enumerations start with fresh progress while callbacks over the same external mutable binding retain that same cell |
+| Fold | Summing `1..10` produces `55`; an empty input returns the initial state, including a state type different from the element type |
+| Iter | Actions run once per required element in order; empty input runs no action |
+| Exists/forall | Exists stops on true, forall on false; empty results are false/true respectively, with no predicate call |
+| Collect | Each outer callback runs once; its inner sequence exhausts before the next outer pull, including effectful empty children |
+| Formation and exhaustion | Producer operand effects precede deferred work; a reached no-yield body performs its exhaustion effects; stopped demand does not execute later input work |
+
+Negative conformance includes wrong count kind/dimension, non-Boolean predicates,
+non-unit actions, callback/element dimension mismatches and inconsistent fold
+state/result types. The gate requires the responsible compiler diagnostic,
+effective severity and source range, not any parse or compilation failure.
+Missing current, callback-environment, lifetime, range or target-placement
+premises are separate settlement failures. Unknown origins or factory-local
+captured storage must not pass through an accidental native representation.
+
+## 11. Implementation Status and Design Direction
+
+C-06 supplies the shared sequence graph contracts, guarded current protocol,
+placed frame/scratch storage, supported destinations and bounded child/borrowed
+storage relationships. Its native implementation scope and remaining gates are
+recorded in [C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md) and the coverage
+waypoints. It does not establish native conformance for every operation here.
+
+C-07 extends producer composition and eager/short-circuit consumers under those
+contracts. Registered source schemes and existing recipes are distinguished from
+source-to-native results in [C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md).
+The eleven operations in §2 have shared Baker recipes and native acceptance
+evidence for the source forms recorded there. Broader operation-value forms
+remain open: stored partials must retain supplied sequence/callable values with
+their formation and residence evidence. Native success for direct and pipeline
+applications does not close that boundary.
+
+[Closure values captured by other computations](../../Composer/docs/Closure_As_Data.md)
+records the implemented bounded known-callee environment form and the remaining
+callable work; it is not an additional normative schema. It describes common
+environment facts while retaining the full callable contract. Its implementation
+names and phase APIs are not mandated here. Unknown callable storage,
+returned environments and opaque/escaping uses still require their own settled
+representation and lifetime premises. Known code alone must not be advertised
+as completion of that work.
 
 ## 12. References
 
-- [Closure Representation](../closure-representation.md) - Flat closure architecture
-- [Seq Representation](../seq-representation.md) - Base seq state machine
-- PRD-16: SeqOperations - Implementation requirements
-- PRD-11: Closures - Flat closure foundation
+- [Sequence Representation](seq-representation.md): base callable, capture,
+  suspension, storage and current-value requirements.
+- [Closure Representation](closure-representation.md): flat environments,
+  callable/environment identity, lifetime and transfer obligations.
+- [Delimited Continuation Representation](dcont-representation.md): common
+  owner/cut/resume evidence and proof boundaries.
+- [Expressions](expressions.md): application, pipeline and evaluation rules.
+- [Backend Lowering Architecture](backend-lowering-architecture.md): passive
+  witnessing and standard target lowering.
+- [Composer C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md): implementation
+  dependencies, coverage and remaining gates.

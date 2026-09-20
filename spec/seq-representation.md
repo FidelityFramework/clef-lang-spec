@@ -162,6 +162,17 @@ cell. Borrowing an inline scalar slot exposes the exact placed cell view.
 A buffer value does not acquire mutable-cell semantics without an explicit
 admitted access contract.
 
+A retained aggregate current value must preserve its selected case and payload
+semantics across later pulls. This is a value-preservation requirement, not a
+requirement to copy bytes at every observation. Direct destination construction,
+ownership transfer or a borrowed view may satisfy it when the graph establishes
+allocation identity, covering lifetime and absence of interfering overwrites
+for every retained use. Otherwise the retained value needs independent storage.
+Reference-bearing payloads retain their own sharing and lifetime contracts.
+BAREWire's zero-copy views use the same allocation/access discipline; spatial
+containment alone does not authorize iterator storage reuse while a consumer
+still observes its prior contents.
+
 A factory may initialize caller-owned frame storage when a settled destination
 and residence contract establish its lifetime. A child frame constructed during
 MoveNext may reside in an explicitly placed region of its parent's persistent
@@ -254,6 +265,16 @@ owns elaboration. It retains the following distinct contracts:
   and provenance. Resident relations connect owner/generator, cut, payload,
   resume successor, live values, generated bodies and slots. Discriminant and
   layout obligations retain their premises and discharge boundary.
+
+When a finite loop bound justifies a retained cell's numeric enclosure, Baker
+shall retain the guard, induction and accumulator identities, initial values,
+step, update expressions and stores as joint premises. The enclosure must cover
+the initial state and every reachable update, including the final store before
+exhaustion. An unknown effect or an uncovered write cannot inherit a bound from
+the recognized updates alone. These are arbitrary-width numeric facts; physical
+carrier selection subsequently uses the platform's declared representations.
+Such an enclosure establishes neither a general bound on sequence growth nor a
+storage-capacity or scheduler admission claim.
 
 A valid layout obligation is not proof of every lifetime or continuation law.
 Likewise, a recorded liveness relation is not a substitute for checking its
