@@ -5,13 +5,14 @@ category: Language
 status: normative
 ---
 
-This chapter defines how F# types map to native representations in Clef compilation.
+This chapter defines how Clef source types map to native representations.
 
 ## Overview
 
 Clef uses familiar F# syntax with native semantics. The compiler (CCS) resolves types to native representations at compile time, not to BCL types.
 
-**Principle**: Users write standard F# type names. CCS provides native semantics transparently.
+**Principle**: Source types follow the [NTU kind and dimension model](ntu-types.md).
+Familiar syntax does not import managed types or width-named numeric types.
 
 ## The Universal Base Type `obj` Is Not Available
 
@@ -183,29 +184,26 @@ NORMATIVE: Quotation-based metaprogramming SHALL NOT require runtime evaluation.
 
 ### Numeric Types
 
-| F# Syntax | Native Representation | Size | Notes |
-|-----------|----------------------|------|-------|
-| `unit` | Zero-sized type | 0 | No runtime representation |
-| `bool` | `i8` | 1 byte | 0 = false, non-zero = true |
-| `int` | `isize` | Platform word | 4 bytes (32-bit), 8 bytes (64-bit) |
-| `uint` | `usize` | Platform word | Unsigned platform word |
-| `int8` / `sbyte` | `i8` | 1 byte | Signed 8-bit |
-| `uint8` / `byte` | `u8` | 1 byte | Unsigned 8-bit |
-| `int16` | `i16` | 2 bytes | Signed 16-bit |
-| `uint16` | `u16` | 2 bytes | Unsigned 16-bit |
-| `int32` | `i32` | 4 bytes | Signed 32-bit |
-| `uint32` | `u32` | 4 bytes | Unsigned 32-bit |
-| `int64` | `i64` | 8 bytes | Signed 64-bit |
-| `uint64` | `u64` | 8 bytes | Unsigned 64-bit |
-| `nativeint` | `isize` | Platform word | Signed; width is the `Pointer` dimension of [NTU Types §2.3](ntu-types.md) |
-| `unativeint` | `usize` | Platform word | Unsigned; width is the `Pointer` dimension of [NTU Types §2.3](ntu-types.md) |
+| Clef source | Native representation | Selection |
+|-------------|-----------------------|-----------|
+| `unit` | Zero-sized value | No payload storage |
+| `bool` | `i8` on a CPU | Boolean storage; not an integer source type |
+| `int`, `int<dim>` | `i<w>` | Analysed range and the selected platform's declared representations |
+
+Signedness and width are storage facts. `byte`, `uint8`, `uint`, `int64`,
+`nativeint` and the other width-named spellings are not Clef source types.
+A byte-unit buffer is `array<int>`; its encoding or boundary contract supplies
+the cell range and representation evidence. An ordinary integer is not an
+address; addresses use the semantic types in [NTU Types §2.3](ntu-types.md#23-pointer-and-semantic-types-implicit-pointer-width).
 
 ### Floating Point Types
 
-| F# Syntax | Native Representation | Size | Notes |
-|-----------|----------------------|------|-------|
-| `float` / `double` | `f64` | 8 bytes | IEEE 754 double precision |
-| `float32` / `single` | `f32` | 4 bytes | IEEE 754 single precision |
+| Clef source | Native representation | Selection |
+|-------------|-----------------------|-----------|
+| `float`, `float<dim>` | The settled real representation | [Numeric Selection](numeric-selection.md) over the declared offerings and analysed range |
+
+`float32`, `single`, `double` and other representation spellings do not select
+source types. The numeric selection rules govern any unobservable-range case.
 
 ### Character and String Types
 
@@ -427,6 +425,65 @@ string   memref<?xi8>
 
 The view's descriptor is a lowering artifact of the target pathway, not a Clef value; no Clef operation observes it. On the JSIR pathway `string` is a host string and this layout does not bind ([Native Type Universe §4.1](native-type-universe.md)).
 
+#### Integer byte-unit conversions
+
+The source signatures use dimensionless integers:
+
+```fsharp
+String.fromBytes : array<int> -> string
+String.toBytes : string -> array<int>
+```
+
+These array elements are encoded byte units, not Unicode scalar values. The
+string laws in [Native Type Universe §4.1](native-type-universe.md#41-string)
+remain authoritative: strings contain valid UTF-8, and character operations
+observe codepoints.
+
+`String.fromBytes` requires evidence that its input elements fit the encoding's
+byte units and that the resulting sequence is valid UTF-8. An integer array's
+source type alone establishes neither property. Baker retains the particular
+allocation, aliases, slices, contributing writes and dependent reads in the PSG;
+representation selection applies to those buffer occurrences, never to every
+array with the same logical element type. The selected platform must offer the
+required unsigned byte representation.
+
+Both conversions establish independent snapshots. Later writes through the
+input of `fromBytes` SHALL NOT change the constructed string. Mutating the array
+returned by `toBytes` SHALL NOT change its source string. `toBytes` preserves the
+UTF-8 byte sequence, order and length. Eliminating a copy requires ownership and
+preservation evidence that establishes these observable laws; a matching
+physical layout alone is insufficient.
+
+Baker expresses the required storage, copy and final view relationships in the
+graph before Alex witnesses them. Alex consumes the settled storage and width
+adaptations. Its internal byte/string view requires matching physical carriers
+and cannot repair a wider integer buffer by relabeling its return type.
+
+#### Current native implementation boundary
+
+The implemented `fromBytes` admission covers closed array families with proved ASCII
+contents and immutable constant byte sequences checked for UTF-8 validity.
+Unknown writes, escaping aliases and unproved text validity remain explicit
+admission failures. Source-only preparation retains the unresolved operation
+without inventing a platform representation. These compile-time facts result in
+unboxed byte storage; they introduce no runtime type wrapper. Byte-range evidence
+alone does not prove UTF-8 validity: a lone `255` or continuation unit `169` is
+not admitted as text.
+
+The current `fromBytes` recipe uses an explicit full-length `Array.sub` copy and
+retains allocation, alias, write/read and text-validity incidence. The `toBytes`
+recipe composes allocation, length, indexed reads and writes, and an ordinary
+loop to copy an internal read-only byte view into a fresh logical integer array.
+Its internal view carries the encoding's eight-bit storage evidence. The public
+array's representation follows its complete write range, including subsequent
+ordinary integer writes above 255; it is not restricted to the view's carrier.
+The graph retains the selected representation declaration and copy dependencies,
+and normal range analysis settles the resulting reads and writes. These
+implementation limits do not narrow the language's Unicode semantics or
+establish general dynamic UTF-8 validation. Native acceptance results are
+recorded with the compiler and formatter gates, rather than inferred from this
+specification.
+
 ## Parameterized Types
 
 ### Option
@@ -520,15 +577,12 @@ env: ┌─────────────────────┐
 
 The middle end emits these portable forms; a target pathway lowers them ([Backend Lowering Architecture](backend-lowering-architecture.md)). No row is a pointer: a buffer is a `memref` view, and a link between arena-resident nodes is a bounded `index` carrying VC-LINK.
 
-| F# Type | MLIR Type |
+| Clef type | MLIR type |
 |---------|-----------|
 | `unit` | (none - ZST) |
 | `bool` | `i8` |
-| `int` | `index` |
-| `int32` | `i32` |
-| `int64` | `i64` |
-| `float` | `f64` |
-| `float32` | `f32` |
+| `int`, `int<dim>` | `i<w>` from settled range and representation evidence |
+| `float`, `float<dim>` | The settled real representation |
 | `char` | `i32` |
 | `string` | `memref<?xi8>`; byte length is the dimension |
 | `array<'T>` | `memref<?xT>`; length is the dimension |

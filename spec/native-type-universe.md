@@ -533,6 +533,13 @@ for c in String.chars s do
 
 **Zero-Copy Slicing**: A substring is a `memref.subview` of the same buffer with an adjusted offset and dimension; no bytes are copied.
 
+**Byte-unit conversions**: `String.fromBytes : array<int> -> string` requires
+byte-range and UTF-8-validity evidence. It constructs an immutable snapshot;
+`String.toBytes : string -> array<int>` returns an independent mutable snapshot
+of those UTF-8 bytes. Neither direction exposes a mutable alias of string
+storage. The [conversion contract and current admission limits](native-type-mappings.md#integer-byte-unit-conversions)
+distinguish these language laws from the implemented proof coverage.
+
 > **JSIR pathway** (JavaScript Substrate profile): `string` is realized as a host string, whose internal encoding is UTF-16 code units. The observable semantics of this section bind unchanged: `String.byteLength` SHALL return the UTF-8 byte count, `String.chars` SHALL yield Unicode scalar values, and indexing SHALL be by codepoint. The `memref<?xi8>` layout and its cost figures are properties of layout-realizing pathways and do not bind on this pathway ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)).
 
 > **See**: Appendix E for encoding comparison with OCaml (Latin-1) and .NET (UTF-16).
