@@ -5,239 +5,325 @@ category: Representation
 status: normative
 ---
 
-> **Normative specification for seq expression memory layout and state machine semantics in Clef compilation.**
+> **Normative specification for sequence values, storage and suspension in Clef.**
+> Implementation coverage and final native acceptance are recorded separately in
+> [Composer C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md) and its linked
+> waypoints. A required representation contract is not a claim that every source
+> composition or target path already implements it.
 
 ## 1. Overview
 
-Clef implements `seq { }` expressions as state machine closures that extend the flat closure architecture. Sequence expressions are resumable computations that yield values lazily. This chapter specifies the memory representation, state machine generation, and the critical **Sequential flattening** pattern required for correct pre/post-yield expression extraction.
+A Clef `seq { }` expression creates a deferred computation that produces elements
+on demand. A successful pull yields one element and records where execution must
+resume. Exhaustion returns false. The PSG retains source types, evaluation order,
+ownership, storage and proof premises before the middle end witnesses operations.
+
+This chapter specifies the sequence callable, persistent frame, current-value
+admission and suspension contract. Sequential syntax is not an instruction for
+Alex to flatten or split expressions. Baker composes the graph's evaluation
+relations and constructs the resumed computation through its recipes.
 
 ## 2. Relationship to Closures and Lazy
 
-Sequence expressions build on the flat closure representation specified in [Closure Representation](closure-representation.md) and extend the thunk pattern from [Lazy Representation](lazy-representation.md).
+Sequences use the callable/environment model of
+[Closure Representation](closure-representation.md). Like
+[Lazy Representation](lazy-representation.md), construction forms captures without
+executing the deferred body. Unlike a lazy value, a sequence does not memoize one
+result for every consumer: each enumeration has its own iteration state.
 
-**Progressive Extension Pattern**:
-```
-PRD-11 (Closures)     → Flat closure: (fn, {cap₀, cap₁, ...})
-         ↓ extends (adds state prefix)
-PRD-14 (Lazy)         → Extended closure: (thunk, {computed, value, cap₀, ...})
-         ↓ extends (adds INTERNAL STATE suffix)
-PRD-15 (SimpleSeq)    → State machine closure: (moveNext, {state, current, cap₀, ..., internalState₀, ...})
-```
+The canonical sequence value is the pair `(moveNext, env)`. The callable half is
+separate from the environment; no function address is stored as an environment
+data field. Where the exact callable is established for a use, compilation may
+elide that half and call the known function with its environment. This
+specialization does not replace the general pair contract. A consumer without
+that premise must retain both halves through an admitted typed representation.
 
-**Key Insight**: A sequence expression creates a struct containing both captured values from the enclosing scope AND internal mutable state declared within the seq body.
+Storage follows the admitted lifetime classes in
+[Closure Representation §3.3](closure-representation.md). Stack residence needs a
+bounded lifetime; program-lifetime storage needs an admitted program-lifetime
+site. Repeated dynamic construction is not automatically a single static object.
+An unsupported lifetime or target allocation class is a compile-time residual,
+not a reason to return storage that dies with the generator activation or to
+silently introduce heap allocation on a target without it.
 
-**Allocation and Lifetime**: The seq struct is a value like any other closure-family struct, so its storage is chosen by the four-point lifetime lattice specified in [Closure Representation §3.3](closure-representation.md). A seq whose lifetime is scope-bounded lives on the stack; a seq that escapes to program lifetime is placed in static storage (`memref.global`), constructed once and held to program end. On a no-heap target only the scope-bounded and program-lifetime classes exist; a seq value that classifies as genuinely-dynamic on such a target is a compile-time lifetime error, not a silent heap allocation.
-
-## 3. Primitive Sequence Values
+## 3. Empty and Zero-Cut Sequences
 
 ### 3.1 Seq.empty
 
-`Seq.empty<'T>` is the degenerate sequence containing no elements. It is a polymorphic value:
+`Seq.empty<'T> : seq<'T>` contains no elements and every pull returns false.
+Its element type remains meaningful for type checking and composition, but no
+physical current slot or default value of `'T` is required. A compiler may retain
+a minimal exhausted frame and a trivial MoveNext, or elide storage/calls when
+that transformation preserves the complete observable behavior.
+
+There is no fixed SSA cost, field width or mandatory allocation for this
+primitive. Eliding a callable value requires its identity to be established as
+in §2. Reading current from the empty iterator is never admitted.
+
+### 3.2 A body with no yields can still execute
+
+A zero-cut generator is not necessarily the pure empty primitive:
 
 ```fsharp
-Seq.empty<'T> : seq<'T>
-```
-
-**Representation**: `Seq.empty` creates a minimal seq struct with:
-- `state = -1` (already exhausted)
-- `current = default<'T>` (never accessed)
-- `moveNext` (the function-value half) naming a trivial MoveNext that returns `false`, or elided (below)
-- No captures, no internal state
-
-```
-Seq.empty<T>
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32 = -1       (4 bytes) - already done                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: T            (sizeof(T) bytes) - undefined (never read)        │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**MoveNext for Seq.empty**:
-```
-func.func @seq_empty_movenext(%env: memref<?xi64>) -> i1 {
-    func.return %false : i1
+let mutable visits = 0
+let effects = seq {
+    visits <- visits + 1
 }
 ```
 
-Alternatively, an implementation MAY optimize `Seq.empty` to immediately set `state = -1` and elide the MoveNext function value, as it is never meaningfully called.
+Creating `effects` captures its required storage without running the assignment.
+Its first pull executes the assignment and then exhausts; later pulls do not
+repeat the completed body. A new enumeration starts again and may update the
+same captured external cell.
 
-**SSA Cost**: 2 (undef struct, insert state=-1), plus 1 for `func.constant` when the MoveNext value is materialized
-
-### 3.2 Relationship to seq { }
-
-`Seq.empty<'T>` is semantically equivalent to:
-
-```fsharp
-seq<'T> { }  // Empty seq expression
- 
-```
-
-However, `Seq.empty` is a primitive that avoids state machine generation entirely. An implementation SHOULD recognize `seq { }` with no body and lower it to the same representation as `Seq.empty`.
+The generator may retain a logical current identity and element type without
+allocating a current field. A certified consumer can omit an unattainable
+successful-current branch, but must preserve the pull and its effects. No
+uninitialized field is read, and no placeholder element is synthesized.
 
 ## 4. Memory Layout Specification
 
-### 4.1 Seq Structure
+### 4.1 Logical frame and settled physical layout
 
-A seq value in Clef is the two-value pair `(moveNext, env)` of [Closure Representation §6.3](closure-representation.md): `moveNext` is a function value, and the environment is a flat struct containing:
+The environment has the following logical roles:
 
-```
-Seq<T> with captures [c₁: T₁, ..., cₘ: Tₘ] and internal state [s₁: S₁, ..., sₖ: Sₖ]
-┌─────────────────────────────────────────────────────────────────────────┐
-│ state: i32              (4 bytes) - state machine position              │
-├─────────────────────────────────────────────────────────────────────────┤
-│ current: T              (sizeof(T) bytes) - current yielded value       │
-├─────────────────────────────────────────────────────────────────────────┤
-│ c₁: T₁                  (captured value from enclosing scope)           │
-├─────────────────────────────────────────────────────────────────────────┤
-│ ...                                                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│ cₘ: Tₘ                  (last captured value)                           │
-├─────────────────────────────────────────────────────────────────────────┤
-│ s₁: S₁                  (internal mutable state from seq body)          │
-├─────────────────────────────────────────────────────────────────────────┤
-│ ...                                                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│ sₖ: Sₖ                  (last internal state variable)                  │
-└─────────────────────────────────────────────────────────────────────────┘
+| Role | Required storage behavior |
+|------|---------------------------|
+| State | Initial entry, reached cut's resumption, or completion |
+| Current | Most recently yielded element; physical slot only when needed |
+| Captures | Creation-time immutable values or retained original mutable-cell views |
+| Live-across values | Values and storage needed after a suspension |
+| Owned child regions | Separately placed backing storage whose lifetime is the owning enumeration |
 
-Field Indices:
-  [0] = state (i32)
-  [1] = current (T)
-  [2..m+1] = captured values from enclosing scope
-  [m+2..m+k+1] = internal mutable state from seq body
-```
+These roles do not prescribe ordinal field indices, fixed offsets or a universal
+`i32` state/current representation. Baker settles each field's source identity,
+NTU type, representation, extent, offset and alignment against the target
+contract. The source state has a finite discriminant range; placement selects a
+carrier that represents it. A yielded integer retains its dimensional type and
+range obligations even when its physical storage is narrower than a source
+read's held representation. Explicit settled meets adapt those representations.
 
-The `MoveNext` symbol is never stored in the environment as data: it is the function-value half of the pair, elided where the consumer knows it. An earlier revision placed a `code_ptr` word at `[2]`; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)).
+The total environment extent is a literal before witnessing. Field placement
+must satisfy alignment, containment and non-overlap or an explicitly justified
+sharing contract. Interference coloring may reduce storage after the necessary
+liveness proof, but coloring is not mandatory and is not implied by the existence
+of a settled frame. The environment contains no function address field.
 
-### 4.2 Captures vs Internal State
+### 4.2 Captures, internal values and activation scratch
 
-| Category | Definition Location | Initialization Time | Access Pattern |
-|----------|---------------------|---------------------|----------------|
-| **Captures** | Enclosing scope | At seq struct creation | Read-only in MoveNext |
-| **Internal State** | Inside seq body (`let mutable`) | At first MoveNext (state 0) | Read-modify-write between yields |
+Immutable captures copy their values when the sequence is formed. Mutable
+captures retain the original cell identity: reads and writes from an enumeration
+observe that cell, and separate enumerations do not clone it. Internal bindings
+are initialized when evaluation reaches them in the generator, not when the
+sequence is created or by default stores before the first pull.
 
-**Example**:
-```fsharp
-let multiplesOf factor count = seq {
-    let mutable i = 1        // INTERNAL STATE → index [m+2]
-    while i <= count do      // 'count' is CAPTURE → index [3]
-        yield i * factor     // 'factor' is CAPTURE → index [2]
-        i <- i + 1
-}
-// Environment: {state, current, factor, count, i}
-//              [0]    [1]      [2]     [3]    [4]
- 
-```
+Both immutable and mutable bindings may be live across a suspension. A borrowed
+cell can need persistent storage even after its enclosing computation's last
+scalar read. Those requirements are established by the graph's liveness and
+residence contracts.
 
-### 4.3 State Values
+Values needed only during one MoveNext activation may use distinct scratch
+storage, including explicit stores between generated control regions. Such
+scratch does not belong to the persistent resume frame. An explicit zero scratch
+extent is valid when no scratch slots exist; it admits no slot access. A local
+value does not become persistent merely because its source syntax is inside a
+sequence.
+
+### 4.3 State and current
 
 | State | Meaning |
 |-------|---------|
-| 0 | Initial - not yet started |
-| 1..N | After yield N - resumption point |
-| -1 | Done - sequence exhausted |
+| 0 | Initial entry, not yet started |
+| Positive settled label | Resume after the corresponding reached yield |
+| -1 | Completed |
+
+These values describe the persisted resume discriminant. A generator may also
+have a local dispatch position for several control occurrences within one pull;
+that local position is not an additional suspension state.
+
+Each yield evaluates its payload, stores current and the corresponding resume
+state, then returns true. Completion records the completed state and returns
+false. A current read requires the successful-pull premise for the exact iterator
+and the applicable control path. Completion, construction and empty enumeration
+do not establish that premise. The compiler must reject an unadmitted read.
+
+### 4.4 Typed views and owned storage
+
+A typed storage view can retain a descriptor containing physical address,
+offset, extent and stride. This is an unboxed storage value. It is not a runtime
+type object, tag, boxed scalar or dynamic type conversion. Descriptor fields and
+sizes are governed by the target representation; a particular MLIR rank-one
+carrier's fields do not define a universal Clef type-size formula. No optimization
+of those fields is assumed as an admission premise.
+
+A mutable-cell capture stores its original cell view. Reading/writing the captured
+scalar goes through that view; it does not copy the scalar into a replacement
+cell. Borrowing an inline scalar slot exposes the exact placed cell view.
+A buffer value does not acquire mutable-cell semantics without an explicit
+admitted access contract.
+
+A factory may initialize caller-owned frame storage when a settled destination
+and residence contract establish its lifetime. A child frame constructed during
+MoveNext may reside in an explicitly placed region of its parent's persistent
+frame. Each simultaneously retained child allocation occurrence requires its
+own admitted extent and identity. A descriptor alone does not supply backing
+storage or extend its lifetime.
+
+A sequence may capture a surrounding sequence template when the source
+allocation's activation covers every use of the capturing sequence and its
+iterators. Lexical containment alone is insufficient. Current Baker evidence
+retains the allocation, covering activation, captured declaration, capturing
+generator and constructor identities in `SequenceTemplateBorrow`. Nested and
+repeated uses can preserve that covering lifetime; returned, stored, opaque or
+ambiguously owned uses require additional settlement. Capturing the template
+preserves its mutable capture identities while each enumeration gets fresh
+iteration state.
+
+Current native support uses explicit per-occurrence destination/origin rows and
+finite parent/child region coordinates. It does not establish arbitrary escaping
+factory results, recursive region growth, mixed callable origins or generic
+aggregate transport. These cases still require the canonical callable and
+lifetime contracts; they are not redefined by that implementation scope.
 
 ## 5. MoveNext Calling Convention
 
-### 5.1 Struct Pointer Passing
+### 5.1 Environment argument
 
-Following the lazy thunk convention, `MoveNext` receives its environment — the struct of §4.1 — as its sole parameter; the seq value is the pair `(moveNext, env)`:
+MoveNext receives its typed environment and returns a Boolean:
 
-**MoveNext Signature**:
-```
-moveNext: (memref<Exi8>) -> i1      // E = the environment extent, a literal at saturation
-```
-
-Returns `true` if a value was yielded (available in `current`), `false` if exhausted.
-
-### 5.2 State Machine Structure
-
-`MoveNext` dispatches on the `state` discriminant with `scf.index_switch`. Each case is the segment that runs from that state to its next yield (or to completion), and every case ends by storing the next state and yielding whether a value was produced:
-
-```mlir
-func.func private @moveNext(%seq: memref<Exi8>) -> i1 {
-  %c0 = arith.constant 0 : index
-  %sv = memref.view %seq[%c0][] : memref<Exi8> to memref<1xindex>
-  %s  = memref.load %sv[%c0] : memref<1xindex>
-  %more = scf.index_switch %s -> i1
-    case 0 { ... initialize internal state, then run the loop segment ... }
-    case 1 { ... post-yield segment; evaluate the condition;
-             true:  pre-yield segment, store current, store state 1, scf.yield %true
-             false: store state 2, scf.yield %false ... }
-    default { %f = arith.constant false ; scf.yield %f : i1 }
-  return %more : i1
-}
+```text
+moveNext : memref<E x i8> -> i1
 ```
 
-No block-based control flow (`cf.br`, `cf.cond_br`) appears above the witness boundary. `scf.index_switch` over the literal state set is the structured form of the same machine; the pathway's standard `scf` lowering produces the blocks.
+Here `E` is the settled literal extent, not runtime type information. The function
+half identifies this operation; the environment descriptor identifies a specific
+allocation instance. Calls with a statically known origin may use the direct
+function symbol. Unknown origins may not be reconstructed from symbol spelling
+or a type-only guessed extent.
 
-## 6. PSG Structure: Segments at Yield
+### 5.2 Structured machine and standard lowering
 
-A `seq { }` body is elaborated by the suspension recipe of [Delimited Continuation Representation §2](dcont-representation.md), with `yield` as the cut and the caller's pull as the only resumption edge. The recipe, not a shape recognizer, produces the state machine:
+Baker constructs the Boolean generator body from ordinary typed graph operations.
+The persisted state selects a resume entry; local structured control executes
+until a yield or completion. A `ContinuationDispatch` supplies its selector,
+case labels and child regions. Alex pulls these settled children through its
+positional Huet zipper witness interface and composes `scf.index_switch`.
 
-- **Ownership.** Every retained `yield` and `yield!` site has exactly one delimiting sequence owner and that owner's generator, recorded by identity in the hypergraph. A nested sequence supplies its own delimiter; entering an ordinary function or lazy body does not inherit the enclosing sequence's delimiter. Delegation belongs to the delegating sequence, while suspension sites in its supplied sequence retain their own owner. This relation establishes ownership only: a conditional site's owner does not establish branch feasibility, evaluation order, state numbering or dominance. An effectful body with no suspension sites still runs when pulled.
-- **Delegation.** Baker elaborates source `yield! input` into iteration local to the delegating owner. When execution reaches the delegation, it evaluates `input` once and initializes its iterator. Each successful pull reads the current element once and yields that value through the delegating owner; on resumption, iteration continues until exhaustion, then execution proceeds after the delegation. An empty input produces no outer yield and continues within the same pull. The synthesized yielding site belongs to the delegating owner; suspension sites inside the supplied sequence retain that sequence's separate owner. This elaboration establishes iteration and ownership; frame layout and lifetime obligations settle separately.
-- **Evaluation order.** Segmentation preserves the source evaluation relation: a binding evaluates its initializer before making the result available; a conditional evaluates its guard before the selected branch; a while loop evaluates its guard again only after the preceding body iteration completes. Suspension delays the remainder of that body until resumption. Short-circuit guards retain their conditional structure. Creating a function, lazy value or nested sequence preserves capture timing without executing its deferred body. A resolved definition reference does not re-run an initializer, and deduplicating a graph traversal does not suppress evaluations required by a loop. These evaluation relationships must be settled before segment liveness; structural containment or delimiter ownership alone does not establish them. Local operand demands and entry/completion ports are compositional contracts: their presence alone does not establish global value availability, dominance or suspension segments. Those require composition and analysis of the contracts within the owning region.
-- **Segments.** Fan-out splits the body at each `yield`. In a `while`-shaped body the code before the yield and the code after it are the two segments adjacent to the cut, whatever nesting of `Sequential` nodes the surface syntax produced. Segmentation follows the graph's evaluation order, so no flattening or splitting of `Sequential` nodes is specified or needed.
-- **State count.** A body with *N* yields folds to a discriminant over *N*+2 values (§4.3 shows *N* = 1).
-- **Slots.** Each cut's live-across set is enumerated at elaboration: `let mutable` bindings threaded across the yield become internal-state slots; an immutable `let` whose scope does not cross a yield is evaluated within its segment and occupies no slot. Offsets and the extent `E` are literals settled by interference colouring over segment liveness.
-- **Conditional yield.** A `yield` under `if` is a cut on one branch; the other branch continues the segment. The discriminant records which cut was reached; no separate conditional-yield structure exists.
+The switch selector has MLIR `index` type. A settled integer state carrier is
+adapted with the appropriate existing typed index operation; this requirement
+does not change its stored width to `index`. Frame accesses use typed
+`memref.view`, load and store operations at settled literal offsets. Ordinary
+branches and loops retain their structured control operations.
 
-The saturated result is a frame node — the environment node of [Closure Representation §7](closure-representation.md) in its state-machine slot class — whose segments are the `scf.index_switch` cases of §5.2. The middle end witnesses that structure; it does not recognize shapes, split expressions, or track bindings.
+Sequence witnessing uses standard `func`, `memref`, `arith`, `index` and `scf`.
+The backend lowers structured control to `cf` and then its target form, with
+memory, index, function and arithmetic conversion governed by that target's
+pipeline. No private continuation dialect, raw address reconstruction or
+imperative source-body emitter is required for this sequence machine.
 
-## 7. SSA Cost Formula
+## 6. PSG Ownership, Evaluation, Cuts and Evidence
 
-For a seq expression with `N` captures and `M` internal state variables:
+The suspension recipe of [Delimited Continuation Representation §2](dcont-representation.md)
+owns elaboration. It retains the following distinct contracts:
 
-```
-SSA cost = 5 + N + (2 × M)
-```
+- **Ownership:** Each retained suspension site has exactly one sequence delimiter
+  and that owner's generator. Nested sequences own their suspension sites;
+  ordinary function, lambda and lazy bodies do not inherit an outer delimiter.
+  Ownership alone establishes neither branch feasibility nor evaluation order.
+- **Delegation:** Reaching `yield! input` evaluates input once, initializes its
+  iterator and pulls it locally. Each successful pull reads current once and
+  yields through the delegating owner. Resumption continues that iteration;
+  exhaustion proceeds after the delegation. Empty delegation produces no outer
+  yield. Original source identity/range and operand provenance remain when Baker
+  replaces the source form with the explicit loop and yield.
+- **Evaluation:** Bindings, operands, selected branches, loop backedges and
+  deferred formation preserve source order. Formation does not execute a nested
+  deferred body. A definition reference does not rerun its initializer; graph
+  traversal deduplication does not suppress a loop's required evaluations.
+  Local demand/entry/completion relations precede their composition into control.
+- **Control and cuts:** Composed control gives exact occurrences, successors,
+  uses and definitions. A yield cuts one path and resumes at its settled
+  successor. Untaken conditional paths do not create a yield. The persisted
+  state labels come from this plan, not a source-order scan by Alex.
+- **Availability and storage:** Definite assignment and live-across equations
+  establish which values must survive each cut. Placement retains their exact
+  types, ranges and storage requirements. Values used only within a pull can
+  occupy activation scratch; borrowed storage retains its own lifetime premise.
+- **Machine and evidence:** Recipe fan-out/fold-in creates typed state/frame
+  accesses, dispatch and Boolean completion, retaining reference participants
+  and provenance. Resident relations connect owner/generator, cut, payload,
+  resume successor, live values, generated bodies and slots. Discriminant and
+  layout obligations retain their premises and discharge boundary.
 
-| Component | SSAs |
-|-----------|------|
-| state constant (0) | 1 |
-| undef struct | 1 |
-| insert state | 1 |
-| addressof MoveNext | 1 |
-| `func.constant` for MoveNext (elided when the consumer knows it) | 1 |
-| insert captures | N |
-| internal state (const 0 + insert each) | 2 × M |
+A valid layout obligation is not proof of every lifetime or continuation law.
+Likewise, a recorded liveness relation is not a substitute for checking its
+control participants and equations. Unsettled prerequisites remain diagnostic
+at their owning layer. Alex consumes settled facts and representation meets; it
+does not infer missing semantic control, choose residence or discharge proofs.
+
+## 7. SSA and Storage Accounting
+
+No fixed `5 + captures + 2 * locals` formula is specified. Required operations
+and SSA results depend on settled field representations, adaptations, branch
+results, scratch requirements, capture descriptors, destinations and callable
+elision. Internal values are initialized only when source evaluation reaches
+their definitions. Current is written only by a successful yield.
+
+Target resource analysis must account for the actual admitted persistent frame,
+activation scratch and owned child regions. A descriptor cost does not stand in
+for the backing storage it denotes. Alex's deterministic SSA identities name
+witnessed operations; they do not constitute the frame or resource proof.
 
 ## 8. Normative Requirements
 
-1. **Flat Representation**: Seq values SHALL use flat closure representation with captures AND internal state inlined
-2. **Struct Layout**: Field order SHALL be: state, current, captures, internal_state; no code pointer SHALL be stored in the environment
-3. **Capture Indices**: Captures SHALL begin at index 2
-4. **Seq.empty Representation**: `Seq.empty<'T>` SHALL be represented as a minimal seq struct with state=-1
-5. **Internal State Indices**: Internal state SHALL begin at index 2 + capture_count
-6. **Segmentation**: The body SHALL be segmented at each `yield` by the suspension recipe (§6); segmentation SHALL follow the graph's evaluation order, and no flattening or splitting of `Sequential` nodes is specified
-7. **MoveNext Convention**: MoveNext SHALL receive its environment as its sole parameter; a seq value SHALL be the two-value pair `(moveNext, env)` of [Closure Representation §6.3](closure-representation.md)
-8. **State Machine**: State 0 = initial, positive = after yield N, -1 = done; MoveNext SHALL dispatch on the state with `scf.index_switch` (§5.2), and no `cf.*` operation SHALL appear above the witness boundary
+1. A sequence SHALL retain its NTU element constraints through source checking,
+   graph construction, proof obligations and physical representation settlement.
+2. The canonical callable SHALL be `(moveNext, env)`, with no function address
+   data field in the environment. Elision SHALL require an established callable
+   identity for the use.
+3. Each enumeration SHALL have independent iteration state while preserving
+   original mutable capture identity and immutable capture values.
+4. Baker SHALL establish suspension ownership, evaluation order, composed control,
+   value availability and live-across storage before Alex witnesses a machine.
+5. Every field and allocation SHALL have its required settled representation,
+   placement and residence. Source types SHALL NOT be replaced by a blanket fixed
+   integer width or a guessed MLIR descriptor layout.
+6. A yield SHALL establish current and resume state before returning true. Current
+   reads SHALL require the exact successful-pull premise. Empty and zero-cut
+   sequences SHALL NOT fabricate an element or require a default of its type.
+7. Delegation SHALL preserve input evaluation, element order, exhaustion,
+   resumption and the separate ownership of the supplied sequence's sites.
+8. Graph elaboration SHALL preserve source/reference participants and provenance;
+   obligation presence SHALL NOT be represented as proof of unrelated properties.
+9. Alex SHALL pull settled child regions at their Huet positions and compose
+   standard operations. It SHALL NOT rediscover source yields, build semantic
+   control in an emitter or guess missing frame/origin facts.
+10. Allocation elision and caller/parent-owned storage SHALL preserve runtime
+    allocation identity and admitted lifetime. Unsupported contracts SHALL remain
+    explicit compile-time residuals.
 
-## 9. Test Cases
+## 9. Behavioral Test Contracts
 
-### 9.1 triangularNumbers (Pre-yield + Post-yield)
+These examples state required behavior, not completed test results.
+
+### 9.1 Pre-yield and post-yield effects
 
 ```fsharp
 let triangularNumbers count = seq {
     let mutable sum = 0
     let mutable i = 1
     while i <= count do
-        sum <- sum + i    // PRE-YIELD
+        sum <- sum + i
         yield sum
-        i <- i + 1        // POST-YIELD
+        i <- i + 1
 }
 ```
 
-**Environment**: `{state, current, count, sum, i}`
+The pull yielding a value updates `sum` first. Resuming increments `i` before
+rechecking the guard. State and live values survive the cut; scratch evaluation
+must not repeat or skip either effect.
 
-**MoveNext blocks**:
-- `^s0`: sum=0, i=1, br check
-- `^s1`: i=i+1, br check
-- `^yield`: sum=sum+i, current=sum, state=1, return true
-
-### 9.2 fibonacci (LetBinding in Post-yield)
+### 9.2 Local value after a yield
 
 ```fsharp
 let fibonacci count = seq {
@@ -246,24 +332,32 @@ let fibonacci count = seq {
     let mutable i = 0
     while i < count do
         yield a
-        let temp = a + b  // LOCAL BINDING (not in struct)
+        let temp = a + b
         a <- b
-        b <- temp         // References local binding
+        b <- temp
         i <- i + 1
 }
 ```
 
-**Environment**: `{state, current, count, a, b, i}`
+`temp` is computed at its actual resumed definition. It does not need persistent
+storage if its lifetime ends before the next cut, but it must remain available
+across any generated local control regions that use it.
 
-**MoveNext ^s1**: Must compute `temp` locally, not load from struct.
+### 9.3 Independent iteration and shared captures
+
+Two enumerations start at the initial resume state and must not copy each other's
+current or internal progress. A mutable cell captured outside both remains the
+same cell. A no-yield effectful body still executes once per enumeration; a
+nested empty delegation continues the outer body within the current pull.
 
 ## 10. Related Chapters
 
-This chapter covers `seq { }` expressions (PRD-15). For **Seq module operations** (map, filter, take, fold, collect), see:
-
-- [Seq Operations Representation](seq-operations-representation.md) - Wrapper structures, copy semantics, composition model
-
-## References
-
-- PRD-15: SimpleSeq - Implementation requirements
-- PRD-16: SeqOperations - Composed sequence operations
+- [Closure Representation](closure-representation.md): callable values, capture
+  identity, target layout and residence.
+- [Lazy Representation](lazy-representation.md): deferred formation and memoization.
+- [Delimited Continuation Representation](dcont-representation.md): shared
+  suspension recipe and proof obligations.
+- [Seq Operations Representation](seq-operations-representation.md): operations
+  that compose the same sequence contracts.
+- [Composer C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md): implementation scope
+  and final source, graph, MLIR, native and tooling gates.
