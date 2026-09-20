@@ -21,6 +21,15 @@ These intrinsics support the WREN stack's WebSocket communication layer, which r
 - Base64 encoding for WebSocket accept key generation
 - Byte order conversion for network protocol handling
 
+This chapter's `Cryptography` module is the narrow SHA-1/Base64 protocol surface.
+[Fidelity.Cryptography](../../Fidelity.Cryptography/README.md) is the peer library
+for the broader algorithm portfolio, key custody, authenticated encryption and
+post-quantum implementations. Its hardware providers bind through
+[Fidelity.Platform](../../Fidelity.Platform/docs/CRYPTOGRAPHY_PROVIDERS.md).
+Those implementations are planned separately from these intrinsic declarations.
+SHA-1 here serves the WebSocket handshake and is not the credential-signature or
+MBS sealing policy. Base64 is an encoding operation.
+
 > **Note on binary serialization.** Reinterpreting a typed value as raw bits — the
 > C `reinterpret_cast` / "bit cast" idiom for reaching the IEEE-754 representation of
 > a float — is **deliberately absent** from these modules. It is a category error in

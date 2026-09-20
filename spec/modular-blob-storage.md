@@ -23,7 +23,7 @@ MBS realizes a *durability coeffect* — that a value survive power loss, that i
 
 A single MBS instance holds records of one shape, written `MBS<'Record>`. An instance is provisioned for that shape, so its slot sizes and index attributes are known ahead of time; this is the extent of the shape's role, and no type discipline operates over stored objects at run time.
 
-A record is written and read whole. This gives crash-consistency without a journal: a slot write completes and the record becomes retrievable, or it does not and the slot retains its prior contents. A reader reaches a slot only through a handle the store issues on a completed write, so no partial-write state is observable.
+A record is written and read whole. The target must implement that operation with a durable commit protocol: a completed write makes the new record retrievable, while an interrupted write leaves the previous committed state retrievable. Copy-on-write slots or another target-supported atomic mechanism can satisfy this requirement. The API's record granularity alone does not make flash writes atomic. A reader reaches a slot only through a handle the store issues on a completed write.
 
 A record may be composed of sub-parts — for the Credential Store, an identity record of a signing keypair, a KEM keypair, a certificate chain, and attributes. The index addresses whole records; storage granularity underneath may be per-sub-part.
 
@@ -54,7 +54,7 @@ Mbs.find : MBS<'R> -> (IndexEntry -> bool) -> Handle<'R> array // scan the index
 
 Every crossing of the store boundary passes through a **seal**: a record is sealed on `put` and unsealed on `get`, under a key rooted in the target's device-bound custody. The persisted blob is ciphertext; the plaintext record exists only transiently in a secure region after an unseal.
 
-The medium therefore need not be access-controlled. A sealed blob is inert without its key, and the key is held in the target's sequester, so a target may place sealed blobs in bulk storage that carries no security attribution of its own.
+A target may place sealed blobs in bulk storage without confidentiality protection from the medium itself. The seal must authenticate the record and its binding to the store. The target must separately state its freshness and rollback guarantees. Valid older ciphertext remains replayable unless trusted state distinguishes it from the current record. Encryption also leaves deletion and availability concerns to the storage design.
 
 ```clef
 Mbs.put   : MBS<'R> -> 'R -> Handle<'R>       // seal, write whole, return the handle
@@ -62,17 +62,21 @@ Mbs.get   : MBS<'R> -> Handle<'R> -> 'R       // read whole, unseal into a secur
 Mbs.evict : MBS<'R> -> Handle<'R> -> unit     // remove the blob and its index entry
 ```
 
-### 5.1 The seal is a symmetric primitive
+### 5.1 Symmetric authenticated encryption
 
-The seal is data-at-rest encryption under a device-held key: a symmetric cipher. By primitive class it faces only Grover's quadratic search speedup, which halves the effective security parameter; a 256-bit key retains 128 effective bits, at the post-quantum floor. The seal is post-quantum secure by parameter, not by algorithm, and SHALL use a 256-bit-class cipher — a 128-bit key falls to 64 bits under Grover.
+The seal SHALL use authenticated encryption with a 256-bit symmetric key. AES-256 is the baseline algorithm direction. Its quantum-security assessment depends on current cryptanalysis and attack-resource assumptions, rather than an unconditional conversion from key length to security bits. [NIST's PQC FAQ](https://csrc.nist.gov/projects/post-quantum-cryptography/faqs) supports continued use of AES-256 under current understanding.
 
-The post-quantum algorithms — lattice key-encapsulation and the signature schemes — live in the credentials the seal protects and in the delegation that issues them ([Credential Authority](credential-authority.md)), because key-exchange and signatures are the functions Shor's algorithm breaks. The seal and the credentials are distinct primitive classes with distinct quantum exposure.
+Fidelity.Cryptography's [MBS sealing design](../../Fidelity.Cryptography/docs/mbs-sealing.md) proposes AES-256-GCM, conditional on a durable nonce-allocation and recovery contract. The selected suite fixes nonce and tag lengths, associated-data encoding and usage limits. Plaintext is released to the caller only after authentication succeeds.
 
-### 5.2 The sealing capability is a per-target decision
+Post-quantum KEMs and signatures serve key establishment and credential authentication. They complement the symmetric seal even when an accelerator supports them. The [Credential Authority](credential-authority.md) owns their use in issuance and delegation.
 
-The seal has two parts. **Key custody** is device-bound and non-extractable, which binds a sealed credential to one device; a target's crypto hardware may hold that key. The **sealing operation** is a symmetric cipher, expressible as verifiable code whose constant-time and secret-independence properties are checkable on the PSG, or delegated to a hardware crypto engine at the cost of moving it outside that verifiable boundary.
+### 5.2 Custody and providers
 
-This chapter fixes only the seal's primitive class (256-bit symmetric) and its key custody (device-bound). Whether a target seals in verifiable code over a hardware-held key or in a hardware engine is a decision of record for that target, stated with its verifiability cost. Where the seal is verifiable code, its proof obligations ride the PSG through to the seal as they do for the rest of the program.
+The root of sealing-key custody is device-bound and non-exportable. The selected provider may operate through a protected key handle, or the target may authorize a documented derivation route to a software-accessible working key. A software cipher cannot directly consume a hardware key that the CPU cannot read. Export and derivation permissions must therefore be stated separately from AES availability.
+
+Fidelity.Cryptography owns the sealing operation contract and first-party software direction. Fidelity.Platform supplies hardware capabilities and bindings. Hardware acceleration is an admitted implementation choice with explicit device assumptions, conformance evidence and resource constraints. Software implementations carry their own arithmetic, secret-handling and lowering obligations. The target selects a provider satisfying the same suite and custody policy, as described in the [provider contract](../../Fidelity.Cryptography/docs/platform-providers.md).
+
+MBS owns persistent nonce reservations and record commits. Provider substitution preserves the record format and does not reset nonce state. Unsupported custody or operations produce a capability failure rather than a silent key export or suite downgrade.
 
 ## 6. Allocation
 
@@ -86,7 +90,7 @@ MBS is the storage-facing form of a **durability coeffect** on the PSG, with thr
 
 - **survives-power-loss** — the storage outlives the process; the value is placed in non-volatile storage.
 - **atomic-write** — the value is written whole; no partial-write state is observable.
-- **sealed** — the value crosses the medium as ciphertext.
+- **sealed** — the value crosses the medium as authenticated ciphertext under the declared key-custody policy.
 
 Like the region, width, and representation coeffects, the durability coeffect is analyzed and carried in the middle end and committed by the target pathway, which selects the non-volatile medium, the atomic-write primitive, and the sealing capability. A target lacking non-volatile storage or a sealing capability is a capability failure at binding.
 
@@ -95,6 +99,7 @@ Like the region, width, and representation coeffects, the durability coeffect is
 - [Memory Regions](memory-regions.md) — the sealed medium, the index, and the secure working region are distinct regions with distinct access kinds; MBS storage is placed by region and lifetime.
 - [Closure Representation](closure-representation.md) — the lifetime lattice's program-lifetime point places the store's own structure; MBS extends persistence one rung further, to lifetimes that outlive the process.
 - [Credential Authority](credential-authority.md) — the layer that mints, derives, and delegates the credentials MBS persists.
+- [Fidelity.Cryptography](../../Fidelity.Cryptography/README.md) supplies the planned sealing operations, provider contracts and verification requirements.
 - [Namespace Storage](namespace-storage.md) — the layer above: names, history, and growth as an append-only ledger checkpointed into sealed segments, all stored as MBS records. Its §7 carries the server-scale generalization; MBS is the closed, fixed-slot floor beneath both.
 
 ## 9. Normative Requirements
@@ -102,8 +107,10 @@ Like the region, width, and representation coeffects, the durability coeffect is
 1. **Handle addressing.** Records SHALL be addressed by opaque handles the store issues; an MBS instance SHALL NOT present a path namespace.
 2. **Whole-record access.** A record SHALL be written and read whole; MBS SHALL NOT present partial (seek/append) access.
 3. **Atomic write.** A `put` SHALL either complete and make the record retrievable by its handle or leave the slot unchanged; no partial-write state SHALL be observable through a handle.
-4. **Sealed at rest.** A persisted record SHALL be sealed under a 256-bit-class symmetric cipher keyed by device-bound custody; the plaintext SHALL exist only in a secure region after an unseal. A hardware sealing engine SHALL NOT be assumed; the sealing operation's realization is a per-target decision.
+4. **Sealed at rest.** A persisted record SHALL use authenticated encryption with a 256-bit symmetric key rooted in device-bound custody. Plaintext SHALL remain in authorized secure working regions and SHALL be exposed to an unseal caller only after authentication succeeds. The provider SHALL preserve the selected suite and custody policy.
 5. **Fixed slots.** An MBS instance's slot set SHALL be fixed at provision time; the store SHALL NOT allocate on a heap; a full store SHALL be a reported error.
 6. **Opaque handles.** A handle SHALL be a store-issued token, not a caller-computable name, path, or index.
 7. **Secret-free index.** The index SHALL carry only non-secret attributes; scanning it SHALL require no unseal.
 8. **Durability coeffect.** Durability, atomicity, and sealing SHALL be carried as a coeffect on the PSG and committed at target-binding; a target lacking non-volatile storage or a sealing capability SHALL be a capability failure.
+9. **Nonce and recovery state.** The implementation SHALL preserve the selected suite's nonce requirements through retries, power loss and key rotation. Record publication SHALL use a target-backed durable commit protocol.
+10. **Freshness.** Each target SHALL state its rollback and freshness guarantees, including the trusted state and recovery policy on which they depend. Authentication alone SHALL NOT be represented as rollback resistance.
