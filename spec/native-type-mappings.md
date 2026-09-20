@@ -398,7 +398,7 @@ array<'T>   memref<?xT>
 | Value | The `memref<?xT>` view; `Array.length` is `memref.dim` |
 | Element layout | Contiguous, naturally aligned; monomorphized, elements are never boxed |
 | Placement | Stack, arena, or the platform's declared program-lifetime space, selected by the lifetime lattice of [Closure Representation §3.3](closure-representation.md) |
-| Bounds checking | Always; no unsafe indexing by default ([Native Type Universe §4.2](native-type-universe.md)) |
+| Bounds checking | Every access is guarded by `0 <= i < memref.dim`; there is no source-level exemption ([Native Type Universe §4.2](native-type-universe.md)) |
 | Empty array | A view of extent 0; never a null |
 | Null | Not representable |
 

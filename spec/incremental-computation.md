@@ -50,7 +50,7 @@ Actor message ordering and admission do not by themselves establish consistent d
 
 ### 1.3 Rationale for Intrinsic Status
 
-The ingredients for incremental computation exist across F#'s existing type system: `Lazy<'T>` provides caching, structural equality provides change detection, computation expressions provide dependency tracking via `let!` bindings, and interaction nets provide bounded propagation. These could be composed at the library level.
+Deferred computation, cached values, structural equality and tracked observations supply the functional ingredients for incremental computation. Clef's ordinary combinators and computation expressions expose their composition. Dependency discovery must account for actual reads and effects, including calls and captured references; `let!` syntax alone does not establish the complete dependency set.
 
 Library composition alone does not establish compiler-visible dependency, cutoff or stabilization semantics. Intrinsic status gives the compiler a stable semantic contract under which it can:
 
@@ -69,7 +69,7 @@ This is the same justification that applies to `MailboxProcessor<'Msg>`: the und
 type Incremental<'T when 'T : equality> = intrinsic
 ```
 
-The `'T : equality` constraint provides the default cutoff predicate. Structural equality on records and discriminated unions generates the cutoff automatically. Custom equality (via explicit `Equals` override or a custom comparer) provides domain-specific cutoff semantics. The constraint is enforced at compile time.
+The `'T : equality` constraint provides the default cutoff predicate. Structural equality on records and discriminated unions generates the cutoff automatically. A domain-specific cutoff is an ordinary typed function associated through `[<IncrementalCutoff>]` as specified in §5.2. The equality constraint and the cutoff's dimensional compatibility are checked at compile time.
 
 ### 2.2 Hardware-Targeted Type
 

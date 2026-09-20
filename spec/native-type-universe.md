@@ -568,7 +568,7 @@ array<'T> = memref<?xT>
 | Property | Value |
 |----------|-------|
 | **Element layout** | Contiguous, naturally aligned |
-| **Bounds checking** | Always (no unsafe indexing by default): every access is guarded by `0 <= i < memref.dim` |
+| **Bounds checking** | Every access is guarded by `0 <= i < memref.dim`; there is no source-level exemption |
 | **Empty array** | A view of dimension 0 over a valid buffer; never a null. `Array.isEmpty` is the literal comparison `memref.dim = 0` |
 | **MLIR** | `memref<?xT>` |
 

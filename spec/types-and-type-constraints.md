@@ -238,7 +238,7 @@ A type of the form `ty []` is a _single-dimensional array_ type, and a type of t
 >                                      + len * sizeof<'T> (elements)
 > ```
 >
-> Elements are laid out contiguously with natural alignment. Bounds checking is always performed (no unsafe indexing by default). An empty array has extent 0 over a valid buffer; arrays are never null.
+> Elements are laid out contiguously with natural alignment. Every access is guarded by `0 <= i < memref.dim`; there is no source-level exemption. An empty array has extent 0 over a valid buffer; arrays are never null.
 
 > Note: The type `int[][,]` in F# is the same as the type `int[,][]` in C# although the dimensions are swapped. This ensures consistency with other postfix type names in F# such as `int list list`.
 

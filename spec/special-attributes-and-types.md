@@ -81,19 +81,21 @@ In Clef, the `inline` keyword has additional semantic significance beyond perfor
 
 `inline` addresses class 1. A scope-bounded stack buffer that a function returns a view into would dangle once the frame is deallocated; expanding the body at the call site lifts the buffer into the caller's frame so the view stays valid. A value that instead escapes to program lifetime does not need inlining or the heap. It classifies as program-lifetime and goes to static storage.
 
-**The scope-bounded escape**: A function fills a scope-bounded stack buffer and returns a `string` view over it. When the function returns, the frame is deallocated and the view dangles.
+**The scope-bounded escape**: A function fills a scope-bounded stack buffer and
+returns a `string` view over it. If the buffer remains in the callee's frame, the
+returned view would outlive its storage. The compiler must establish a valid
+lifetime and placement or diagnose the escape; it must not emit a dangling view.
 
 ```fsharp
-// WITHOUT inline - the view escapes a scope-bounded buffer and dangles
+// Rejected if the buffer remains scope-bounded to readln's frame
 let readln () : string =
     let buffer = Array.zeroCreate<byte> 256      // scope-bounded, in readln's frame
     let len = readLineInto buffer 256
-    String.ofUtf8 buffer[0 .. len - 1]           // view over readln's stack buffer!
-    // When readln returns, buffer is deallocated - the view is now INVALID
+    String.ofUtf8 buffer[0 .. len - 1]           // returned view requires longer-lived storage
 
 let hello() =
-    let name = readln()  // name views deallocated memory!
-    greet name           // Undefined behavior
+    let name = readln()  // requires an established lifetime for the returned view
+    greet name
  
 ```
 
