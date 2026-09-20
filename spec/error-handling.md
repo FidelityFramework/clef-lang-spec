@@ -55,6 +55,61 @@ let divide x y : Result<int, DivisionError> =
     else Ok (x / y)
 ```
 
+### Native Result Operations
+
+The operations below use the canonical `Result<'a, 'e>` identity and independently
+quantified NTU payload types:
+
+```fsharp
+Result.map : ('a -> 'b) -> Result<'a, 'e> -> Result<'b, 'e>
+Result.mapError : ('e -> 'f) -> Result<'a, 'e> -> Result<'a, 'f>
+Result.bind : ('a -> Result<'b, 'e>) -> Result<'a, 'e> -> Result<'b, 'e>
+```
+
+Explicit type arguments are ordered `Result.map<'a, 'b, 'e>`,
+`Result.mapError<'a, 'e, 'f>` and `Result.bind<'a, 'b, 'e>`.
+
+Their case behavior is:
+
+```fsharp
+let map mapper input =
+    match input with
+    | Ok value -> Ok (mapper value)
+    | Error error -> Error error
+
+let mapError mapper input =
+    match input with
+    | Ok value -> Ok value
+    | Error error -> Error (mapper error)
+
+let bind binder input =
+    match input with
+    | Ok value -> binder value
+    | Error error -> Error error
+```
+
+Supplied operands SHALL be evaluated eagerly in source evaluation order. The
+callback SHALL be invoked once only for the indicated case. An untouched payload
+SHALL retain its value, dimensional type and resource identity; changing the
+other case's type does not authorize a conversion of that payload. The enclosing
+Result may require a different realized layout and is not required to retain the
+same allocation identity. A bind callback's Result is returned with its case
+unchanged.
+
+Partial applications SHALL retain the supplied callback value at formation while
+preserving the identities and obligations of its captured storage. Bare aliases
+SHALL instantiate the quantified types independently at each admitted use.
+Binder input and output share the same error type; changing it requires an
+explicit operation such as `mapError`.
+
+Baker SHALL elaborate these operations into typed case discrimination,
+case-specific payload extraction, callback application and Result construction
+before Alex witnesses the graph. Payload reads SHALL occur only within their
+established case. Joint dimensional, lifetime and resource constraints remain
+attached to the actual participating values. The operations introduce no new
+allocation rule: placement follows the settled
+[DU lifetime contract](discriminated-union-representation.md#31-du-value-representation).
+
 ### Standard Error Types
 
 Clef defines standard error types for common failure modes:
