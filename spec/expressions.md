@@ -2270,6 +2270,16 @@ for x = 1 to 30 do
 The bounds `expr1` and `expr2` are checked with initial type `int`. The overall type of the expression is
 `unit`. A warning is reported if the body `expr3` of the `for` loop does not have static type `unit`.
 
+The identifier introduced by an integer for-loop SHALL be an immutable source binding,
+established afresh for each execution of the body with that iteration's value. Assignment
+to it is a compile-time error. Closures retain that iteration's value under
+[Closure Representation §2.2](closure-representation.md#22-capture-semantics); later
+induction updates SHALL NOT change an earlier capture. An internal mutable counter
+used in elaboration is distinct from the source binding and inaccessible through it.
+Nested loops introduce distinct bindings even when their identifiers have the same
+spelling. This rule also applies to integer range syntax elaborated as a simple
+for-loop. Existing closure placement and lifetime obligations still apply.
+
 The following shows the elaborated form of a simple for-loop expression for fresh variables `start`
 and `finish`:
 
@@ -2998,9 +3008,9 @@ At runtime, each elaborated definition `pat = expr` is evaluated as follows:
 
 At runtime, an integer for loop `for var = expr1 to expr2 do expr3 done` is evaluated as follows:
 
-- Expressions `expr1` and `expr2` are evaluated once to values `v1` and `v2`.
-- The expression `expr3` is evaluated repeatedly with the variable `var` assigned successive values in
-    the range of `v1` up to `v2`.
+- Expressions `expr1` and `expr2` are evaluated once, in that order, to values `v1` and `v2`.
+- The expression `expr3` is evaluated repeatedly with a fresh immutable binding for `var`
+    at each successive value in the inclusive range from `v1` to `v2`.
 - If `v1` is greater than `v2` , then `expr3` is never evaluated.
 
 ### Evaluating While Loops
@@ -3010,8 +3020,7 @@ As runtime, while-loops `while expr1 do expr2 done` are evaluated as follows:
 - Expression `expr1` is evaluated to a value `v1`.
 - If `v1` is true, expression `expr2` is evaluated, and the expression `while expr1 do expr2 done` is
     evaluated again.
-- If `v1` is `false`, the loop terminates and the resulting value is `null` (the representation of the only
-    value of type `unit`)
+- If `v1` is `false`, the loop terminates and the result is the unit value `()`.
 
 ### Evaluating Static Coercion Expressions
 
