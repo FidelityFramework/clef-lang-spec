@@ -6,7 +6,7 @@ status: normative
 ---
 
 > **Status**: Normative
-> **Last Updated**: 2026-01-22
+> **Last Updated**: 2026-09-20
 > **Depends On**: [Native Type Universe § 5.1 Option](native-type-universe.md#51-option)
 
 ## 1. Overview
@@ -68,6 +68,7 @@ Erasure is an interior representation choice, not a boundary conversion. Absence
 | **Transformers** | `map`, `map2`, `map3` | Apply function if Some |
 | **Binders** | `bind`, `flatten` | Chain optional computations |
 | **Defaults** | `defaultValue`, `defaultWith`, `orElse`, `orElseWith` | Provide fallback values |
+| **Folds** | `fold`, `foldBack` | Eliminate an optional payload into an independently typed state |
 | **Predicates** | `filter`, `exists`, `forall` | Conditional Some/None |
 | **Conversion** | `toList`, `toArray`, `toNullable`, `ofNullable` | Type conversions |
 | **Iteration** | `iter` | Side-effect if Some |
@@ -327,6 +328,54 @@ let map3 f opt1 opt2 opt3 =
     | Some x, Some y, Some z -> Some (f x y z)
     | _ -> None
 ```
+
+### 4.16 Option.fold
+
+```fsharp
+Option.fold : ('State -> 'T -> 'State) -> 'State -> 'T option -> 'State
+```
+
+```fsharp
+let fold folder state opt =
+    match opt with
+    | Some value -> folder state value
+    | None -> state
+```
+
+The state and payload are independently quantified NTU types. Their dimensional
+and resource relationships SHALL be retained at the folder's two argument edges
+and its result edge. The result has the supplied state's type; there is no
+implicit widening or dimensional conversion between state and payload.
+Explicit type arguments use `Option.fold<'State, 'T>`.
+
+### 4.17 Option.foldBack
+
+```fsharp
+Option.foldBack : ('T -> 'State -> 'State) -> 'T option -> 'State -> 'State
+```
+
+```fsharp
+let foldBack folder opt state =
+    match opt with
+    | Some value -> folder value state
+    | None -> state
+```
+
+Explicit type arguments use `Option.foldBack<'State, 'T>` in the same state,
+payload order as `fold`.
+
+Both folds SHALL evaluate supplied operands eagerly in source evaluation order.
+`Some` SHALL invoke the folder once with the argument order shown; `None` SHALL
+return the supplied state unchanged without invoking the folder. Partial
+applications SHALL retain the values of their supplied operands at formation;
+captured storage retains its existing identity and lifetime obligations.
+
+The declared three-argument operation boundary SHALL remain distinct from any
+subsequent application of a function-valued state result. Bare aliases SHALL
+instantiate the state and payload types independently at each admitted use.
+Baker SHALL elaborate these relationships into the graph before Alex witnesses
+the resulting conditional and calls; neither fold introduces an Alex intrinsic
+or relaxes admission requirements for its state, payload or folder.
 
 ## 5. SSA Cost Formulas
 
