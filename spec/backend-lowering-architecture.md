@@ -6,7 +6,7 @@ status: normative
 ---
 
 > **Status**: Normative
-> **Last Updated**: 2026-01-19
+> **Last Updated**: 2026-09-20 — target-aware witness admission and information preservation; no additional implementation support asserted.
 
 ## Informative References
 
@@ -20,25 +20,24 @@ status: normative
 
 ## 1. Overview
 
-This chapter specifies how Clef lowers high-level constructs through a portable middle end to a target-specific backend, using MLIR's multi-dialect architecture. The organizing distinction is between representation that is *portable* (independent of any target) and representation that *commits to a target*. The middle end holds the first; the backend performs the second.
+This chapter specifies how Clef lowers high-level constructs through a portable middle end to a target-specific backend, using MLIR's multi-dialect architecture. Portable operation vocabulary is distinct from target-specific realization. Baker settles source semantics and the selected platform's requirements; Alex witnesses those facts through the Huet zipper using Elements/Patterns/Witnesses appropriate to that platform and backend. The backend realizes the resulting expression with its required information preserved. Portable vocabulary does not imply target-blind witness selection.
 
 ## 2. Portable Middle End, Target-Committing Backend
 
 Clef separates its intermediate representation by whether a construct has committed to a target:
 
 ```
-F# Source → CCS (Clef Compiler Service) → PSG → Alex → MLIR (portable dialects) → Target pathway → Target artifact
-                                                          ↑                          ↑
-                                                   commits to no target        commits to one target
+Clef Source → CCS / Baker → settled PSG → Alex → admitted portable MLIR → Target pathway → Artifact
+                                selected platform and correlated evidence ────────────►
 ```
 
 The tier boundary is *portable-versus-target-specific*. While LLVM is the first target we built for, it is one target pathway among several: for instance, an LLVM serializer handles CPU, WASM and MCU targets, a CIRCT path handles FPGA targets, an MLIR-AIE path handles NPU tile-array targets, and a JSIR serializer handles the JavaScript target. CIRCT, MLIR-AIE, and JSIR are also MLIR, but they are *target-specific* MLIR, so they live in the backend for the same reason the LLVM serializer does. What separates the tiers is the commitment, not the technology. The artifact class is part of the pathway's commitment: a native binary from the LLVM pathway, a bitstream from the CIRCT pathway, an NPU binary from the MLIR-AIE pathway, a JavaScript module from the JSIR pathway.
 
-A target commitment is lossy. Whatever a program's semantics carries that the chosen target's model cannot express is destroyed the moment the commitment is made, and no other target pathway can recover it. The middle end's job is therefore *information preservation*: it holds full semantic content in a form every pathway can still read, so each backend commits from complete information. Emitting an `llvm.*` operation in the middle end is a category error rather than a stylistic one, because it commits to LLVM and forecloses every other pathway. The same is true of a CIRCT hardware operation in the middle end.
+Premature target-specific encoding can lose information required by later consumers. The middle end's job is therefore *information preservation*: each admitted pathway receives the complete relevant expression and correlated graph facts, without reconstructing semantics from the operation stream. Selecting a target-aware portable form does not itself perform the backend's target-specific encoding. Emitting an `llvm.*` operation above this boundary commits to LLVM; a CIRCT hardware operation likewise belongs to the declared FPGA realization stage. Neither may silently replace the common receiving contract. Target realization SHALL preserve the source observables and proof premises required by the applicable contracts.
 
 ### 2.1 Portable Dialects
 
-The middle end emits only portable dialects:
+The documented baseline vocabulary is:
 
 | Dialect | Purpose | Operations |
 |---------|---------|------------|
@@ -46,9 +45,27 @@ The middle end emits only portable dialects:
 | `scf` | Structured control | `scf.while`, `scf.for`, `scf.if`, `scf.index_switch` |
 | `arith` | Arithmetic | `arith.addi`, `arith.constant`, `arith.cmpi` |
 | `memref` | Memory and layout | `memref.alloca`, `memref.global`, `memref.load`, `memref.store` |
-| `index` | Target-word integers | `index.constant`, `index.casts` |
+| `index` | Index/extent arithmetic, with eventual representation governed by the selected platform | `index.constant`, `index.casts` |
 
-These five dialects, and no other, are the witnessed vocabulary; they lower to any target pathway: LLVM, CIRCT, MLIR-AIE, JSIR, SPIR-V, WebAssembly. Block-based control flow (`cf.*`) is produced by the pathway's standard `scf` lowering and never appears above the witness boundary. Admitting a further dialect (for example `affine`) is a change to this table first, made step-wise and recorded here before any witness emits it.
+This baseline is not a claim that every operation is implemented on every pathway. Extensions are admitted per expression, selected platform/backend profile and witness form under §2.1.1. Candidate vocabulary includes `math`, `affine`, `vector`, `tensor`, `async` and `cf`; listing a candidate does not admit its operations or assert compiler support. `index` already belongs to the baseline, with coverage still established per operation and pathway.
+
+Structured `scf` and explicit-block `cf` forms can suit different profiles. Alex SHALL select an admitted form using Baker-settled relationships and the selected profile's requirements. A pathway may receive structured control and lower it to `cf` later; direct `cf` witnessing requires its own admission. There is no universal requirement to give every backend an identical dialect subset.
+
+#### 2.1.1 Operation and Pathway Admission
+
+An admission SHALL identify the source operation family, selected platform/backend profile and exact witness form, including operations, types, attributes, regions and successor relationships. It SHALL record:
+
+1. The governing language contract and Baker nanopasses that establish the required graph facts, joint constraints, coeffects and proof premises.
+2. The target capabilities and selection rule that make the form suitable, with declaration/quotation provenance and validity conditions. BAREWire, Fidelity.Platform, applicable Fidelity.UI expressions and program declarations contribute these facts through Baker.
+3. Complete typed Elements/Patterns/Witnesses and the declared downstream consumer/pass sequence. Witnessing SHALL remain a passive observation through the Huet zipper; missing semantic prerequisites SHALL be reported, not reconstructed in Alex.
+4. A carrier for every fact required downstream: an operation/type/attribute or an accessible correlated graph projection, retaining graph identity and proof correspondence through rewrites. Textual MLIR alone is sufficient only where it carries all facts required by that consumer.
+5. Positive and negative source, graph, witness, verifier and backend acceptance evidence for the named scope, including relevant tool versions and target configuration. A verifier result alone SHALL NOT establish semantic preservation.
+
+Numeric selection and arithmetic construction govern the choice and composition of `arith`, `math` and other admitted operations under [Numeric Selection §§10.3–10.5](numeric-selection.md#103-arithmetic-construction-contracts). A representation's availability alone does not establish operation eligibility. Witness forms and subsequent rewrites SHALL preserve required intermediate precision, scale, rounding, capacity, exceptional behavior and permitted decomposition. The accuracy-only selection objective remains unchanged; realization-cost comparison SHALL satisfy §10.4 of that chapter.
+
+Parallel and suspended execution SHALL retain the blocking dependencies and classification of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md), together with the target-specific progress, admission and assumption requirements of [Scheduler Contract](scheduler-contract.md). Numeric equivalence and concurrency progress are separately required. An `async` or control-flow operation SHALL NOT substitute for those graph relationships or establish them by its presence.
+
+The operation/profile contract SHALL identify missing or inconsistent prerequisites and preserve their source provenance for design-time projection. Changing a depended-upon target fact invalidates its form-selection and preservation evidence. Requirements in this section do not resolve the implementation mechanisms explicitly left open in Numeric Selection §14 or assert that proposed target pathways are operational.
 
 ### 2.2 Constructs Whose Realization Is a Target Commitment
 
@@ -172,7 +189,7 @@ The JSIR pathway takes no `word_size`: it realizes no byte layouts (§4.5), and 
 
 ## 7. Normative Requirements
 
-1. **The middle end SHALL emit only portable dialects**: Control flow, arithmetic, function values and calls, and memory use `func`, `scf`, `arith`, `memref`, and `index`, and no other dialect. The middle end SHALL NOT emit `llvm.*`, `cf.*`, `builtin.unrealized_conversion_cast`, or any target-specific operation; block-based control flow is produced by the pathway's standard `scf` lowering.
+1. **The middle end SHALL use the admitted portable vocabulary**: `func`, `scf`, `arith`, `memref` and `index` form the baseline; extensions require operation/profile admission under §2.1.1. Alex SHALL use the selected platform's settled facts to choose the appropriate admitted form, including structured or explicit-block control where admitted. The middle end SHALL NOT emit `llvm.*`, `builtin.unrealized_conversion_cast` or target-specific operations above the declared target-realization boundary.
 2. **A target commitment SHALL occur only in a target pathway**: The memory form of a function address, ABI struct layout, and target intrinsics are committed by the selected pathway's standard lowerings (e.g., `func.constant` → `llvm.mlir.addressof` on the LLVM pathway), never in middle-end IR.
 3. **Struct manipulation SHALL be carried portably and committed per pathway**: Record, [union](discriminated-union-representation.md), and closure struct access is emitted over `memref` in the middle end and committed by the target pathway: to the target ABI on a pathway that realizes memory layouts, and to the pathway's own value model on a pathway that does not (§4.5).
 4. **`llvm.call` target restriction**: within the LLVM pathway, `llvm.call` SHALL only call functions defined as `llvm.func`; to call a `func.func` from `llvm.func`, use `func.call`
@@ -180,3 +197,4 @@ The JSIR pathway takes no `word_size`: it realizes no byte layouts (§4.5), and 
 6. **Platform configuration flow**: `fidproj` platform settings, including `word_size`, SHALL inform all lowering decisions; pointer and word width SHALL be taken from the selected target's `word_size` and SHALL NOT be assumed to be 64-bit
 7. **Carrier realization**: a target pathway SHALL realize the portable storage carriers and their access operations in its own value model, MAY read the Program Semantic Graph's type structure during that realization, and SHALL preserve every structural requirement the representation chapters state; the layout figures of the representation chapters SHALL bind only pathways that realize memory layouts (§4.5)
 8. **Artifact class**: the artifact class a pathway produces is part of its commitment: a native binary on the LLVM pathway, a bitstream on the CIRCT pathway, an NPU binary on the MLIR-AIE pathway, a JavaScript module on the JSIR pathway
+9. **Complete information handoff**: each consumer SHALL have access to the Baker-settled expression and correlated semantic/proof facts its realization requires, under §2.1.1. Target-specific realization SHALL preserve those contracts; it SHALL NOT introduce replacement source semantics or silently weaken numeric, memory or progress requirements.
