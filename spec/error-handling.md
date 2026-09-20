@@ -64,10 +64,15 @@ quantified NTU payload types:
 Result.map : ('a -> 'b) -> Result<'a, 'e> -> Result<'b, 'e>
 Result.mapError : ('e -> 'f) -> Result<'a, 'e> -> Result<'a, 'f>
 Result.bind : ('a -> Result<'b, 'e>) -> Result<'a, 'e> -> Result<'b, 'e>
+Result.defaultValue : 'a -> Result<'a, 'e> -> 'a
+Result.defaultWith : ('e -> 'a) -> Result<'a, 'e> -> 'a
+Result.iter : ('a -> unit) -> Result<'a, 'e> -> unit
 ```
 
 Explicit type arguments are ordered `Result.map<'a, 'b, 'e>`,
-`Result.mapError<'a, 'e, 'f>` and `Result.bind<'a, 'b, 'e>`.
+`Result.mapError<'a, 'e, 'f>`, `Result.bind<'a, 'b, 'e>`,
+`Result.defaultValue<'a, 'e>`, `Result.defaultWith<'a, 'e>` and
+`Result.iter<'a, 'e>`.
 
 Their case behavior is:
 
@@ -86,6 +91,21 @@ let bind binder input =
     match input with
     | Ok value -> binder value
     | Error error -> Error error
+
+let defaultValue fallback input =
+    match input with
+    | Ok value -> value
+    | Error _ -> fallback
+
+let defaultWith fallback input =
+    match input with
+    | Ok value -> value
+    | Error error -> fallback error
+
+let iter action input =
+    match input with
+    | Ok value -> action value
+    | Error _ -> ()
 ```
 
 Supplied operands SHALL be evaluated eagerly in source evaluation order. The
@@ -96,15 +116,33 @@ Result may require a different realized layout and is not required to retain the
 same allocation identity. A bind callback's Result is returned with its case
 unchanged.
 
-Partial applications SHALL retain the supplied callback value at formation while
-preserving the identities and obligations of its captured storage. Bare aliases
+For `defaultValue`, the fallback expression is evaluated even when the input is
+Ok. For `defaultWith`, the fallback function expression is evaluated on both
+cases, but the function is invoked only on Error, with that error payload as one
+logical argument. This is an error handler, not the unit thunk used by
+`Option.defaultWith`. For `iter`, the action expression is evaluated on both
+cases; only Ok invokes it, with the success payload as one logical argument.
+The action and the operation return unit. Unit-valued and callable payloads
+retain these logical argument boundaries.
+
+Each operation above has two operands. Direct applications and backward pipes
+evaluate the fallback or callback expression before the Result expression;
+forward pipes evaluate the Result expression first. When the result type `'a`
+of `defaultValue` or `defaultWith` is itself a function, later arguments apply
+that selected or produced function after the two-operand operation boundary.
+All supplied source arguments, including those later arguments, SHALL evaluate
+before case selection or fallback invocation. Extra application of the unit
+result of `iter` is a type error.
+
+Partial applications SHALL retain the supplied fallback or callback value at
+formation while preserving the identities and obligations of its captured storage. Bare aliases
 SHALL instantiate the quantified types independently at each admitted use.
 Binder input and output share the same error type; changing it requires an
 explicit operation such as `mapError`.
 
 Baker SHALL elaborate these operations into typed case discrimination,
-case-specific payload extraction, callback application and Result construction
-before Alex witnesses the graph. Payload reads SHALL occur only within their
+case-specific payload extraction, callback application and any required Result
+construction before Alex witnesses the graph. Payload reads SHALL occur only within their
 established case. Joint dimensional, lifetime and resource constraints remain
 attached to the actual participating values. The operations introduce no new
 allocation rule: placement follows the settled
