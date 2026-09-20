@@ -67,12 +67,14 @@ Result.bind : ('a -> Result<'b, 'e>) -> Result<'a, 'e> -> Result<'b, 'e>
 Result.defaultValue : 'a -> Result<'a, 'e> -> 'a
 Result.defaultWith : ('e -> 'a) -> Result<'a, 'e> -> 'a
 Result.iter : ('a -> unit) -> Result<'a, 'e> -> unit
+Result.isOk : Result<'a, 'e> -> bool
+Result.isError : Result<'a, 'e> -> bool
 ```
 
 Explicit type arguments are ordered `Result.map<'a, 'b, 'e>`,
 `Result.mapError<'a, 'e, 'f>`, `Result.bind<'a, 'b, 'e>`,
-`Result.defaultValue<'a, 'e>`, `Result.defaultWith<'a, 'e>` and
-`Result.iter<'a, 'e>`.
+`Result.defaultValue<'a, 'e>`, `Result.defaultWith<'a, 'e>`,
+`Result.iter<'a, 'e>`, `Result.isOk<'a, 'e>` and `Result.isError<'a, 'e>`.
 
 Their case behavior is:
 
@@ -106,6 +108,16 @@ let iter action input =
     match input with
     | Ok value -> action value
     | Error _ -> ()
+
+let isOk input =
+    match input with
+    | Ok _ -> true
+    | Error _ -> false
+
+let isError input =
+    match input with
+    | Ok _ -> false
+    | Error _ -> true
 ```
 
 Supplied operands SHALL be evaluated eagerly in source evaluation order. The
@@ -125,7 +137,7 @@ cases; only Ok invokes it, with the success payload as one logical argument.
 The action and the operation return unit. Unit-valued and callable payloads
 retain these logical argument boundaries.
 
-Each operation above has two operands. Direct applications and backward pipes
+The mapping, binding, defaulting and iteration operations have two operands. Direct applications and backward pipes
 evaluate the fallback or callback expression before the Result expression;
 forward pipes evaluate the Result expression first. When the result type `'a`
 of `defaultValue` or `defaultWith` is itself a function, later arguments apply
@@ -134,14 +146,22 @@ All supplied source arguments, including those later arguments, SHALL evaluate
 before case selection or fallback invocation. Extra application of the unit
 result of `iter` is a type error.
 
+`isOk` and `isError` each evaluate their single Result operand eagerly and once,
+including when applied through a pipe. They SHALL observe only the case tag;
+neither operation extracts a payload or invokes a callable payload. Constructing
+the supplied Result still evaluates its payload expression according to ordinary
+source evaluation order. Each predicate returns bool, so extra application is a
+type error. Bare aliases of either predicate SHALL instantiate both payload types
+independently at each admitted use.
+
 Partial applications SHALL retain the supplied fallback or callback value at
 formation while preserving the identities and obligations of its captured storage. Bare aliases
 SHALL instantiate the quantified types independently at each admitted use.
 Binder input and output share the same error type; changing it requires an
 explicit operation such as `mapError`.
 
-Baker SHALL elaborate these operations into typed case discrimination,
-case-specific payload extraction, callback application and any required Result
+Baker SHALL elaborate these operations into typed case discrimination and, where
+required by the operation, case-specific payload extraction, callback application and Result
 construction before Alex witnesses the graph. Payload reads SHALL occur only within their
 established case. Joint dimensional, lifetime and resource constraints remain
 attached to the actual participating values. The operations introduce no new
