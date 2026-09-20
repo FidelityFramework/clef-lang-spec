@@ -170,7 +170,7 @@ memref.copy %mapper_env, %mapper_dst : memref<E_mapperxi8> to memref<E_mapperxi8
 
 **Independence**: Each wrapper owns its own copy of the inner seq's state. Multiple iterations of the same wrapper are independent.
 
-**No Aliasing**: No shared mutable state between different wrappers created from the same source.
+**Independent Iteration State**: Wrappers created from the same source have independent iteration state. Copying a supplied callback value preserves the identities of any mutable cells or referenced storage in its captures, according to [Closure Representation §2.2](closure-representation.md#22-capture-semantics). Independence of iteration state does not imply a deep copy of that captured storage.
 
 **Lifetime Simplicity**: The wrapper struct contains everything it needs, with no interior pointers into a separately-allocated inner seq or closure, so it has no dangling references. Because the inner seq and closure are inlined, the whole wrapper is one value with a single lifetime, and that lifetime is classified and placed by the four-point lattice of [Closure Representation §3.3](../closure-representation.md): the stack when scope-bounded, a region when region-bounded, static storage (`Sram`/`Flash`, `memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap only the stack and static placements exist, and a wrapper that would classify as dynamic there is a compile-time lifetime error, not a silent heap allocation.
 
