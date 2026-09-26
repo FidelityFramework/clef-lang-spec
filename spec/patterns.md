@@ -33,7 +33,7 @@ pat :=
     record-pat                          -- record pattern
     :? atomic-type                      -- dynamic type test pattern
     :? atomic-type as ident             -- dynamic type test pattern
-    null                                -- null-test pattern
+    null                                -- tooling compatibility syntax; not native Clef
     attributes pat                      -- pattern with attributes
 
 list-pat :=
@@ -73,12 +73,13 @@ rules := '|'~opt rule '|' ... '|' rule
 
 Patterns are elaborated to expressions through a process called _pattern match compilation_. This
 reduces pattern matching to _decision trees_ which operate on an input value, called the _pattern input_.
-The decision tree is composed of the following constructs:
+The native decision tree is composed of the following constructs. Grammar
+productions retained for tooling compatibility do not by themselves admit a
+native operation; in particular, see [Null Patterns](#null-patterns).
 
 - Conditionals on integers and other constants
 - Switches on union cases
 - Conditionals on runtime types
-- Null tests
 - Value definitions
 - An array of pattern-match targets referred to by index
 
@@ -96,16 +97,19 @@ let rotate3 x =
     | _ -> failwith "rotate3"
 ```
 
-In this example, the constant patterns are 0, 1, and 2. Any constant listed in [§](expressions.md#simple-constant-expressions) may be used as a
-constant pattern except for integer literals that have the suffixes `Q`, `R`, `Z`, `I`, `N`, `G`.
+In this example, the constant patterns are 0, 1, and 2. A constant pattern follows
+the source literal rules in [Simple Constant Expressions](expressions.md#simple-constant-expressions),
+including the restrictions on representation-selecting numeric suffixes.
 
-Simple constant patterns have the corresponding simple type. Such patterns elaborate to a call to
-the F# structural equality function `FSharp.Core.Operators.(=)` with the pattern input and the
-constant as arguments. The match succeeds if this call returns `true`; otherwise, the match fails.
-
-> **Note**: The use of `FSharp.Core.Operators.(=)` means that CLI floating-point equality is
-used to match floating-point values, and CLI ordinal string equality is used to match
-strings.
+The constant and pattern input have the same checked type, including numeric
+dimension. The pattern elaborates to Clef's ordinary typed equality operation
+with the input and constant as its two arguments. It succeeds when that
+operation returns `true`; otherwise selection continues with the next rule.
+The hosted representation of the literal does not choose an integer width or
+erase its dimension. Character patterns compare the actual character, real
+patterns use real equality, string patterns compare contents rather than storage
+addresses, and unit patterns retain the ordinary unit equality contract.
+These rules do not depend on a CLI runtime or `FSharp.Core` call.
 
 ## Named Patterns
 
@@ -555,18 +559,15 @@ let checkPackets data =
 
 ## Null Patterns
 
-The _null pattern_ null matches values that are represented by the CLI value null. For example:
+The parser retains `null` in pattern grammar for compatibility with existing
+F# tooling. It is not an admitted native Clef pattern. Under
+[Null-Freedom](error-handling.md#null-freedom), a native null pattern receives
+the same `CCS8010` source error as an invalid null expression; it does not become
+a wildcard, a constructor tag or a runtime null test.
 
-```fsharp
-let path =
-    match System.Environment.GetEnvironmentVariable("PATH") with
-    | null -> failwith "no path set!"
-    | res -> res
-```
-
-Most F# types do not use `null` as a representation; consequently, the null pattern is generally used
-to check values passed in by CLI method calls and properties. For a list of F# types that use `null` as a
-representation, see [§](types-and-type-constraints.md#nullness).
+Foreign or optional absence must be represented through its declared boundary
+contract and an admitted optional value. A retained grammar production cannot
+introduce a null inhabitant into the native type system.
 
 ## Guarded Pattern Rules
 
@@ -582,11 +583,14 @@ For example:
 let categorize x =
     match x with
     | _ when x < 0 -> - 1
-    | _ when x < 0 -> 1
+    | _ when x > 0 -> 1
     | _ -> 0
 ```
 
-The guards on a rule are executed only after the match value matches the corresponding pattern.
+The guard on a rule is demanded only after the match value matches the corresponding pattern.
+Rules are considered in source order. A false guard continues with the next rule; a successful
+rule prevents later guards and bodies from being evaluated. A guard's effects are therefore
+neither unconditional match setup nor work that may be moved ahead of the pattern test.
 For example, the following evaluates to `2` with no output.
 
 ```fsharp
@@ -595,6 +599,22 @@ match (1, 2) with
 | (_, y) -> y
 ```
 
+### Exhausted Match Rules
+
+When a demanded match has no rule whose pattern and guard both succeed,
+execution terminates with a diagnostic identifying the failed source match.
+This failure is always active, including when `DEBUG` is absent. It does not
+produce a result value, synthesize `unit` or a default payload, return `Error`,
+or raise a catchable language exception. The conditional compilation policy for
+[`assert`](expressions.md#assertion-expressions) does not disable match failure.
+
+Failure preserves the ordered selection rules above. A false guard proceeds to
+the next rule, including another rule for the same constructor. Only exhaustion
+of the rules terminates execution. Effects of already demanded pattern tests
+and guards occur in their established order; no later body is evaluated and no
+payload is extracted from a constructor that failed its test. A match inside an
+undemanded computation remains deferred under the ordinary evaluation policy.
+
 ## Pattern Match Lowering
 
 Pattern matching is compiled through a process called _pattern match compilation_, which transforms
@@ -602,7 +622,13 @@ high-level pattern constructs into decision trees composed of conditionals and v
 
 ### Decision Tree Structure
 
-A match expression with multiple cases compiles to a chain of `IfThenElse` nodes:
+Baker elaborates pattern tests, selected bindings, guards and fallthrough into explicit PSG
+decisions. A shallow `CaseElimination` selects a constructor. A constant pattern uses
+ordinary typed equality and boolean selection; source guards also use `IfThenElse`.
+Nested patterns introduce further decisions inside the selected branch. The scrutinee
+retains one shared identity throughout those decisions.
+
+For example:
 
 ```fsharp
 match x with
@@ -610,7 +636,7 @@ match x with
 | Case2 -> body2
 ```
 
-Compiles to a decision tree:
+Has the following logical decision structure:
 
 ```
 IfThenElse(
@@ -624,6 +650,22 @@ IfThenElse(
 )
 ```
 
+This notation describes selection and failure, not a requirement to materialize tag loads or
+target comparisons in Baker. Alex navigates the settled decisions at their actual Huet zipper
+occurrences and composes physical operations through Elements, Patterns and Witnesses. It
+does not reconstruct source pattern ordering or move guard evaluation between regions.
+
+An exhausted decision uses an always-active source requirement before its
+successful continuation. Baker retains the shared input identity and checked
+type, the boolean pattern test or terminal guard, and the selected body in the
+requirement's evidence. The internal `Require` operation has a unit result only
+on success; failure terminates with its diagnostic. It is not the source
+`assert` expression and is not conditional on `DEBUG`. Alex must witness the
+requirement and continuation in that established occurrence order, preserving
+the diagnostic through target lowering. A proven successful test may remove
+redundant runtime work; it cannot authorize an unguarded payload read or invent
+a result for the failure path.
+
 ### Record Pattern Extraction
 
 Record patterns extract field values using `FieldGet` operations. For example:
@@ -633,14 +675,17 @@ match person with
 | { Name = n; Age = a } -> ...
 ```
 
-Each field binding (`n`, `a`) becomes a `PatternBinding` node whose child is a `FieldGet` that
-extracts the corresponding field from the scrutinee. The `PatternBinding` node aliases the
-SSA value produced by its `FieldGet` child; no additional allocation occurs.
+Each field binding (`n`, `a`) retains its source definition identity and receives a typed
+`FieldGet` from the scrutinee. This is a projection of the existing record; it does not construct
+a second record. Wildcard fields do not supply a substitute payload type: projection and
+layout use the instantiated source record declaration.
 
-### Guard Hoisting Rule
+### Selected Binding and Guard Order
 
-**Critical invariant**: When a guard expression references pattern-bound variables, those bindings
-must be extracted _before_ the guard is evaluated.
+**Critical invariant**: A guard can use its pattern-bound variables only after the corresponding
+pattern facts admit their extraction. Bindings are available before that guard, within the
+selected pattern's scope. They cannot be hoisted ahead of a refutable constructor or component
+test merely to make an operand available to emission.
 
 ```fsharp
 match person with
@@ -648,12 +693,12 @@ match person with
 | _ -> "adult"
 ```
 
-The guard `a < 18` references `a`, which is bound by the record pattern. The lowering hoists
-the pattern binding extraction before the `IfThenElse`:
+The guard `a < 18` references `a`. This record pattern is irrefutable for its record type, so its
+binding precedes the guard in the reached rule:
 
 ```
 Sequential [
-    PatternBinding("a", FieldGet(scrutinee, "Age"))  // extracted BEFORE guard
+    Binding("a", FieldGet(scrutinee, "Age"))
     IfThenElse(
         guard: a < 18,
         then: "minor",
@@ -662,8 +707,10 @@ Sequential [
 ]
 ```
 
-Without this hoisting, the guard would reference an undefined binding. This transformation
-is performed during match compilation in the Baker saturation phase.
+For a refutable pattern, the order is instead: test the pattern, enter the selected scope,
+extract the required bindings, then evaluate the guard. A false guard follows the original
+later rules, including another rule for the same constructor. Baker constructs these scopes
+and continuations during saturation; a later physical traversal must preserve them.
 
 ### Union Case Pattern Extraction
 
@@ -671,21 +718,29 @@ Union case patterns with payloads compile similarly:
 
 ```fsharp
 match opt with
-| Some x -> x
+| Some x when x > 0 -> x
+| Some _ -> -1
 | None -> 0
 ```
 
-Compiles to:
+Has the following logical structure:
 
 ```
 IfThenElse(
     guard: DUGetTag(opt) == Some,
     then: Sequential [
-        PatternBinding("x", DUEliminate(opt, Some, 0))
-        x
+        Binding("x", DUEliminate(opt, Some))
+        IfThenElse(
+            guard: x > 0,
+            then: x,
+            else: -1
+        )
     ],
     else: 0
 )
 ```
 
-The `DUEliminate` operation extracts the payload at the given index from the union case.
+The `DUEliminate` operation projects the selected case's payload using its instantiated type.
+The constructor test must dominate that projection. A payload belonging to another case is
+never read speculatively to prepare bindings or guards. The same rule applies recursively to
+union patterns inside tuples, records and other union payloads.

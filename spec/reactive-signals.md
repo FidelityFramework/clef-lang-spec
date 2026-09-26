@@ -97,11 +97,16 @@ val detach            : Effect -> unit    // detaches the effect from its reacti
 Reclamation of a removed child scope must satisfy the lifetime ordering obligations in [Memory Regions](memory-regions.md#lifetime-constraints). Allocation in an actor-lifetime arena does not establish early reclamation.
 
 ```fsharp
-let logger =
+let logger = eager (
     Effect.create (fun () ->
         let c = Signal.get count          // captures `count`
-        Console.writeln (sprintf "Count: %d" c))
+        Console.writeln (sprintf "Count: %d" c)))
 ```
+
+The reached eager binding activates registration even if the handle is not
+otherwise used. An ordinary unused binding of the same expression would remain
+deferred; becoming an always-demanded sink follows registration, not merely the
+presence of `Effect.create` inside an unevaluated expression.
 
 ## 6. Batch: Stabilization Control
 
@@ -150,7 +155,7 @@ The dependency plan SHALL account for every observation needed to justify memo r
 
 This retains compiler visibility for fusion, cutoff reasoning and target-specific lowering without identifying one compiler graph node with every runtime instance. It does not require a process-global tracking context, a managed native heap, or a separate library reactive engine.
 
-**Dependency reconciliation.** During recomputation, reads are matched against the node's existing source list in order; only the diverged tail is reconciled. When a recomputation succeeds and the dependency set is unchanged, no edge is mutated. A stable graph is a zero-allocation path. A throwing evaluation must not touch the graph at all, so the tracking state is fully restored even on failure. This preserves edge stability across repeated successful evaluations.
+**Dependency reconciliation.** During recomputation, reads are matched against the node's existing source list in order; only the diverged tail is reconciled. When recomputation succeeds and the dependency set is unchanged, no dependency edge needs mutation or replacement allocation; the computation itself can still allocate. An incomplete recomputation must not publish a partially collected dependency set as a valid cache. Failure and cleanup follow the admitted native protocol in [Error Handling](error-handling.md); this rule introduces neither a catchable native exception nor rollback of arbitrary body effects. It preserves dependency validity and edge stability across successful evaluations.
 
 ## 9. UI Scaffolding: Front End ↔ Core
 
@@ -207,3 +212,13 @@ The effect runs on each model update, but only the changed projections trigger f
 6. **Batching**: `Batch.run` SHALL coalesce contained writes into a single stabilization boundary. A practical propagation uses a three-level state per node: a source value change marks direct observers as *dirty*; downstream of a freshly-stale node, observers are marked *check*. Nodes at *check* that find an unchanged value do not propagate further. A batch increments a depth counter; writes within the batch mark nodes but defer the flush until the depth reaches zero. This is a push-staleness policy, not pull-on-read.
 7. **Automatic scoped cleanup**: Effect and subscription lifetimes are managed by the enclosing actor or region. The compiler (for JSIR) and runtime generate the teardown code that detaches every registered effect and runs its cleanup handlers at scope exit. The developer does not call cleanup at every scope boundary. `detach` is available only when early manual teardown is needed. A practical implementation marks all nodes as invalidated before compacting each affected source's observer list in a single pass, so teardown is O(external observers) rather than O(nodes × external observers). No GC or finalizer is required.
 8. **Target parity**: The `Signal`/`Memo`/`Effect` surface SHALL compile to both the native target (the LLVM target pathway) and the JavaScript target (the JSIR target pathway) from the same source, with reactive callbacks lowering to region-allocated closures and JavaScript closures respectively. LLVM and JSIR are peer target pathways off the portable middle end (as is CIRCT for FPGA); the middle end commits to no target, and each pathway realizes the flat closure through its own mechanism.
+
+“Push-staleness” above describes invalidation and flush scheduling. It does not
+override Incremental's demand gate: undemanded stale memos do not recompute,
+whereas a registered `Effect` is an explicitly demanded sink. Observable delivery
+retains every required emission unless an explicit operator changes that
+contract; a batched incremental invalidation is not permission to drop events.
+Ordinary bindings and arguments remain [lazy by default](expressions.md#default-demand-and-sharing);
+constructing a deferred expression containing an effect registration does not
+itself activate the registration. Activation, delivery, cache validation and
+scheduling must each be represented and checked at their own boundary.

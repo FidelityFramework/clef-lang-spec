@@ -217,7 +217,7 @@ type LambdaContext =
     // ...
 
 SemanticKind.Lambda(
-    parameters = [("_unit", UnitType, NodeId -1)],
+    parameters = [("_unit", UnitType, <unitFormalId>)],
     bodyNodeId = <computation body>,
     captures = [...],
     enclosingFunction = ...,
@@ -227,56 +227,49 @@ SemanticKind.Lambda(
 
 ## 7. Coeffect Model
 
-### 7.1 LazyLayout Coeffect
+The [closure pipeline](closure-representation.md#9-compilation-pipeline)
+governs lazy representation as well. CCS identifies captures and their source
+types. Baker elaboration and saturation settle the storage, layout, initialization
+and force relationships before Alex witnesses them. These semantic facts refer
+to graph participants; they contain neither MLIR types nor preassigned SSA values.
 
-SSA assignment computes `LazyLayout` for each lazy expression:
+### 7.1 Settled lazy layout
 
-```fsharp
-type LazyLayout = {
-    LazyNodeId: NodeId              // The LazyExpr node
-    CaptureCount: int               // Number of captures
-    Captures: CaptureSlot list      // Reuses CaptureSlot from closures
-    LazyStructType: MLIRType        // { i1, T, cap₀, cap₁, ... }
-    ElementType: MLIRType           // T (for force operations)
-    
-    // SSA identifiers for construction
-    FalseConstSSA: SSA              // computed flag = false
-    UndefSSA: SSA                   // undef lazy struct
-    WithComputedSSA: SSA            // insertvalue computed at [0]
-    CaptureInsertSSAs: SSA list     // insertvalue for each capture at [2..N+1]
-    LazyResultSSA: SSA              // final result
-}
-```
+The settled reading identifies the lazy formation and thunk, the result type,
+and the ordered fields for `computed`, `value` and captures. Each field retains
+its selected representation, extent, alignment and source identity. Capture
+slots also retain their actual formation initializer and value or shared-cell
+mode. The environment has no code-pointer field.
 
-SSA assignment derives this layout from the closure hyperedge before witnessing. The witness reads it; it does not compute it.
+The graph relates that layout to the backing allocation, its covering lifetime,
+and the force sites. Moving or forwarding a lazy descriptor preserves the actual
+memoization state and every captured storage reference. Equal thunk code does
+not identify a unique lazy instance.
 
-### 7.2 SSA Cost Formula
+### 7.2 Witness operands
 
-For a lazy expression with `N` captures: `4 + N` SSAs
+Alex pulls the settled reading through its actual Huet position. Its
+Element/Pattern/Witness composition creates typed SSA operands as it emits the
+admitted operations. The thunk and environment remain separate values; a known
+force site may elide the thunk operand under §8's convention.
 
-| Operation | SSA Count |
-|-----------|-----------|
-| `false` constant | 1 |
-| `undef` struct | 1 |
-| insert computed flag | 1 |
-| `func.constant` for the thunk (elided when the force site is known) | 1 |
-| insert captures | N |
+There is no language-level SSA cost formula. Emission bookkeeping, temporary
+operands and selected physical operations do not establish layout or lifetime
+facts. Missing semantic premises must be settled by their owning graph pass.
 
-### 7.3 ClosureLayout for Thunk
+### 7.3 Thunk and force obligations
 
-The thunk Lambda uses `ClosureLayout` with `LazyThunk` context:
+The `LazyThunk` context preserves the deferred computation boundary. The thunk
+receives the actual environment instance, and capture access uses the settled
+fields beginning at logical index 2. The result field is read only after its
+initializing force has completed. The computed flag and cached value belong to
+that same lazy instance.
 
-```fsharp
-type ClosureLayout = {
-    // ...
-    Context: LambdaContext  // LazyThunk for lazy thunks
-    LazyStructType: MLIRType option  // Full lazy struct type for capture extraction
-}
-```
-
-When `Context = LazyThunk`:
-- `closureExtractionBaseIndex` returns `2` (captures start at index 2)
-- `closureLoadStructType` returns the full lazy struct type
+The graph retains the participants needed to establish §11's memoization and
+single-forcer rules. A finite field list bounds direct layout checks; it does
+not by itself prove the lifetime of captured references or ownership across
+threads and actor boundaries. Changes to a formation, capture, force site or
+ownership premise invalidate the dependent conclusions before renewed witnessing.
 
 ## 8. MLIR Generation
 
@@ -446,35 +439,37 @@ Lazy.create (fun () -> expr)
 
 ### 12.1 CCS Phase
 
-1. **checkLazy** in Coordinator.fs:
-   - Checks the lazy body expression
-   - Computes captures via `computeCaptures`
-   - Creates `SemanticKind.Lambda` with `LambdaContext.LazyThunk`
-   - Creates `SemanticKind.LazyExpr` with captures list
+CCS checks the body and result type, records exact lexical capture identities
+and modes, and constructs the lazy expression and deferred thunk relationship.
+The thunk's own formal parameter and admitted module-level references are
+excluded from its lexical captures under §5. Parameters of an enclosing function,
+such as `a` and `b` in `lazyAdd`, are captures when the thunk uses them. Their
+established values or shared deferred identities are retained without forcing
+them; mutable captures retain the original cells. Source checking does not
+execute the deferred body.
 
-2. **computeCaptures** in Applications.fs:
-   - Collects VarRefs in body
-   - Excludes parameter names
-   - Excludes module-level bindings (`IsModuleLevel = true`)
-   - Returns `CaptureInfo list`
+### 12.2 Baker Elaboration and Saturation
 
-### 12.2 Alex Preprocessing Phase
-
-1. **SSAAssignment**:
-   - Computes `LazyLayout` for LazyExpr nodes
-   - Computes `ClosureLayout` for thunk Lambda nodes
-   - Assigns SSAs for all construction operations
+Baker retains the actual formation initializers, thunk and environment
+relationship, force sites and memoization protocol. Owning nanopasses settle
+the target-dependent fields and storage together with initialization, lifetime
+and single-forcer obligations. Recipes carry their participants and provenance
+through fan-out/fold-in; a cached fact cannot substitute for missing or changed
+premises. Result destinations, when required, participate in that settlement
+without moving source effects across their formation or force boundaries.
 
 ### 12.3 Witness Phase
 
-1. **LazyWitness**:
-   - Observes `LazyLayout` coeffect
-   - Emits struct construction operations
-   - Emits thunk function definition
+Alex observes the admitted lazy formation, thunk, fields and force protocol at
+their actual graph occurrences. Patterns compose the corresponding Elements;
+the emission accumulator tracks operands separately from the immutable zipper.
+Bindings, calls and returned values preserve the settled thunk/environment
+carrier and actual state instance. They do not reconstruct a layout from source
+syntax or infer an environment from code identity.
 
-2. **BindingWitness**:
-   - Handles functions returning lazy values
-   - Uses `getActualFunctionReturnType` for correct lazy struct type
+Target realization lowers the emitted physical form and preserves or rechecks
+its affected properties. Circuit scheduling and target memory realization
+belong to that backend boundary, while §11's source semantics remain unchanged.
 
 ## References
 

@@ -13,18 +13,30 @@ status: normative
 
 Clef specifies `Incremental<'T>` as a compiler-known intrinsic type for dependency-tracked, demand-driven, change-minimizing computation. Its reactive plan is preserved in the Program Semantic Graph through lowering, enabling Composer to generate target-specific code for selective recomputation on CPU, GPU, and NPU hardware. Cached values, invalidation state and dynamically selected graph instances remain runtime facts, realized by the selected target rather than erased by intrinsic status.
 
-`Incremental<'T>` occupies a specific position in a spectrum of evaluation strategies that the compiler understands natively:
+Clef is lazy by default: computation is deferred and shared until demand or a
+specified effect boundary requires it. The following intrinsic contracts refine
+that default along separate axes; push delivery does not imply eager source
+activation, and deferral alone does not imply memoization:
 
 | Property | Observable&lt;'T&gt; | Cold&lt;'T&gt; | Lazy&lt;'T&gt; | Incremental&lt;'T&gt; |
 |---|---|---|---|---|
-| Deferred evaluation | No (push) | Yes | Yes | Yes (demand-driven) |
-| Cached result | No | No | Yes | Yes |
-| Dependency tracking | No | No | No | Yes |
-| Invalidation | No | No | No | Yes |
-| Cutoff (change detection) | No | No | No | Yes |
-| Propagation bound | Unbounded | N/A | N/A | Bounded by cutoff |
+| Activation / demand | Producer/subscription contract; a cold wrapper defers connection | Explicit start/force | First force | Demand registration; stale nodes recompute at stabilization |
+| Delivery once active | Producer pushes each emission | Completion of the started computation | Force returns the shared result | Demanded consumers observe a validated cached result |
+| Intrinsic result cache | None | None | Once, retained indefinitely | Retained until dependency validation requires recomputation |
+| Dependency invalidation | No implicit dependency cache | None | None | Conservative staleness propagates to dependents |
+| Change suppression | Explicit operator only | None | No recomputation after first force | Cutoff suppresses only the unchanged output's propagation |
+| Work guarantee | Preserve every required emission | Preserve the start contract | Preserve single computation and sharing | Selective work; no fixed graph-size or execution-time bound |
 
-Each position to the right provides the compiler with more information during lowering. An `Observable<'T>` is opaque: the compiler must assume every emission matters. An `Incremental<'T>` exposes dependency and cutoff semantics that let the compiler reason about selective recomputation. Suppressing recomputation requires establishing that every relevant observation is unchanged and that skipping the body omits no required effect. Read/effect analysis supplies that obligation, including behavior reached through calls and captured references. A flat environment enumerates captures, not necessarily active reads; environment layout alone does not prove dependency completeness or purity ([Closure Representation §2.2](closure-representation.md#22-capture-semantics)).
+These are composable contracts, not a ranking. An `Observable<'T>` requires the
+compiler to preserve every required emission; `Cold<Observable<'T>>` can defer
+its connection without changing push delivery after activation. An
+`Incremental<'T>` exposes dependency and cutoff semantics for selective
+recomputation. Suppressing recomputation requires establishing that every
+relevant observation is unchanged and that skipping the body omits no required
+effect. Read/effect analysis supplies that obligation, including behavior reached
+through calls and captured references. A flat environment enumerates captures,
+not necessarily active reads; environment layout alone does not prove dependency
+completeness or purity ([Closure Representation §2.2](closure-representation.md#22-capture-semantics)).
 
 ### 1.1 Relationship to Lazy Values
 
@@ -132,26 +144,34 @@ Reclamation of replaced dynamic subgraphs must satisfy the lifetime constraints 
 
 ### 3.3 Memory Layout on CPU Target
 
-On CPU targets, an incremental node with element type `T` and `N` tracked dependencies can materialize with the fields below, with additional bookkeeping for dynamic dependencies and invalidation. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
+On CPU targets, an incremental instance retains cached state and dependency
+bookkeeping in storage covering its lifetime. Its recompute callable follows
+[Closure Representation §6.3](closure-representation.md#63-middle-end-encoding-and-lowering):
+the function value and actual environment are distinct values. A function
+address SHALL NOT be inserted into the environment as a data field. The diagram
+shows logical storage roles, not fixed offsets, integer widths or a mandatory
+uniform struct; those require admitted representation and target facts.
 
 ```
-IncrementalNode<T> with dependencies [d₁: T₁, ..., dₙ: Tₙ]
+recompute callable = (fn, env)
+Incremental state with dependencies [d₁: T₁, ..., dₙ: Tₙ]
 ┌──────────────────────────────────────────────────────────────────┐
-│ stale: i1               (1 byte, padded to alignment)            │
+│ stale / cache-valid state                                      │
 ├──────────────────────────────────────────────────────────────────┤
-│ height: i32             (4 bytes)                                │
+│ height: dependency-order rank                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │ value: T                (sizeof(T) bytes, aligned)               │
 ├──────────────────────────────────────────────────────────────────┤
-│ recompute_ptr: ptr      (1 platform word: 4 bytes M33, 8 x86-64) │
+│ recompute captures and admitted references to instance state   │
 ├──────────────────────────────────────────────────────────────────┤
-│ dep_count: i32          (4 bytes)                                │
-├──────────────────────────────────────────────────────────────────┤
-│ dep_ptrs: ptr[N]        (N platform words, pointers to dep nodes)│
+│ active dependency / dependent bookkeeping                      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-On GPU and NPU targets, the node does not materialize as a struct. The logical fields are distributed across hardware resources as specified in [§8](#8-target-specific-lowering).
+The target pathway can distribute these logical roles across hardware resources
+where that realization preserves demand, invalidation, sharing and lifetime
+([§8](#8-target-specific-lowering)). Intrinsic status alone proves neither that
+runtime state disappears nor that a particular target representation is valid.
 
 ## 4. Dependency Graph
 
@@ -420,6 +440,11 @@ The compiler generates HSA kernel dispatch packets with predicated execution: CU
 
 ### 9.1 IncrementalExpr
 
+The following is a schematic statement of the semantic participants, not a claim
+that these exact union cases or record names exist in the current compiler.
+Their realization must retain read/effect completeness and dynamic instances
+under §§4 and 6; a list of lexical `let!` edges alone is insufficient.
+
 ```fsharp
 type SemanticKind =
     // ...
@@ -457,37 +482,20 @@ The PSG node for an incremental computation contains:
 
 ### 10.1 IncrementalLayout Coeffect
 
-SSA assignment computes `IncrementalLayout` for each incremental expression:
+Baker establishes the semantic relationships and admission facts before Alex
+witnesses them. The contract includes the source element and dimensional types,
+recompute and cutoff callable identities, actual captured storage, active-read
+dependency plan, demand and invalidation discipline, dependency ordering, and
+storage authority and lifetime. Dynamic instances require a settled plan for
+their runtime state; static facts SHALL NOT stand in for unknown active reads.
 
-```fsharp
-type IncrementalLayout = {
-    NodeId: NodeId
-    ElementType: MLIRType
-    Height: int
-    DependencyCount: int
-    Dependencies: DependencySlot list
-    CutoffFunctionSSA: SSA option
-    TargetMeasure: MeasureType option
-    GraphCategory: IncrementalGraphCategory
-
-    // SSA identifiers for CPU target construction
-    StaleConstSSA: SSA           // initial stale = true
-    UndefNodeSSA: SSA            // undef node struct
-    WithStaleSSA: SSA            // insertvalue stale at [0]
-    WithHeightSSA: SSA           // insertvalue height at [1]
-    RecomputeAddrSSA: SSA        // addressof recompute_ptr
-    WithRecomputeSSA: SSA        // insertvalue recompute_ptr at [3]
-    DepInsertSSAs: SSA list      // insertvalue for each dependency pointer
-    NodeResultSSA: SSA           // final constructed node
-}
-
-and DependencySlot = {
-    Name: string
-    SourceNodeId: NodeId
-    Height: int
-    Type: MLIRType
-}
-```
+An admitted layout projects those source facts into physical slot types,
+alignments and extents. It does not contain a preallocated list of SSA names or
+an instruction to store a recompute function address inside an environment.
+Alex's Elements, Patterns and Witnesses compose the admitted form at the current
+Huet-zipper occurrence and carry its actual function and environment operands.
+Emission SHALL NOT reconstruct dependency analysis, choose a cache policy or
+invent a lifetime from the physical shape.
 
 ### 10.2 Recompute Function Coeffects
 
@@ -528,7 +536,11 @@ A `Cold<Incremental<'T>>` represents a deferred incremental subgraph. The subgra
 
 ### 11.5 Incremental + Interaction Nets
 
-When incremental nodes are modeled as interaction net agents, the net's reduction strategy implements stabilization. An interaction rule fires when two principal ports are connected; an incremental node recomputes when its dependencies are stale and its output is demanded. The interaction net formalism provides optimal sharing: two subgraphs computing the same value from the same dependencies are automatically shared, eliminating redundant incremental nodes.
+Interaction-net reduction may realize the settled demand and dependency plan.
+It does not by itself establish that two runtime nodes are interchangeable.
+Sharing or eliminating computations requires proof that their relevant reads,
+effects, demand, cached state and ownership permit it. In particular, equal
+current outputs do not authorize merging independently invalidated nodes.
 
 ### 11.6 Incremental + BAREWire
 
@@ -586,47 +598,51 @@ When `Incremental<'T>` is intrinsic, the following library-level operations are 
 | Manual graph construction | Compiler derives the PSG reactive plan and realizes static or dynamic instances |
 | Manual height computation | Compiler assigns heights statically for applicative subgraphs |
 
+These source-level responsibilities becoming compiler-owned does not erase
+runtime cache, demand, active-dependency or ownership state. It also does not
+establish design-time incremental compiler rechecking: reuse of a checked region
+requires its own dependency, revision and evidence-validity contract.
+
 ## 14. Implementation in the CCS/Composer Pipeline
 
 ### 14.1 CCS (Clef Compiler Service) Phase
 
-1. **checkIncremental** in Coordinator.fs:
-   - Checks the incremental body expression
-   - Computes dependencies from `let!` bindings
-   - Classifies graph category (Applicative, Monadic, Mixed)
-   - Assigns heights to all nodes in applicative subgraphs
-   - Creates `SemanticKind.IncrementalExpr` with dependency edges
+CCS preserves source types, dimensional identity, callable captures, CE structure
+and tracked-read/effect relationships. `let!` syntax alone is not a complete
+dependency analysis: relevant helper calls and reads through captured references
+also contribute. Equality and custom cutoff requirements remain those of §5.
 
-2. **inferCutoff** in TypeChecker.fs:
-   - Resolves the cutoff function for each node
-   - Uses structural equality by default
-   - Checks for `[<IncrementalCutoff>]` attribute on the element type
-   - Verifies dimensional type compatibility of cutoff operands
+<a id="142-alex-preprocessing-phase"></a>
 
-### 14.2 Alex Preprocessing Phase
+### 14.2 Baker Elaboration and Settlement
 
-1. **SSAAssignment**:
-   - Computes `IncrementalLayout` for IncrementalExpr nodes
-   - Computes `ClosureLayout` for recompute Lambda nodes
-   - Assigns SSAs for node construction (CPU target) or descriptor generation (NPU/GPU target)
+Baker nanopasses elaborate the dependency, demand, invalidation and stabilization
+algorithms into semantic graph structure and saturate their admission facts.
+This includes supported dynamic dependency changes, the §6.1 independent-
+invalidation rule, callable signatures, storage residence and any generated
+equality computation. A zipper supplies occurrence and scope context; it does
+not replace these analyses or prove that incremental rechecking of the compiler
+itself has been implemented.
 
-2. **HeightAnalysis**:
-   - Validates height assignments for applicative subgraphs
-   - Generates dynamic height tracking code for monadic subgraphs
+The former “Alex Preprocessing Phase” label described an obsolete ownership
+boundary. It did not authorize Alex to perform these semantic analyses or to
+select target layouts while assigning SSA names.
 
 ### 14.3 Witness Phase
 
-1. **IncrementalWitness**:
-   - Observes `IncrementalLayout` coeffect
-   - Emits target-specific code:
-     - CPU: arena-allocated node struct, inline stabilization loop
-     - NPU: MLIR-AIE tile configuration, DMA descriptor generation, ObjectFIFO setup
-     - GPU: HSA dispatch packet generation, predicated CU dispatch
+Alex consumes admitted graph facts through Huet-style Elements, Patterns and
+Witnesses at the actual occurrence. It composes flat portable MLIR for the
+already established control, storage and calls. Function values and environments
+remain distinct operands under the closure contract. Alex does not rediscover
+dependencies, synthesize a different stabilization algorithm or recursively walk
+source bodies as an emission substitute.
 
-2. **CutoffWitness**:
-   - Generates equality comparison function for the element type
-   - Applies structural equality derivation for records and DUs
-   - Inlines the comparison into the stabilization check
+Target commitment follows in the backend: LLVM, AIE, GPU and CIRCT pathways
+realize the portable artifact under their own target contracts. Tile placement,
+DMA descriptors, HSA packets and circuit lowering are backend responsibilities,
+not alternate semantic algorithms inside a middle-end witness. Delivery requires
+correspondence from source through the settled graph and admitted witness to the
+transformed artifact; this specification does not certify an untested pathway.
 
 ## 15. Normative Requirements
 

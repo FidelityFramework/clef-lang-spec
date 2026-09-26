@@ -313,7 +313,10 @@ type MutablePoint = { mutable X: float; mutable Y: float }
 
 **Cache-Aware Record Design**:
 
-For high-performance scenarios, consider field ordering for cache efficiency:
+Field grouping can improve locality where an access profile justifies it. The
+following is an illustrative layout for a target with 64-byte cache lines and
+the displayed admitted field sizes; it is not a portable layout guarantee.
+Alignment, padding and actual field representations require target facts.
 
 ```fsharp
 // HOT fields together - accessed frequently
@@ -334,7 +337,11 @@ type OptimizedActor = {
 
 **False Sharing Prevention**:
 
-When mutable fields are accessed from multiple threads, place them on separate cache lines:
+Independently written fields can benefit from separate cache lines when the
+actual sharing and target topology justify it. `[<CacheLineAligned>]` below is a
+design hint, not evidence that an attribute handler is implemented or that all
+false sharing is eliminated. Alignment alone does not establish object extent,
+adjacent allocation separation, alias behavior or ownership.
 
 ```fsharp
 [<Struct>]
@@ -1347,7 +1354,7 @@ OCaml's desktop-centric, non-cache-aware limitations that Clef explicitly diverg
 | OCaml Limitation | Fidelity Requirement | Gap |
 |------------------|---------------------|-----|
 | **63-bit tagged integers** | Full-width integers | GC tag overhead eliminated - compile-time safety replaces runtime discrimination |
-| **No cache line awareness** | 64-byte alignment matters | Working set calculation, false sharing prevention |
+| **No cache line awareness** | Target-declared line size and topology matter | Layout bounds, locality assessment and justified sharing separation |
 | **No memory region types** | Stack/Arena/Peripheral/Sram/Flash | Compile-time placement decisions |
 | **No access kinds** | ReadOnly/WriteOnly/ReadWrite | Hardware register semantics for embedded targets |
 | **Desktop "sufficient RAM" assumption** | Embedded/constrained targets | Memory-mapped peripherals, limited stack |
@@ -1372,29 +1379,37 @@ Rust's insight that ownership can be tracked statically is preserved, but expres
 
 ### E.4 Fidelity Extensions Beyond Both
 
-Fidelity's cache-aware compilation doctrine extends beyond both OCaml and Rust:
+Fidelity's cache-aware compilation direction uses source demand, admitted layout
+and target topology together. The following are realization and evidence
+obligations, not a claim that all optimizations are already implemented:
 
 #### Cache Hierarchy Awareness
 
-| Concern | OCaml | Rust | Fidelity |
-|---------|-------|------|----------|
-| **Cache line alignment (64 bytes)** | No | Manual | First-class - `[<CacheLineAligned>]` |
-| **False sharing prevention** | No | Manual | Automatic for mutable fields |
-| **Working set calculation** | No | No | Compile-time via BAREWire layouts |
-| **L1/L2/L3 tier placement** | No | No | Arena configuration strategies |
+| Concern | Required facts and limits |
+|---------|---------------------------|
+| Cache-line alignment | Use the selected target's line size and alignment; 64 bytes is one target value, not a language constant. |
+| False-sharing analysis | Requires actual allocation extents, aliases, access ownership and coherence granularity. Mutable fields alone do not prove sharing or automatic prevention. |
+| Footprint and working set | Settled BAREWire layouts bound represented bytes; live instance counts, demanded data and access behavior determine the active working set. |
+| Cache capacity and residency | Capacity fit is a necessary candidate assessment, not a residency proof. Associativity, address mapping, competing activity and reuse can change observed misses. |
+| Placement and scheduling | Region choice, thread/actor placement and batching require their own ownership, affinity and scheduling contracts; ordinary arenas do not reserve hardware cache tiers. |
 
 #### Memory Hierarchy Management
 
-```fsharp
-// Fidelity-specific: Cache-conscious arena configuration
-let configureArena (profile: ActorProfile) =
-    match profile.WorkingSetSize with
-    | size when size <= 32<KB> -> L1Resident    // Fits in L1
-    | size when size <= 256<KB> -> L2Optimized  // Fits in L2
-    | size when size <= 8<MB> -> L3Optimized    // Fits in L3
-    | _ -> StreamingMode                         // Bypass cache
- 
-```
+An assessment can compare a bounded active footprint with capacities declared by
+the selected CPU profile. It SHALL distinguish an established layout/extent fact
+from a profile-dependent performance estimate. A report such as “fits the
+declared L1 capacity under these live-instance assumptions” does not mean
+“L1-resident,” and exceeding a capacity does not by itself authorize cache-bypass
+instructions. Capacity constants and estimated strategies belong to the target
+profile and selected realization, not universal source-language thresholds.
+
+Call-by-need can reduce work and the active footprint by avoiding undemanded
+computations; sharing can also retain data longer. Eager evaluation, fusion,
+prefetch and batching require demand/effect/lifetime preservation, followed by
+target-specific evidence for the claimed performance improvement. Informational
+advice should identify the target/profile and assumptions. A missing performance
+estimate is not a language error; a violated admission or correctness obligation
+retains its required diagnostic.
 
 #### Processor-Specific Optimization
 

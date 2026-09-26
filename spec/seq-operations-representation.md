@@ -7,7 +7,7 @@ status: normative
 
 ## 1. Overview
 
-Sequence operations compose deferred producers and eager consumers over Clef
+Sequence operations compose deferred producers and demand-driven consumers over Clef
 `seq<'T>`. They preserve source NTU types, dimensions, evaluation order, capture
 identity and admitted storage lifetime through the PSG and its proof obligations.
 
@@ -36,12 +36,12 @@ not license object widening or a substitute physical carrier.
 | `Seq.append` | `<'T>` | `seq<'T> -> seq<'T> -> seq<'T>` | Deferred producer |
 | `Seq.collect` | `<'T,'U>` | `('T -> seq<'U>) -> seq<'T> -> seq<'U>` | Deferred producer |
 | `Seq.take` | `<'T>` | `int -> seq<'T> -> seq<'T>` | Deferred producer |
-| `Seq.fold` | `<'S,'T>` | `('S -> 'T -> 'S) -> 'S -> seq<'T> -> 'S` | Eager consumer |
-| `Seq.iter` | `<'T>` | `('T -> unit) -> seq<'T> -> unit` | Eager consumer |
-| `Seq.exists` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Eager consumer |
-| `Seq.forall` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Eager consumer |
-| `Seq.tryHead` | `<'T>` | `seq<'T> -> option<'T>` | Eager consumer |
-| `Seq.tryPick` | `<'T,'U>` | `('T -> option<'U>) -> seq<'T> -> option<'U>` | Eager consumer |
+| `Seq.fold` | `<'S,'T>` | `('S -> 'T -> 'S) -> 'S -> seq<'T> -> 'S` | Demanded consumer |
+| `Seq.iter` | `<'T>` | `('T -> unit) -> seq<'T> -> unit` | Demanded effect consumer |
+| `Seq.exists` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Demanded short-circuit consumer |
+| `Seq.forall` | `<'T>` | `('T -> bool) -> seq<'T> -> bool` | Demanded short-circuit consumer |
+| `Seq.tryHead` | `<'T>` | `seq<'T> -> option<'T>` | Demanded selection consumer |
+| `Seq.tryPick` | `<'T,'U>` | `('T -> option<'U>) -> seq<'T> -> option<'U>` | Demanded selection consumer |
 
 `fold` state and input element types are independent. For example, a folder may
 consume `int<m>` elements and maintain an `int<s>` or `float<1/s>` state, provided
@@ -59,32 +59,43 @@ Other operations require their own source admission and behavioral contracts.
 
 ## 3. Formation and Application
 
-Ordinary [application and pipeline rules](expressions.md) govern supplied operand
-order. Every supplied expression is evaluated once in that order before the
-operation's body begins. A recipe must retain the resulting value or storage
-identity rather than moving the expression into a repeated pull or callback.
+Ordinary [application and pipeline rules](expressions.md#default-demand-and-sharing)
+preserve each supplied operand's shared deferred identity. Supplying an operand
+does not force it. A recipe must retain the actual value, suspension or storage
+identity rather than replaying its expression at every pull or callback.
 
-For a producer, formation evaluates callback/count/input expressions but does not
-execute its deferred body, pull an input or invoke the callback. For a consumer,
-formation of its supplied operands likewise precedes enumeration. Input creation
-can itself have effects distinct from the deferred input body's effects.
+These are ordinary-operand defaults. Direct explicit
+[`eager` operands](expressions.md#eager-expressions) are demanded at the activated
+application or partial-formation frontier in source order. Their established
+values remain shared through later completion and enumeration. An eager marker
+inside an otherwise undemanded nested computation is not hoisted to this frontier.
 
-Partial application retains already supplied values at its formation boundary.
-Supplying the remaining operands later must not reevaluate earlier expressions.
+Producer formation does not force callback/count/input computations solely
+because they were supplied, execute the deferred body, pull an input or invoke a
+callback. A demanded pull forces the operands required by that operation's
+behavior. Input creation can have effects distinct from input enumeration; each
+occurs only at its respective demand. A consumer likewise begins enumeration
+when its result or iteration effect is demanded, not at syntactic application.
+
+Partial application retains already supplied values or deferred identities at
+its formation boundary. Supplying remaining operands neither forces unused
+earlier operands nor recreates their suspensions or completed values.
 A stored or bare operation value follows the same type and application rules;
 these forms are not a distinct, weaker semantic API. For function-valued `fold`
 state, the three declared operation operands remain the boundary before applying
-the returned state function. Ordinary supplied-operand evaluation still governs
-any additional application; selecting or returning a function does not invoke it.
+the returned state function. Additional arguments remain deferred under their
+subsequent application; selecting or returning a function does not invoke it.
 
-An immutable captured binding contributes its formation-time value. A value
-containing references preserves their identities and sharing. A mutable binding
+An immutable captured binding contributes its established value or shared
+deferred identity without forcing it. A value containing references preserves
+their identities and sharing. A mutable binding
 contributes its original storage cell, not a replacement cell initialized from a
 scalar read. Re-enumeration does not rerun a producer operand initializer that
 already completed, copy another iterator's progress or deep-copy shared captures.
 
-Internal producer bindings are initialized when evaluation reaches them during a
-pull. They are not default-initialized at producer formation. This distinction
+Internal producer bindings establish their deferred computations when execution
+reaches them during a pull and evaluate only when demanded. They are not
+default-initialized or forced at producer formation. This distinction
 also applies when a callback or child sequence is constructed inside a running
 producer.
 
@@ -97,9 +108,11 @@ instructions for an Alex source-body emitter.
 ### 4.1 Map
 
 `Seq.map mapper input` pulls the input when an output is demanded. On success it
-reads current once, invokes the mapper once with that value and yields the
-mapper's result. Input exhaustion completes the mapped enumeration without
-invoking the mapper. Input order is preserved.
+retains current once and yields a shared deferred application of the mapper to
+that value. Demanding that element demands the mapper result; reading only the
+existence of an element does not force an unused mapped payload. Input exhaustion
+completes the mapped enumeration without demanding the mapper. Input order is
+preserved, and repeated demand for the same yielded value does not replay it.
 
 A function-valued element is passed as a value; a function-valued mapper result
 is yielded as a value. Neither is implicitly invoked by the operation.
@@ -118,10 +131,10 @@ must prevent further pulls and predicate calls.
 
 ### 4.3 Append
 
-`Seq.append first second` evaluates both supplied expressions during formation.
-Enumeration pulls the first input until it exhausts, then the second. It does not
-pull the second body merely because the first template has been formed, or after
-a downstream consumer has already stopped within the first input.
+`Seq.append first second` retains both supplied computations without forcing
+them at formation. Enumeration demands and pulls the first input until it
+exhausts, then demands the second. It does not force the second initializer or
+pull its body after a downstream consumer has stopped within the first input.
 
 Empty inputs contribute no elements. Their deferred exhaustion effects occur if
 and when enumeration actually pulls them. A chain of empty inputs must preserve
@@ -143,7 +156,7 @@ applicable lifetime and non-overlap premises.
 ### 4.5 Take
 
 `Seq.take count input` yields at most `count` elements. A zero or negative count
-causes no input pull. Each attempted pull tests positive remaining demand first;
+causes neither input formation demand nor an input pull. Each attempted pull tests positive remaining demand first;
 a successful pull yields current and consumes one unit of that demand.
 Exhaustion before the requested count completes normally.
 
@@ -153,15 +166,25 @@ post-yield effects solely to discover that demand is already zero. Its count
 updates require the same range and representation obligations as other integer
 operations. No F#/CLR short-input exception behavior is imported into this law.
 
-## 5. Eager Consumer Behavior
+<a id="5-eager-consumer-behavior"></a>
+
+## 5. Demanded Consumer Behavior
+
+These laws apply when the consumer's result or explicit iteration effect is
+demanded. Merely constructing or storing the application does not enumerate its
+input. “Consume to exhaustion” describes required traversal once demanded, not
+an eager default for argument initializers or intermediate accumulator values.
 
 ### 5.1 Fold
 
-`Seq.fold folder initial input` starts with the already evaluated initial state.
-For each successful input pull, it reads current once, invokes `folder state
-current` once and uses that returned state for the next iteration. On exhaustion
-it returns the last state. An empty input returns the initial state without
-invoking the folder.
+`Seq.fold folder initial input` starts with the shared deferred initial state.
+For each successful input pull, it retains current once and forms the next shared
+state computation `folder state current`. On exhaustion it returns the last
+state. A demanded final result forces only the state computations and arguments
+required by the folder; an implementation must not force an ignored initial or
+intermediate state merely to place it in an accumulator slot. An empty input
+returns the initial state without demanding the folder. A proven strict fold can
+use an immediate accumulator while preserving these observations.
 
 The accumulator preserves `'S` throughout initialization, reads, callback
 application, writes and the result. It need not share the element's type,
@@ -202,8 +225,9 @@ performs the effects needed to discover exhaustion.
 `Seq.tryPick chooser input` invokes the chooser once per successful pull, in
 input order. A `None` result continues the search. The first `Some value` is
 returned unchanged, with no later pull or chooser invocation. If the input
-exhausts, the result is `None`. Chooser formation and input formation occur once
-before enumeration; testing the result must not reevaluate the chooser.
+exhausts, the result is `None`. The input is demanded for traversal and the chooser
+only when a successful input requires a choice. Testing the returned result must
+not reevaluate the chooser or force an unused `Some` payload.
 
 The input type `'T` and result payload type `'U` are independent, including their
 dimensions. These consumers return the native `option` algebra described in
@@ -285,8 +309,9 @@ Sequence composition SHALL NOT introduce a garbage-collected heap allocation.
 
 A filter/map/take pipeline combines the operation laws rather than imposing a
 physical nesting formula. While remaining demand is positive, filtering may pull
-and reject multiple source elements; mapping runs once for each accepted input;
-take counts the resulting outputs. Once take's limit is reached the entire
+and reject multiple source elements; mapping forms one shared deferred result
+for each accepted input, and invokes the mapper only when that result is
+demanded. Take counts the resulting outputs. Once take's limit is reached the entire
 upstream demand chain stops.
 
 Every stage retains its callback/configuration values and admitted environment
@@ -342,13 +367,16 @@ elide an environment's formation effects or lifetime requirements.
 
 1. Operations SHALL preserve the native schemes in §2, including independent
    accumulator/element types and exact callback argument/result constraints.
-2. Supplied expressions SHALL follow ordinary application order and be evaluated
-   once at their actual formation boundary; repeated pulls SHALL use the retained
-   values rather than rerun their initializers.
+2. Ordinary supplied expressions SHALL retain shared deferred identities at their
+   actual application boundary. Formation SHALL NOT force their initializers;
+   direct explicit eager operands SHALL follow the activated frontier and order
+   in §3. Repeated demands SHALL reuse each established result rather than replay
+   its initializer.
 3. Producers SHALL defer their bodies and callbacks until demanded. Consumers
-   SHALL execute their required pulls when applied, following §§4–5.
+   SHALL execute their required pulls when their result or specified effect is
+   demanded, following §§4–5.
 4. Every enumeration SHALL have independent progress while retaining original
-   mutable capture identity and immutable formation-time values.
+   mutable cells and immutable established values or shared deferred identities.
 5. `take`, `exists` and `forall` SHALL stop upstream demand at their respective
    decisions. Empty input SHALL obey each operation's result and callback laws.
 6. Current reads SHALL retain the successful-pull prerequisite for their exact
@@ -379,7 +407,7 @@ Conforming implementations SHALL satisfy the following observations:
 | Iter | Actions run once per required element in order; empty input runs no action |
 | Exists/forall | Exists stops on true, forall on false; empty results are false/true respectively, with no predicate call |
 | Collect | Each outer callback runs once; its inner sequence exhausts before the next outer pull, including effectful empty children |
-| Formation and exhaustion | Producer operand effects precede deferred work; a reached no-yield body performs its exhaustion effects; stopped demand does not execute later input work |
+| Formation and exhaustion | Ordinary operand effects remain deferred until demanded; direct eager operands follow their activated formation frontier; a reached no-yield body performs its exhaustion effects; stopped demand does not execute later input work |
 
 Negative conformance includes wrong count kind/dimension, non-Boolean predicates,
 non-unit actions, callback/element dimension mismatches and inconsistent fold

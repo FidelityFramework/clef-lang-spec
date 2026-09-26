@@ -152,7 +152,7 @@ The following identifiers are treated as keywords of the F# language:
 ```fsgrammar
 token ident-keyword =
     abstract and as assert base begin class const default delegate do done
-    downcast downto elif else end exception extern false finally fixed for
+    downcast downto eager elif else end exception extern false finally fixed for
     fun function global if in inherit inline interface internal lazy let
     match member module mutable namespace new null of open or
     override private public rec return sig static struct then to
@@ -173,7 +173,7 @@ The following identifiers are not reserved:
 
 ```fsgrammar
 token ident =
-    atomic constructor eager functor measure method
+    atomic constructor functor measure method
     object recursive volatile
 ```
 

@@ -105,11 +105,13 @@ of a settled frame. The environment contains no function address field.
 
 ### 4.2 Captures, internal values and activation scratch
 
-Immutable captures copy their values when the sequence is formed. Mutable
+Immutable captures retain their established values or shared deferred identities
+without forcing unevaluated bindings when the sequence is formed. Mutable
 captures retain the original cell identity: reads and writes from an enumeration
 observe that cell, and separate enumerations do not clone it. Internal bindings
-are initialized when evaluation reaches them in the generator, not when the
-sequence is created or by default stores before the first pull.
+establish their deferred computations when execution reaches them in the
+generator and evaluate when demanded, not when the sequence is created or by
+default stores before the first pull.
 
 Both immutable and mutable bindings may be live across a suspension. A borrowed
 cell can need persistent storage even after its enclosing computation's last
@@ -135,8 +137,12 @@ These values describe the persisted resume discriminant. A generator may also
 have a local dispatch position for several control occurrences within one pull;
 that local position is not an additional suspension state.
 
-Each yield evaluates its payload, stores current and the corresponding resume
-state, then returns true. Completion records the completed state and returns
+Each reached yield establishes the current payload's shared value or deferred
+identity, stores it with the corresponding resume state, then returns true.
+Demanding the payload evaluates it once; merely observing a successful pull does
+not force an unused payload. The retained computation must remain valid after
+resumption under the same lifetime obligations as an established value.
+Completion records the completed state and returns
 false. A current read requires the successful-pull premise for the exact iterator
 and the applicable control path. Completion, construction and empty enumeration
 do not establish that premise. The compiler must reject an unadmitted read.
@@ -236,8 +242,9 @@ owns elaboration. It retains the following distinct contracts:
   yield. Original source identity/range and operand provenance remain when Baker
   replaces the source form with the explicit loop and yield.
 - **Evaluation:** Bindings, operands, selected branches, loop backedges and
-  deferred formation preserve source order. Formation does not execute a nested
-  deferred body. A definition reference does not rerun its initializer; graph
+  deferred formation preserve [source demand and effect order](expressions.md#default-demand-and-sharing).
+  Formation does not force an unused initializer or execute a nested
+  deferred body. A definition reference shares its initializer; graph
   traversal deduplication does not suppress a loop's required evaluations.
   Local demand/entry/completion relations precede their composition into control.
 - **Control and cuts:** Composed control gives exact occurrences, successors,
@@ -291,7 +298,8 @@ witnessed operations; they do not constitute the frame or resource proof.
    data field in the environment. Elision SHALL require an established callable
    identity for the use.
 3. Each enumeration SHALL have independent iteration state while preserving
-   original mutable capture identity and immutable capture values.
+   original mutable cells and immutable established values or shared deferred
+   identities, without forcing captures merely to form the sequence.
 4. Baker SHALL establish suspension ownership, evaluation order, composed control,
    value availability and live-across storage before Alex witnesses a machine.
 5. Every field and allocation SHALL have its required settled representation,

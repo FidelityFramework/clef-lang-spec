@@ -11,22 +11,34 @@ status: normative
 
 Clef specifies `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Its subscription and delivery plan is preserved in the [Program Semantic Graph](program-semantic-graph.md) through lowering. Active subscriptions, observer closures and dynamically created sources remain runtime instances with owned state. The compiler can specialize their representation and fuse an observable into the demand-driven computation it feeds; intrinsic status does not eliminate that runtime state or require a separate reactive package.
 
-`Observable<'T>` occupies the push pole of the spectrum of evaluation strategies that the compiler understands natively (the same spectrum specified in [Incremental Computation §1](incremental-computation.md)):
+`Observable<'T>` specifies producer-driven delivery within the independent
+activation, delivery and reuse contracts also listed in
+[Incremental Computation §1](incremental-computation.md):
 
 | Property | Observable&lt;'T&gt; | Cold&lt;'T&gt; | Lazy&lt;'T&gt; | Incremental&lt;'T&gt; |
 |---|---|---|---|---|
-| Deferred evaluation | No (push) | Yes | Yes | Yes (demand-driven) |
-| Cached result | No | No | Yes | Yes |
-| Dependency tracking | No | No | No | Yes |
-| Invalidation | No | No | No | Yes |
-| Cutoff (change detection) | No | No | No | Yes |
-| Propagation bound | Unbounded | N/A | N/A | Bounded by cutoff |
+| Activation / demand | Producer/subscription contract; a cold wrapper defers connection | Explicit start/force | First force | Demand registration; stale nodes recompute at stabilization |
+| Delivery once active | Producer pushes each emission | Completion of the started computation | Force returns the shared result | Demanded consumers observe a validated cached result |
+| Intrinsic result cache | None | None | Once, retained indefinitely | Retained until dependency validation requires recomputation |
+| Dependency invalidation | No implicit dependency cache | None | None | Conservative staleness propagates to dependents |
+| Change suppression | Explicit operator only | None | No recomputation after first force | Cutoff suppresses only the unchanged output's propagation |
+| Work guarantee | Preserve every required emission | Preserve the start contract | Preserve single computation and sharing | Selective work; no fixed graph-size or execution-time bound |
+
+Clef's [lazy-by-default evaluation](expressions.md#default-demand-and-sharing)
+applies to ordinary bindings and arguments. These intrinsic contracts refine
+activation, delivery and cache behavior independently. Push delivery does not
+force an otherwise undemanded producer expression or activate a cold source.
+Cutoff can reduce recomputation; it does not establish a fixed work or time
+bound for an arbitrary graph.
 
 An `Observable<'T>` is **opaque**: the producer decides when values arrive, and the compiler must assume every emission matters. It carries none of the structure (cache, dependency graph, cutoff) that makes `Incremental<'T>` transparent. This opacity is definitional, not a deficiency: an event source — user input, a sensor, a network packet — genuinely produces on its own clock, and there is nothing for the compiler to memoize or elide.
 
 ### 1.1 Relationship to Incremental
 
-`Observable<'T>` is the push counterpart to the demand-driven `Incremental<'T>`. The producer drives an observable (it invokes the consumer); the consumer drives an incremental (it forces the recompute). They are not interchangeable and they are not ordered on a single quality axis — they sit at opposite ends of the evaluation spectrum and **compose**:
+`Observable<'T>` supplies producer-driven delivery; `Incremental<'T>` supplies
+demand-gated cache validation and recomputation. Incremental invalidation itself
+propagates from changed inputs, so “push” and “pull” are not exclusive labels for
+an entire system. The contracts are not interchangeable and **compose**:
 
 ```fsharp
 // An event source (push) driving a cached derivation (demand)
@@ -38,7 +50,7 @@ let fused        : Incremental<Decision> =
     }
 ```
 
-Because both are intrinsic, the compiler can fuse the observable subscription directly into the incremental node's invalidation trigger, avoiding a separate bridge representation where the semantics permit (see [Incremental + Observable](incremental-computation.md#incremental--observable)). The observable supplies *change events*; the incremental supplies *bounded, cached recomputation* in response. Fusion must preserve required event delivery and effects; merely marking a cache stale does not establish that multiple emissions may be discarded.
+Because both are intrinsic, the compiler can fuse the observable subscription directly into the incremental node's invalidation trigger, avoiding a separate bridge representation where the semantics permit (see [Incremental + Observable](incremental-computation.md#113-incremental--observable)). The observable supplies change events; the incremental supplies dependency-tracked, demand-gated cached recomputation. Neither intrinsic status nor cutoff establishes a fixed work or time bound. Fusion must preserve required event delivery and effects; merely marking a cache stale does not establish that multiple emissions may be discarded.
 
 The developer-facing `Signal`/`Memo`/`Effect` surface (see [Reactive Signals](reactive-signals.md)) is built on this pair: a `Signal` is a settable source, a `Memo` is an `Incremental`, and an `Effect` is a demanded sink.
 
@@ -202,33 +214,31 @@ The PSG node references the producer and observer-registration plan. Repeated or
 
 ### 7.1 CPU Target
 
-The CPU pathway is one of several target pathways the backend can select (alongside the CIRCT/FPGA and JS pathways); it is the pathway reached when the delivery context is a CPU or MCU. On it, emission lowers to a direct dispatch loop over the observer closures (no virtual dispatch, no managed callback). The loop structure and observer-array access are portable — the middle end expresses them in `scf`/`memref` and commits to no target:
+The CPU pathway is one of several backend pathways, alongside CIRCT/FPGA and
+JSIR. Baker establishes the subscription, delivery order, observer ownership and
+callable storage plan. Alex witnesses the admitted iteration, loads and calls
+through its Elements, Patterns and Witnesses at the current Huet-zipper
+occurrence, using portable `scf`, `memref` and `func` operations.
 
-```mlir
-// Emit value %v to all registered observers (portable middle-end form)
-%count = memref.load %observer_count[] : memref<i32>
-%n = index.casts %count : i32 to index
-// for i in 0 .. count-1: invoke observers[i](%v)
-scf.for %i = %c0 to %n step %c1 {
-    %obs = memref.load %observer_ptrs[%i] : memref<?x!closure>
-    func.call_indirect %obs(%v) : (!result_type) -> ()   // flat-closure invocation
-}
-```
+Each actual observer is the distinct function value and environment specified
+by [Closure Representation §6.3](closure-representation.md#63-middle-end-encoding-and-lowering).
+The call supplies the actual environment first when one is required, followed by
+the emission argument under the settled signature. A capture-free observer needs
+no dummy environment. A stored callback requires admitted storage for both
+components and their identities; an untyped `!closure` value or function address
+inside the environment is not a substitute.
 
-Only the flat-closure invocation carries a construct with no portable form (a function address applied as data). On the LLVM pathway specifically, the indirect call and the raw environment pointer realize as `llvm.*`:
-
-```mlir
-// LLVM-pathway realization of the flat-closure dispatch inside the loop body
-%obs_ptr = llvm.getelementptr %observer_ptrs[%i] : (!llvm.ptr, i64) -> !llvm.ptr
-%obs = llvm.load %obs_ptr : !llvm.ptr -> !llvm.ptr
-llvm.call %obs(%v) : (!result_type) -> ()
-```
-
-Other pathways realize the same indirect dispatch through their own lowering (a hardware-selected observer table on the CIRCT/FPGA pathway, a closure object on the JS pathway); the `scf`/`memref` loop above is shared across all of them.
+The portable indirect call already has a standard `func.call_indirect` form.
+Backend conversion realizes it and its storage according to the chosen target;
+LLVM pointer calls are one such realization, not an exception to middle-end
+portability. CIRCT circuit structure and JSIR closure objects likewise follow
+their backend contracts. Source delivery and effects must correspond through the
+settled graph, admitted witness and transformed artifact; this text does not
+assert that every target pathway has been validated.
 
 ### 7.2 Fusion into Incremental (Accelerator Path)
 
-An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity gives the compiler nothing to schedule statically. When an observable feeds an `Incremental<'T>`, fusion can realize the subscription as an invalidation trigger, subject to preservation of event delivery and effects. The incremental node's lowering (CPU inline, AIE tile activation, or HSA dispatch, per [Incremental Computation §8](incremental-computation.md)) then carries the computation schedule. The observable contributes the *event*; the incremental contributes the *bounded, target-specific response*.
+An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity gives the compiler nothing to schedule statically. When an observable feeds an `Incremental<'T>`, fusion can realize the subscription as an invalidation trigger, subject to preservation of event delivery and effects. The incremental node's lowering (CPU inline, AIE tile activation, or HSA dispatch, per [Incremental Computation §8](incremental-computation.md)) then carries the computation schedule. The observable contributes the event; the incremental contributes dependency-tracked, demand-gated recomputation. Neither fusion nor cutoff alone supplies a fixed resource or execution-time bound.
 
 ## 8. Interaction with Other Intrinsics
 
@@ -270,10 +280,14 @@ Following the Fidelity convention, `Observable<'T>` supports three levels of dev
 ### 10.1 Level 3: Explicit
 
 ```fsharp
-let sub = source |> subscribe (fun reading -> handle reading)
+let sub = eager (source |> subscribe (fun reading -> handle reading))
 // `sub` release (scope exit / actor retirement) unsubscribes
  
 ```
+
+The reached eager binding activates subscription. An ordinary unused binding
+of the subscription expression remains deferred; its syntax alone does not
+install an observer.
 
 ### 10.2 Level 2: Bounded
 

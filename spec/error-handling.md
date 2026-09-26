@@ -120,42 +120,54 @@ let isError input =
     | Error _ -> true
 ```
 
-Supplied operands SHALL be evaluated eagerly in source evaluation order. The
-callback SHALL be invoked once only for the indicated case. An untouched payload
+Result operations follow [default demand and sharing](expressions.md#default-demand-and-sharing).
+The rules below concern ordinary arguments. Direct explicit `eager` arguments
+retain their intentional demand at the activated application frontier, including
+when their values are not selected by the Result case.
+A demanded case selection requires the input's tag, not every supplied operand
+or payload. The callback is used only for the indicated case and only to the
+extent required by the demanded operation result or explicit iteration effect.
+Unused callbacks and fallbacks remain deferred, including their initializer
+effects. Repeated demand through the same operation result shares evaluation.
+An untouched payload
 SHALL retain its value, dimensional type and resource identity; changing the
 other case's type does not authorize a conversion of that payload. The enclosing
 Result may require a different realized layout and is not required to retain the
 same allocation identity. A bind callback's Result is returned with its case
 unchanged.
 
-For `defaultValue`, the fallback expression is evaluated even when the input is
-Ok. For `defaultWith`, the fallback function expression is evaluated on both
-cases, but the function is invoked only on Error, with that error payload as one
-logical argument. This is an error handler, not the unit thunk used by
-`Option.defaultWith`. For `iter`, the action expression is evaluated on both
-cases; only Ok invokes it, with the success payload as one logical argument.
+For `defaultValue`, an Ok input returns the success payload without demanding the
+fallback; an Error input selects the fallback's shared computation. For
+`defaultWith`, only Error demands the fallback callable and its result, with the
+error payload as one logical argument. This is an error handler, not the unit
+thunk used by `Option.defaultWith`. For a demanded `iter`, only Ok demands and
+invokes the action, with the success payload as one logical argument; Error
+returns unit without forcing the action expression.
 The action and the operation return unit. Unit-valued and callable payloads
 retain these logical argument boundaries.
 
-The mapping, binding, defaulting and iteration operations have two operands. Direct applications and backward pipes
-evaluate the fallback or callback expression before the Result expression;
-forward pipes evaluate the Result expression first. When the result type `'a`
+The mapping, binding, defaulting and iteration operations have two operands.
+Direct applications and pipelines preserve those logical argument associations
+and shared deferred identities; their written order does not force all operands.
+When the result type `'a`
 of `defaultValue` or `defaultWith` is itself a function, later arguments apply
 that selected or produced function after the two-operand operation boundary.
-All supplied source arguments, including those later arguments, SHALL evaluate
-before case selection or fallback invocation. Extra application of the unit
-result of `iter` is a type error.
+Later arguments remain deferred until demanded by that returned function.
+They SHALL NOT be forced before case selection merely because they appear in
+the same application syntax. Extra application of the unit result of `iter` is
+a type error.
 
-`isOk` and `isError` each evaluate their single Result operand eagerly and once,
-including when applied through a pipe. They SHALL observe only the case tag;
-neither operation extracts a payload or invokes a callable payload. Constructing
-the supplied Result still evaluates its payload expression according to ordinary
-source evaluation order. Each predicate returns bool, so extra application is a
+Demanded `isOk` and `isError` each demand their single Result operand's case tag,
+including when applied through a pipe. They SHALL observe only that tag;
+neither operation demands an unused payload or invokes a callable payload.
+Constructing the supplied Result does not itself force its payload initializer.
+Each predicate returns bool, so extra application is a
 type error. Bare aliases of either predicate SHALL instantiate both payload types
 independently at each admitted use.
 
-Partial applications SHALL retain the supplied fallback or callback value at
-formation while preserving the identities and obligations of its captured storage. Bare aliases
+Partial applications SHALL retain the supplied fallback or callback value or
+shared deferred identity without forcing it at formation, while preserving the
+identities and obligations of its captured storage. Bare aliases
 SHALL instantiate the quantified types independently at each admitted use.
 Binder input and output share the same error type; changing it requires an
 explicit operation such as `mapError`.

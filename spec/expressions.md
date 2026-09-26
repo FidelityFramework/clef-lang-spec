@@ -34,6 +34,7 @@ expr :=
     [ comp-or-range-expr ]              -- computed list expression
     [| comp-or-range-expr |]            -- computed array expression
     lazy expr                           -- delayed expression
+    eager expr                          -- explicit shallow-demand expression
     expr : type                         -- type annotation
     expr :> type                        -- static upcast coercion
     expr :? type                        -- dynamic type test
@@ -519,8 +520,9 @@ fun v1 ... vn ->
     expr
 ```
 
-No pattern matching is performed until all arguments have been received. For example, the
-following does not raise a `MatchFailureException` exception:
+These parameter-pattern decisions belong to the completed declared application,
+not partial application formation. For example, forming the following partial
+application does not reach its failed pattern:
 
 ```fsharp
 let f = fun [x] y -> y
@@ -528,10 +530,14 @@ let g = f [] // ok
  
 ```
 
-However, if a third line is added, a `MatchFailureException` exception is raised:
+If the result of the completed application `g 3` is demanded, its parameter
+pattern fails. Execution then follows the always-active
+[exhausted-match contract](patterns.md#exhausted-match-rules): termination with
+a source diagnostic, not a catchable `MatchFailureException`. An ordinary
+unused binding of that result remains deferred:
 
 ```fsharp
-let z = g 3 // MatchFailureException is raised
+let z = g 3 // deferred until z is demanded
  
 ```
 
@@ -647,6 +653,69 @@ response to a `Lazy.force` operation on the lazy value.
 > - No garbage collector involvement
 > - Captures computed at compile time via binding classification
 > - Module-level bindings are referenced directly, not captured
+
+### Eager Expressions
+
+An expression of the form `eager expr` specifies an explicit, local demand
+boundary. Its type is the type of `expr`; it is syntax, not a function call,
+attribute, new wrapper type or whole-program evaluation mode. It has the same
+operand extent as the prefix `lazy expr` form; parentheses can delimit the
+operand when it appears inside an application.
+
+`eager expr` demands `expr` to its **outer value** once at the applicable active
+frontier. A scalar result is obtained; an aggregate's constructor/tag and identity
+are established; a callable, lazy value or sequence is formed. It does not
+recursively force ordinary fields, elements, captures or bodies. In particular,
+`eager (lazy work())` constructs a lazy value without forcing its body;
+`eager (Lazy.force value)` explicitly demands that force. Similarly, demanding a
+sequence's outer value does not enumerate it.
+
+The frontiers are:
+
+| Context | Explicit demand and order |
+|---|---|
+| Reached ordinary binding `let x = eager expr` | Demand `expr` before continuing beyond the binding, even if `x` is never used. Bind its shared result; later uses do not replay it. |
+| Activated application `f (eager expr)` | First resolve the demanded callee; then demand explicit eager actuals belonging to this declared application boundary in source order, before entering its body or returning its residual callable. Ordinary actuals remain deferred. |
+| Activated aggregate constructor with a direct eager field, element or payload | Demand those explicitly marked components in source order as the constructor forms them. Ordinary sibling components remain deferred. |
+| Other activated expression position | Demand the marked operand when control reaches that expression, preserving surrounding sequencing and selected control flow. |
+
+Parentheses, `begin`/`end` grouping and type annotations around a direct eager
+expression are transparent to these frontiers: `let x = (eager expr : T)` has
+the same activation as `let x = eager expr`. An ordinary alias, helper function,
+conditional or nested computation is not such a transparent wrapper.
+
+There is **no recursive search or hoisting** for eager markers. If an enclosing
+ordinary initializer or argument remains deferred, an eager marker inside its
+nested application or branch is not reached. For example, an unused binding
+`let x = if p then eager work() else value` does not force `p` or `work()`;
+an unused argument in `ignore (g (eager work()))` does not activate `g`.
+To activate that argument deliberately, write `ignore (eager (g (eager work())))`.
+An unselected branch, uncalled function body, unforced lazy/cold computation or
+unpulled sequence body likewise does not execute its contained eager marker.
+
+Partial applications retain both completed eager values and ordinary deferred
+identities. An eager actual is demanded when that partial formation is itself
+activated, once for that dynamic formation; supplying remaining operands later
+does not replay it. For a function-valued result, later actuals belong to the
+subsequent callable's application boundary. They SHALL NOT be hoisted before
+the earlier body has produced that callable. Bare aliases and pipelines retain
+the same boundaries and the source order of explicit eager operands.
+
+One dynamic marker instance demands its operand at most once. If the operand
+already refers to a computed shared binding, demand reuses that result; `eager`
+does not mean “recompute.” Repeated dynamic executions, such as distinct loop
+iterations or factory calls, remain distinct instances unless source sharing or
+a valid transformation proves otherwise.
+
+`eager` may intentionally change whether and when effects or nontermination
+occur compared with a deferred ordinary binding. The compiler SHALL retain that
+demand, order, sharing and lifetime contract. It may optimize its representation
+only with preservation evidence. A correct eager idiom is not automatically a
+warning merely because its result is unused: effect timing may be its purpose.
+Optional informational cost advice must distinguish proven demand/layout facts
+from target/profile estimates and must not label a marker redundant without
+proving preservation of its effects, termination and ordering. Violated admission
+or correctness requirements retain their required diagnostics.
 
 ### Computation Expressions
 
@@ -2131,13 +2200,11 @@ expr1 && expr2 → if expr1 then expr2 else false
 expr1 || expr2 → if expr1 then true else expr2
 ```
 
-> Note: The rules in this section apply when the following operators, as defined in the F#
-    core library, are applied to two arguments.
-    <br>`FSharp.Core.LanguagePrimitives.IntrinsicOperators.(&&)`
-    <br>`FSharp.Core.LanguagePrimitives.IntrinsicOperators.(||)`
-    <br>
-    If the operator is not immediately applied to two arguments, it is interpreted as a strict
-    function that evaluates both its arguments before use.
+These are the demand laws of the Clef intrinsic operators, including stored,
+aliased and partially applied uses. Such uses SHALL retain the shared deferred
+right operand and the same short-circuit behavior. Source lexical resolution
+distinguishes a user-defined operator from these intrinsics; application shape
+does not silently select a strict two-argument variant.
 
 ### Pattern-Matching Expressions and Functions
 
@@ -2790,9 +2857,51 @@ The splice forms `%expr` and `%%expr` are **not Clef constructs** and are diagno
 At runtime, execution evaluates expressions to values. The evaluation semantics of each expression
 form are specified in the subsections that follow.
 
+### Default Demand and Sharing
+
+Clef is **lazy by default**, with call-by-need sharing. An ordinary value binding
+or supplied function argument denotes a deferred computation whose identity
+exists before its result. Merely binding, passing or capturing that computation
+SHALL NOT force it, except at an explicit [eager frontier](#eager-expressions).
+Its first demand evaluates the required computation; later
+demands through the same binding or argument share the result rather than replay
+it. Two separately created computations are not implicitly one shared instance.
+
+This rule includes effects inside an ordinary deferred argument or initializer.
+For example, `(fun _ -> 0) (trace 1; 42)` does not execute `trace 1`, while a
+demanded `(fun _ -> 0) (eager (trace 1; 42))` does. In
+`let x = (trace 1; 42) in x + x`, the demanded arithmetic result requires `x`,
+and the shared initializer executes `trace 1` once. A discarded ordinary binding
+does not become an effect root merely because its initializer contains effects.
+These rules do not erase explicit effect roots: when a sequential expression
+`expr1; expr2` is itself demanded, its sequencing contract requires `expr1`
+before `expr2`. Entry, startup, resource, subscription and foreign-call contracts
+must specify their activation and demanded operands separately.
+
+Demand is operation-specific. A branch demands its condition and selected arm;
+an arithmetic operation demands the operands needed for its result; a case test
+demands a union's tag without thereby demanding every payload. Application syntax,
+a type annotation, compiler traversal or a physical layout choice is not proof
+that every written operand must execute. The operation's declared argument
+boundary remains distinct from a later application of a function-valued result.
+
+An implementation may evaluate earlier or eliminate a suspension only when it
+proves preservation of required results, termination, observable effects, sharing,
+storage identity and lifetime. In particular, earlier evaluation cannot execute
+an otherwise undemanded effect or divergent computation. Flat closures and thunks
+provide representations for deferred values; their layout alone is not that
+proof. Source demand and effect relationships SHALL survive Baker elaboration,
+admission, Alex witnessing and target lowering.
+
+Explicit `Lazy<'T>` exposes a memoized force operation; `seq<'T>` exposes fresh
+enumeration state; `Cold<'T>` exposes a start/force boundary; `Incremental<'T>`
+adds tracked invalidation and cache validation. They refine the default and are
+not interchangeable cache or scheduling policies. See [Lazy Representation](lazy-representation.md),
+[Sequence Representation](seq-representation.md) and [Incremental Computation](incremental-computation.md).
+
 ### Values and Execution Context
 
-The execution of elaborated F# expressions results in values. Values include:
+The execution of demanded elaborated Clef expressions results in values. Values include:
 
 - Primitive constant values
 - Values for value types, containing a value for each field in the value type
@@ -2804,9 +2913,15 @@ Evaluation assumes the following evaluation context:
 
 - A global environment that maps module-qualified names to values
 - A local environment mapping names of variables to values
-- For exception handling, a stack of active try/with and try/finally handlers
+- The scoped cleanup obligations established by resource-management constructs
 
-Evaluation may raise an exception. In this case, the stack of active exception handlers is processed until the exception is handled.
+Native recoverable failures are explicit `Result` values under
+[Error Handling](error-handling.md#application-runtime-error-handling).
+Compatibility syntax and exceptions used inside compiler/editor tooling do not
+imply a native exception-handler stack. Always-active invariant failure,
+including an [exhausted match](patterns.md#exhausted-match-rules), terminates
+with a diagnostic. Scoped cleanup has its own ordering obligations; it is not
+an implicit conversion of a failure into a recoverable result.
 
 ### Parallel Execution and Memory Model
 
@@ -2864,46 +2979,67 @@ setters and methods named `MoveNext` and `GetNextArg`, which are common cases of
 
 ### Evaluating Value References
 
-At runtime, an elaborated value reference `v` is evaluated by looking up the value of `v` in the local
-environment.
+At runtime, an elaborated value reference `v` refers to its binding in the local
+environment. A demand for its result forces an unevaluated binding once and
+shares that result with subsequent references. Merely forwarding the binding's
+deferred identity does not force its contents. Mutable references retain their
+specified storage identity; call-by-need does not turn successive explicit
+mutable reads into one immutable snapshot.
 
 ### Evaluating Function Applications
 
-At runtime, an elaborated application of a function `f e1 ... en` is evaluated as follows:
+When the result of an elaborated application `f e1 ... en` is demanded:
 
-- The expressions `f` and `e1 ... en`, are evaluated.
-- If `f` evaluates to a function value with closure environment `E`, arguments `v1 ... vm`, and body `expr`,
-    where `m <= n` , then `E` is extended by mapping `v1 ... vm` to the argument values for `e1 ... em`. The
-    expression `expr` is then evaluated in this extended environment and any remaining arguments
-    applied.
-- If `f` evaluates to a function value with more than `n` arguments, then a new function value is
-    returned with an extended closure mapping `n` additional formal argument names to the
-    argument values for `e1 ... em`.
+- Demand `f` sufficiently to identify the callable. Preserve its actual code and
+  captured environment rather than reconstructing its initializer.
+- Associate each supplied expression with one shared deferred argument in its
+  lexical environment. Supplying an ordinary argument does not force it,
+  including when the expression has effects. At this activated application
+  boundary, demand direct explicit eager actuals in source order under
+  [Eager Expressions](#eager-expressions). A body that never demands an ordinary
+  argument leaves it unevaluated; repeated demands share its result.
+- If the callable declares `m <= n` arguments, extend its environment with the
+  first `m` argument bindings and demand its body as required by the application.
+  Any remaining arguments apply to the resulting callable at the subsequent
+  application boundary; they are not forced in advance.
+- If fewer than the declared arguments are supplied, produce a residual callable
+  retaining the already supplied deferred identities. Later completion neither
+  replays their expressions nor forces an operand merely because the operation
+  has become fully supplied.
+
+Each primitive or intrinsic establishes which arguments it demands and their
+required effect order. Proven strictness can remove thunks while preserving this
+behavior. Source argument position alone does not establish strictness.
 
 ### Evaluating Method Applications
 
-At runtime an elaborated application of a method is evaluated as follows:
+The elaborated form is `e0.M(e1, ..., en)` for an instance method or
+`M(e1, ..., en)` for a static method. Clef-defined methods follow the same
+demand and sharing rules as function applications. The receiver is demanded to
+the extent required for the selected member; it does not make every supplied
+argument strict. Member resolution follows the admitted dispatch contract
+([§](inference-supplementary.md#dispatch-slot-checking)). Clef does not inherit a
+CLR null-reference exception path for this operation.
 
-- The elaborated form is `e0.M(e1 , ..., en)` for an instance method or `M(e, ..., en)` for a static method.
-- The (optional) `e0` and `e1` ,..., _en_ are evaluated in order.
-- If `e0` evaluates to `null`, a `NullReferenceException` is raised.
-- If the method is declared `abstract`, that is, if it is a virtual dispatch slot, then the body of the
-    member is chosen according to the dispatch maps of the value of `e0` ([§](inference-supplementary.md#dispatch-slot-checking)).
-- The formal parameters of the method are mapped to corresponding argument values. The body
-    of the method member is evaluated in the resulting environment.
+A foreign or platform method may require materialized arguments at its declared
+call boundary. That demand and its effect order must be established by the
+boundary contract; it is not a default evaluation rule for ordinary Clef methods.
 
 ### Evaluating Union Cases
 
 At runtime, an elaborated use of a union case `Case(e1 , ..., en)` for a union type `ty` is evaluated as
 follows:
 
-- The expressions `e1, ..., en` are evaluated in order.
-- The result of evaluation is an object value with union case label `Case` and fields given by the
-    values of `e1 , ..., en`.
-- If the type `ty` uses null as a representation ([§](types-and-type-constraints.md#nullness)) and `Case` is the single union case without
-    arguments, the generated value is `null`.
-- The runtime type of the object is either `ty` or an internally generated type that is compatible
-    with `ty`.
+- The constructor establishes the union case label and shared deferred payload
+  bindings for `e1, ..., en`, demanding direct explicit eager payloads at the
+  constructor frontier. Demanding the tag does not demand ordinary unused payloads.
+- Payload projections demand their corresponding bindings and share the results.
+  Representation specialization may remove suspensions only under the default
+  demand and sharing proof obligations above.
+- Native union cases retain their admitted tag/payload representation; a case
+  without a payload does not introduce a null inhabitant. Target-specific
+  encodings must preserve [Null-Freedom](error-handling.md#null-freedom) and the
+  [discriminated-union contract](discriminated-union-representation.md).
 
 ### Evaluating Field Lookups
 
@@ -2920,25 +3056,35 @@ At runtime, an elaborated lookup of an F# field is evaluated as follows:
 
 At runtime, an elaborated array expression `[| e1; ...; en |]ty` is evaluated as follows:
 
-- Each expression `e1 ... en` is evaluated in order.
-- The result of evaluation is a new array of runtime type `ty[]` that contains the resulting values in
-    order.
+- The array has the declared element order and retains one shared initialization
+  computation per element. Its activated constructor demands direct explicit
+  eager elements in source order; demanding shape does not alone demand ordinary
+  element computations.
+- Element access, mutation and external materialization must preserve the
+  admitted array storage and demand contract. A strict realization is valid only
+  where it preserves the default demand and sharing rules, including effects.
 
 ### Evaluating Record Expressions
 
 At runtime, an elaborated record construction `{ field1 = e1; ... ; fieldn = en }ty` is evaluated as
 follows:
 
-- Each expression `e1 ... en` is evaluated in order.
-- The result of evaluation is an object of type `ty` with the given field values
+- The result has type `ty` and a shared deferred binding for each field expression;
+  the activated constructor demands direct explicit eager fields in source order.
+- A demanded field forces its binding; unused fields remain deferred. Storage
+  specialization preserves the default demand and sharing obligations.
 
 ### Evaluating Function Expressions
 
 At runtime, an elaborated function expression `(fun v1 ... vn -> expr)` is evaluated as follows:
 
-- The expression evaluates to a function object with a closure that assigns values to all variables
-    that are referenced in `expr` and a function body that is `expr`.
-- The values in the closure are the current values of those variables in the execution environment.
+- The expression produces the callable for `expr` and its required captures; it
+  does not execute the body.
+- Immutable captures preserve their binding's value or shared deferred identity
+  without forcing an unevaluated initializer. Mutable captures preserve the
+  original storage cell. Already established values and references are retained,
+  not reconstructed by replaying their initializers. Physical representation
+  follows [Closure Representation](closure-representation.md).
 
 ### Evaluating Object Expressions
 
@@ -2955,17 +3101,24 @@ is evaluated as follows:
 - The expression evaluates to an object whose runtime type is compatible with all of the `tyi` and
     which has the corresponding dispatch map ([§](inference-supplementary.md#dispatch-slot-checking)). If present, the base construction expression
     `ty0 (args-expr)` is executed as the first step in the construction of the object.
-- The object is given a closure that assigns values to all variables that are referenced in `expr`.
-- The values in the closure are the current values of those variables in the execution environment.
+- The object's admitted capture environment retains the source identities
+  required by its members, under [Closure Representation](closure-representation.md).
+  Immutable captures preserve established values or shared deferred computations;
+  mutable captures preserve their original cells. Capturing a binding does not
+  force its initializer or snapshot a mutable cell's current contents.
 
 ### Evaluating Definition Expressions
 
-At runtime, each elaborated definition `pat = expr` is evaluated as follows:
-
-- The expression `expr` is evaluated.
-- The expression is then matched against `pat` to produce a value for each variable pattern ([§](patterns.md#named-patterns))
-    in `pat`.
-- These mappings are added to the local environment.
+An ordinary value definition `pat = expr` establishes one shared deferred
+initializer and the bindings introduced by `pat` in the local environment. A
+simple named pattern does not force an ordinary initializer. A reached direct
+`eager` initializer instead uses the explicit binding frontier above, even when
+the bound value is unused. Demanding an ordinary binding forces
+only the initializer and pattern structure needed to obtain that binding;
+bindings extracted from the same initializer share its evaluation. Pattern
+selection and failure must retain their own demand and failure contracts rather
+than using a blanket eager-initialization rule. Explicit sequential effects,
+mutable storage operations and startup activation have separate contracts.
 
 ### Evaluating Integer For Loops
 
@@ -3012,27 +3165,28 @@ At runtime, elaborated sequential expressions `expr1 ; expr2` are evaluated as f
 
 ### Evaluating Try-with Expressions
 
-At runtime, elaborated try-with expressions try `expr1 with rules` are evaluated as follows:
-
-- The expression `expr1` is evaluated to a value `v1`.
-- If no exception occurs, the result is the value `v1`.
-- If an exception occurs, the pattern rules are executed against the resulting exception value.
-  - If no rule matches, the exception is reraised.
-  - If a rule `pat -> expr2` matches, the mapping `pat = v1` is added to the local environment,
-       and `expr2` is evaluated.
+The syntax `try expr1 with rules` is retained for tooling compatibility as
+specified in [Try/With Syntax Compatibility](error-handling.md#trywith-syntax-compatibility).
+Native recoverable handling uses explicit `Result` values and pattern matching;
+exception-style source receives `CCS8300`. This compatibility form does not
+authorize a hidden native throw/rethrow mechanism or interception of an
+always-active requirement failure. A native elaboration must express its
+actual success/error value and ordered handler selection in the settled graph.
 
 ### Evaluating Try-finally Expressions
 
-At runtime, elaborated try-finally expressions try `expr1 finally expr2` are evaluated as follows:
+The cleanup ordering of `try expr1 finally expr2` is independent of recoverable
+failure representation. Once this computation is activated, `expr1` is
+evaluated first. Before its value `v` leaves the protected scope, `expr2` is
+evaluated exactly once for cleanup; successful cleanup preserves `v`. An
+explicit `Error` is a value and does not bypass this cleanup. Other admitted
+scope-exit paths must retain the cleanup obligations established for that
+scope. If cleanup itself terminates execution, no normal result is produced.
 
-- The expression `expr1` is evaluated.
-  - If the result of this evaluation is a value `v` , then `expr2` is evaluated.
-       1) If this evaluation results in an exception, then the overall result is that exception.
-       2) If this evaluation does not result in an exception, then the overall result is `v`.
-  - If the result of this evaluation is an exception, then `expr2` is evaluated.
-       3) If this evaluation results in an exception, then the overall result is that exception.
-       4) If this evaluation does not result in an exception, then the original exception is re-
-          raised.
+These rules require explicit scoped cleanup in native elaboration. They do not
+specify a managed exception stack, native throw/rethrow, or recovery from an
+always-active requirement failure. Target termination behavior must not be
+advertised as an exception-unwinding guarantee.
 
 ### Evaluating AddressOf Expressions
 

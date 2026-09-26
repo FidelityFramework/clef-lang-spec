@@ -46,11 +46,19 @@ Captures are classified by the mutability of the source binding:
 
 | Variable Kind | Capture Mode | Entry Type | Semantics |
 |---------------|--------------|------------|-----------|
-| Immutable binding | By Value | `T` | Copy value into closure |
+| Immutable binding | By Value | `T` | Retain established value or shared deferred identity |
 | Mutable binding | By Reference | `memref<1xT>` | A view of the binding's storage cell (stack slot or arena slot), never a raw pointer |
 | Ref cell | By Value | `ref<T>` | Copy ref cell pointer |
 
 An immutable binding is copied because the binding cannot be reassigned. Copying a value that contains a reference preserves the reference and its sharing. It does not establish immutability of the referenced storage. A mutable binding is captured by reference because all closures over it must observe the same changing storage; copying its value would break that contract. The mutability of each capture is tracked from type checking through emission ([access kinds](access-kinds.md) governs the underlying mutability classification).
+
+Capturing an unevaluated immutable binding preserves its shared deferred
+computation; it does not force its initializer. Call-by-need sharing and demand
+follow [expression evaluation](expressions.md#default-demand-and-sharing).
+Already computed values are retained without replay, and mutable cells keep
+their identity. A direct scalar capture layout is valid only when the value's
+demand and representation facts justify it; capture enumeration alone is not a
+strictness proof.
 
 ### 2.3 Allocation Strategy
 
@@ -111,7 +119,12 @@ This four-point lattice matters because a target may have no heap. On a target w
 
 ## 4. Initialization
 
-Every field of a closure's environment is assigned at construction, and the function value names the closure's implementation function; each capture field is set to the captured value, or for a by-reference capture to the address of its storage.
+Every field of a closure's environment is assigned at construction, and the
+function value names its implementation. Each capture field retains the
+established value, the shared deferred identity, or the original storage view
+required by its capture mode. Initializing a field is not permission to force a
+deferred computation. Its admitted representation and lifetime must cover later
+demand; a copied initializer expression is not a shared identity.
 
 No closure field admits a null value. This exclusion is stated explicitly because null-as-a-reference-state is a widespread convention that this representation deliberately does not adopt: a closure's function value always names a defined function and no capture is null, and where a program models the possible absence of a value it uses `Option` ([option operations](option-operations-representation.md)) rather than a nullable field. The design rationale is developed in [Null-Free by Construction](https://clef-lang.com/docs/design/language/null-free-by-construction/).
 
@@ -172,7 +185,7 @@ The pair is never packed into one value and never cast. `unrealized_conversion_c
 
 The JSIR pathway realizes the `(code_pointer, environment_pointer)` pair as a single host function value, under the carrier-realization rule of [Backend Lowering Architecture §4.5](backend-lowering-architecture.md): a JavaScript function carries its code and its captured environment together, so no separate environment pointer is materialized, and invocation is direct application of the function value.
 
-The capture semantics of §2.2 SHALL be preserved observably. A mutable capture SHALL be realized so that every closure over the binding observes the same changing storage, which the host closure's captured binding provides directly; an immutable capture MAY be realized by sharing, since immutability makes a copy and a shared binding indistinguishable. The classification of §8 (escaping closures against nested named functions) applies unchanged: a nested named function that does not escape SHALL pass its captures as parameters on this pathway as on any other.
+The capture semantics of §2.2 SHALL be preserved observably. A mutable capture SHALL be realized so that every closure over the binding observes the same changing storage, which the host closure's captured binding provides directly. An immutable capture retains its established value or the same shared deferred computation; it SHALL NOT duplicate evaluation or force that computation merely to build a host closure. Copying an established reference preserves its referent's identity rather than cloning the referred storage. The classification of §8 (escaping closures against nested named functions) applies unchanged: a nested named function that does not escape SHALL pass its captures as parameters on this pathway as on any other.
 
 The layout requirements of this chapter (deterministic offsets, cache alignment, the §3.3 allocation lattice) are requirements on layout-realizing pathways and do not bind on this pathway: the host garbage collector owns placement, and the environment's shape is the host closure's captured scope. The structural requirements (full initialization, no null or undefined capture, capture modes, classification) bind unchanged.
 

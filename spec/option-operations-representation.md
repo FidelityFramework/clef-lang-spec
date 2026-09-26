@@ -9,7 +9,13 @@ status: normative
 
 ## 1. Overview
 
-Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **[Baker-decomposed pattern matches](program-semantic-graph.md)**. Options are stack-allocated tagged unions (`voption` semantics), and operations compile to simple conditional branches.
+Operand-demand rules in this chapter describe ordinary deferred arguments.
+Direct explicit [`eager` operands](expressions.md#eager-expressions) are demanded
+at their activated application/formation frontier, even where the selected
+Option case would not otherwise need them. Their completed values are shared,
+not replayed at a later partial stage or callback invocation.
+
+Clef implements option operations (`Option.map`, `Option.bind`, `Option.defaultValue`, etc.) as **[Baker-decomposed pattern matches](program-semantic-graph.md)**. On layout-realizing pathways, options are inline tagged values; any materialized storage follows the owning lifetime contract. Their operations elaborate to selected-case control flow without requiring a separately allocated managed option object.
 
 **Key Insight**: Option operations are structurally trivial: each is a single match expression with two branches (Some/None). Baker decomposes them to `isSome` checks and value extraction.
 
@@ -57,7 +63,7 @@ Erasure is an interior representation choice, not a boundary conversion. Absence
 | `Option.Some` | `'T -> 'T option` | Create struct with tag=1, value |
 | `Option.isSome` | `'T option -> bool` | Extract tag, compare to 1 |
 | `Option.isNone` | `'T option -> bool` | Extract tag, compare to 0 |
-| `Option.get` | `'T option -> 'T` | Extract value field (unchecked) |
+| `Option.get` | `'T option -> 'T` | Project the selected payload under an established same-value Some premise or admitted failure contract; no unchecked absent-payload read |
 
 ### 3.2 Higher-Order Functions (Baker Decomposes)
 
@@ -131,14 +137,10 @@ let defaultValue def opt =
     | None -> def
 ```
 
-**Baker Recipe**:
-```fsharp
-recipe {
-    let! isSome = isSome optId
-    let! someValue = getValue optId elemType
-    return! ifThenElse isSome someValue defaultValueId elemType
-}
-```
+**Baker Recipe**: Retain the input's shared identity, test its case, and place
+payload projection inside the selected Some body. The None body retains the
+fallback's shared computation. The payload read is not unconditional setup for
+the decision, and neither a tag test nor the unselected arm forces a payload.
 
 ### 4.4 Option.defaultWith
 
@@ -362,10 +364,14 @@ let foldBack folder opt state =
 Explicit type arguments use `Option.foldBack<'State, 'T>` in the same state,
 payload order as `fold`.
 
-Both folds SHALL evaluate supplied operands eagerly in source evaluation order.
-`Some` SHALL invoke the folder once with the argument order shown; `None` SHALL
-return the supplied state unchanged without invoking the folder. Partial
-applications SHALL retain the values of their supplied operands at formation;
+Both folds follow [default demand and sharing](expressions.md#default-demand-and-sharing).
+Demanding the fold result requires the option's case. For `Some`, demand the
+folder's result with the argument order shown; the folder determines demand for
+the state and payload. For `None`, return the supplied state's shared computation
+without demanding or invoking the folder. A demanded state result is evaluated
+once through that shared identity. Supplying ordinary operands or forming a partial
+application SHALL NOT force unused folder, state or payload expressions.
+Partial applications retain already supplied values or deferred identities;
 captured storage retains its existing identity and lifetime obligations.
 
 The declared three-argument operation boundary SHALL remain distinct from any
@@ -377,7 +383,13 @@ or relaxes admission requirements for its state, payload or folder.
 
 ## 5. SSA Cost Formulas
 
-Option operations are extremely lightweight:
+The following historical counts illustrate one fully demanded scalar lowering;
+they are not normative SSA allocations or a portable cost bound. In particular,
+`undef`, `insertvalue` and `extractvalue` notation does not prescribe Alex's
+portable dialect operations. Baker settles demand, case guards and typed storage;
+Alex creates the actual SSA operands through Elements, Patterns and Witnesses.
+Deferred payloads, aggregate layouts and selected target lowering change both
+storage and operation counts.
 
 | Operation | SSA Operations |
 |-----------|---------------|
@@ -393,7 +405,7 @@ Option operations are extremely lightweight:
 
 ## 6. Normative Requirements
 
-1. **Stack Allocation**: On a pathway that realizes memory layouts, option values SHALL always be stack-allocated (voption semantics)
+1. **Inline Value Representation**: On a pathway that realizes memory layouts, option values SHALL use their admitted tagged value representation without requiring a separately allocated managed option object. Materialized values and retained payloads SHALL follow the containing value's proved lifetime and storage authority under [Discriminated Union Representation §8.2](discriminated-union-representation.md#82-lifetime-constraints); a returned, captured or cached option SHALL NOT retain storage that expires before its uses.
 2. **Tag Encoding**: On a pathway that realizes memory layouts, `None` = 0, `Some` = 1; tag width per platform policy (minimum `i8`)
 3. **No Null**: `None` SHALL NOT be represented as a null pointer; on a layout-realizing pathway it is a valid struct with tag=0, and on the JSIR pathway an erased `None` is `undefined` per §2.1, never `null`
 4. **Decomposition**: Option HOFs SHALL be decomposed by Baker to primitive operations

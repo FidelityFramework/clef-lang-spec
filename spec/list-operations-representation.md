@@ -9,7 +9,7 @@ status: normative
 
 ## 1. Overview
 
-Clef implements list operations (`List.map`, `List.filter`, `List.fold`, `List.rev`, etc.) as **Baker-decomposed algorithms** that expand to primitive list operations at compile time. Unlike Seq operations (which create wrapper structures), List operations produce eager results via recursive traversal.
+Clef implements list operations (`List.map`, `List.filter`, `List.fold`, `List.rev`, etc.) as **Baker-decomposed algorithms** that expand to primitive list operations at compile time. Lists retain persistent structure; sequences retain separately resumable enumeration state. Both obey [lazy-by-default demand and sharing](expressions.md#default-demand-and-sharing). A recursive decomposition does not authorize forcing unused arguments, payloads or tails. Complete traversal is required only where the operation's demanded result requires it; a strict storage realization must preserve those observations or establish a valid strictness proof.
 
 **Key Insight**: List HOFs are decomposed by Baker into compositions of primitive operations (`cons`, `head`, `tail`, `isEmpty`, `empty`). The decomposition happens at compile time, producing [a PSG](program-semantic-graph.md) that Alex witnesses directly.
 
@@ -83,7 +83,9 @@ let rec map f xs =
 
 **Baker Recipe**: `foldRight (emptyList outputType) (fun h acc -> cons (f h) acc) xs`
 
-**SSA Cost**: O(n) cons allocations, O(n) function applications
+**Demand-dependent cost**: Demanding all `n` output nodes requires O(n) cons
+constructions; demanding all mapped payloads requires O(n) mapper applications.
+Demanding only an output prefix or its structure does not force every payload.
 
 ### 4.2 List.filter
 
@@ -119,7 +121,11 @@ let rec fold f state xs =
 
 **Baker Recipe**: `foldLeft state (fun acc h -> f acc h) xs`
 
-**SSA Cost**: O(n) function applications, O(1) space (tail-recursive)
+**Demand-dependent cost**: Traversal forms O(n) accumulator computations. Actual
+folder evaluation follows demand for the final result. Tail-recursive control
+alone does not prove O(1) retained storage: unevaluated accumulators can retain a
+chain. A constant-space realization needs the corresponding strictness, lifetime
+and effect-preservation evidence.
 
 ### 4.4 List.exists
 
@@ -353,13 +359,21 @@ Every obligation the layout generates is quantifier-free at saturation, over the
 | VC-RES | the sentinel image `Resides` in the platform's declared immutable program-lifetime space | none; declaration | cited by name from the platform description |
 | VC-RO | no store site after the initialising copy targets the sentinel slot `[0, sizeof(node))` of the arena | none; structural | by construction, per store site: every store into a node slot is emitted by `cons` at the index the bump returns, and a hosting arena's bump position begins at the floor `sizeof(node)` (§5.2) and never returns below it, so every store target is ≥ `sizeof(node)` without reasoning about any runtime index value; CCS8020 diagnoses the one remaining store form, a store through a `ReadOnly` view of the image |
 
-The list algebra the recipes of §4 rely on (the fold laws that make `map`, `filter`, `rev`, and `append` right) is a schema lemma proven once per recipe shape, never a per-program fixpoint. The layout obligations above, each stated per store site or per read site of the recipe bodies, and that lemma are the whole proof burden; neither quantifies over the nodes an arena holds or the lists a program builds. The lemma's hypothesis holds for every `'T list` value because `cons` and `empty` are its only constructors, and no layout obligation depends on the lemma.
+The list algebra the recipes of §4 rely on (the fold laws that make `map`, `filter`, `rev`, and `append` right) is a schema lemma proven once per recipe shape. That lemma and the per-read/per-store obligations above address list structure and layout without quantifying over every runtime node. They do not discharge the separate demand, callback-effect, sharing, residence or transformed-artifact obligations of a program. Those facts still participate in their owning nanopass saturation and retraction; the schema lemma is not permission to omit a required fixed point. The lemma's structural hypothesis follows from the admitted `cons` and `empty` constructors, and no layout obligation depends on the lemma.
 
 ### 5.5 Structural Sharing
 
 Structural sharing between persistent lists is index aliasing within one arena: `cons h xs` places the new node in the arena that hosts `xs` (for `xs = []`, index 0 of the arena the lifetime lattice selects for the list) and stores the index of the first node of `xs` as the new node's tail, so both lists share every node from that index onward within that one arena; a `tail` never indexes another buffer. No node is copied, and no node is mutated (§5.2 for the sentinel; every other node is written only at construction). The placement rule at every `cons` site: `cons h xs` is placed in the arena of the first node of `xs`, or, when `xs` is the sentinel, in the arena the lifetime lattice selects for the result; `append xs ys` therefore places its copies of `xs` in the arena of `ys`. The rule constrains classification, not only placement: the lifetime class of a list's arena is the join, over the graph's derivation edges at saturation, of the classes of every list that shares its nodes; the shared nodes are placed in the covering arena, and a join with no home on the target is the lifetime error of [Discriminated Union Representation §8.2](discriminated-union-representation.md), never a cross-arena link.
 
 ## 6. SSA Cost Formulas
+
+The following are schematic counts for a particular fully demanded scalar
+realization, not prescribed SSA allocation or portable total costs. Baker owns
+the traversal and demand algorithms; Alex creates actual operands through its
+Elements, Patterns and Witnesses. Deferred fields/tails, typed addressing,
+aggregate representation and target lowering can add or remove operations.
+These counts cannot authorize eager traversal, payload evaluation or a fixed
+emission-register budget.
 
 ### 6.1 Primitive Operation Costs
 
@@ -404,11 +418,11 @@ A traversal step is `isEmpty` + `head` + `tail` = 4 operations from §6.1.
 
 | Aspect | List Operations | Seq Operations |
 |--------|-----------------|----------------|
-| **Evaluation** | Eager (immediate) | Lazy (on-demand) |
-| **Result** | New list | Wrapper sequence |
-| **Memory** | Allocates all cells | Allocates wrapper only |
-| **Iteration** | Complete traversal | Partial possible |
-| **Fusion** | Not applicable | Wrapper composition |
+| **Evaluation** | Demand follows the operation and observed structure/payload | Demand follows pulls and observed payloads |
+| **Result** | Persistent list structure | Sequence producer with independent enumeration progress |
+| **Memory** | Admitted nodes, shared deferred values and retained structure | Admitted template, iterator state and retained values |
+| **Traversal** | Full traversal only where the demanded operation requires it | Stops at the consumer's required demand |
+| **Transformation** | Preserve persistence, sharing, demand and effects | Preserve pull order, state, sharing and effects |
 
 **When to use List**: Pattern matching, recursive algorithms, small-to-medium collections, when full result needed.
 
@@ -424,4 +438,3 @@ A traversal step is `isEmpty` + `head` + `tail` = 4 operations from §6.1.
 - [Memory Regions](memory-regions.md) - Arena and static storage
 - [Seq Operations Representation](seq-operations-representation.md) - Comparison with lazy Seq HOFs
 - Baker ListRecipes.fs - Implementation reference
-
