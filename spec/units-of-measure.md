@@ -5,13 +5,18 @@ category: Language
 status: normative
 ---
 
-F# supports static checking of _units of measure_. Units of measure, or _measures_ for short, are like types in that they can appear as parameters to other types and values (as in `float<kg>`, `vector<m/s>`, `add<m>`), can be represented by variables (as in `float<'U>`), and are checked for consistency by the type-checker.
+A _unit of measure_ (_measure_) is a parameter of sort Measure that contributes
+to a type's dimensional identity. A measure may occur in a numeric type, a
+parameterized type or a quantified signature. Examples are `float<kg>`,
+`Vector<m/s>` and `float<'U>`.
 
-However, measures differ from types in several important ways:
-
-- Measures play no role at runtime. The checker never erases them: they ride the program graph as annotations through every lowering pass and are dropped only at native emission, where they become debug metadata ([DTS/DMM §2.3](https://arxiv.org/abs/2603.16437)).
-- Measures obey special rules of _equivalence_ , so that `N m` can be interchanged with `m N`.
-- Measures are supported by special syntax.
+The numeric kinds are `int` and `float`, as specified by [NTU Types](ntu-types.md).
+The implementation SHALL check measure compatibility using the equivalence and
+inference rules in this chapter. It SHALL retain each established dimensional
+judgment and its correspondence to lowered operations under
+[Conformance §6](conformance.md#6-the-preservation-obligation-through-lowering).
+[Width Inference](width-inference.md) and [Numeric Selection](numeric-selection.md)
+specify the separate range and representation requirements.
 
 The syntax of constants ([§](basic-grammar-elements.md#constants)) is extended to support numeric constants with units of measure. The syntax of types is extended with measure type annotations.
 
@@ -22,7 +27,7 @@ measure-literal-atom :=
 
 measure-literal-power :=
     measure-literal-atom
-    measure-literal-atom ^ int32                -- power of measure, such as m^3
+    measure-literal-atom ^ integer-exponent     -- power of measure, such as m^3
 
 measure-literal-seq :=
     measure-literal-power
@@ -41,8 +46,8 @@ measure-literal :=
 
 const :=
     ...
-    ieee32 < measure-literal >                  -- single-precision float32 constant
-    ieee64 < measure-literal >                  -- double-precision float constant
+    integer-literal < measure-literal >         -- integer quantity
+    real-literal < measure-literal >            -- real quantity
 
 measure-atom :=
     typar                                       -- variable measure, such as 'U
@@ -51,7 +56,7 @@ measure-atom :=
 
 measure-power :=
     measure-atom
-    measure-atom ^ int32                        -- power of measure, such as m^3
+    measure-atom ^ integer-exponent             -- power of measure, such as m^3
 
 measure-seq :=
     measure-power
@@ -66,10 +71,10 @@ measure-simp :=
 
 measure :=
     _                                           -- anonymous measure
-measure-simp                                    -- simple measure, such as 'U 'V
+    measure-simp                                -- simple measure, such as 'U 'V
 ```
 
-Measure definitions use the special `Measure` attribute on type definitions. Measure parameters, meanwhile, use a variation on the syntax of generic parameters (see [§](units-of-measure.md#measure-parameter-definitions)) to parameterize types and members by units of measure. The primitive types `byte`, `uint16`, `uint`, `uint64`, `sbyte`, `int16`, `int`, `int64`, `float`, `float32`, `decimal`, `unativeint`, and `nativeint` have non-parameterized (dimensionless) and parameterized versions.
+Measure definitions use the `Measure` attribute on type definitions. Measure parameters use the generic-parameter syntax described in [Measure Parameter Definitions](#measure-parameter-definitions). Both numeric kinds have dimensionless and measured forms: `int = int<1>` and `float = float<1>`. An `integer-exponent` is a signed decimal integer in the measure syntax.
 
 Here is a simple example:
 
@@ -84,7 +89,7 @@ let areaOfTriangle (baseLength:float<m>, height:float<m>) : float<sqm> =
 let distanceTravelled (speed:float<m/s>, time:float<s>) : float<m> = speed*time
 ```
 
-As with ordinary types, F# can infer that functions are generic in their units. For example, consider the following function definitions:
+As with ordinary types, Clef can infer that functions are generic in their units. For example:
 
 ```fsharp
 let sqr (x:float<_>) = x * x
@@ -123,19 +128,19 @@ The precedence of operations involving measure is similar to that for floating-p
 
 ## Constants Annotated by Measures
 
-A floating-point constant can be annotated with its measure by specifying a literal measure in angle brackets following the constant.
+A numeric constant can be annotated with its measure in angle brackets following the constant. An integer literal remains `int`; a real literal remains `float`. Its representation SHALL be selected from its justified range and target declarations, separately from its measure identity.
 
 Measure annotations on constants may not include measure variables.
 
 Here are some examples of annotated constants:
 
 ```fsharp
-let earthGravity = 9.81f<m/s^2>
+let earthGravity = 9.81<m/s^2>
 let atmosphere = 101325.0<N m^-2>
-let zero = 0.0f<_>
+let zero: float<m> = 0.0<_>
 ```
 
-Constants that are annotated with units of measure are assigned a corresponding numeric type with the measure parameter that is specified in the annotation. In the example above, `earthGravity` is assigned the type `float32<m/s^2>`, `atmosphere` is assigned the type `float<N/m^2>` and `zero` is assigned the type `float<'U>`.
+Constants SHALL receive the indicated numeric kind and measure. Here `earthGravity` has type `float<m/s^2>`, `atmosphere` has type `float<N/m^2>`, and the anonymous measure of `zero` is inferred as `m` from its annotation. An anonymous measure SHALL participate in the same constraint solving as an explicit measure variable.
 
 ## Relations of Measures
 
@@ -199,6 +204,24 @@ would eventually result in the constraint `m^2 = s`, which cannot be solved, ind
 
 Analogous to the process of generalization of type variables described in [§](inference-constraint-solving.md#generalization), a generalization procedure produces measure variables over which a value, function, or member can be generalized.
 
+Two measure schemes are equivalent when they admit the same instances under the
+unit equations. Generalization SHALL respect this equivalence and SHALL preserve
+constraints imposed by mutable state and the enclosing environment. For example,
+`forall 'u. float<'u> -> float<1/'u>` and
+`forall 'a 'b. float<'a*'b> -> float<1/('a*'b)>` admit the same instances.
+
+Each use of a generalized scheme SHALL retain its actual measure substitution.
+A callable's public signature, arguments, result, captures and body SHALL be
+consistent under that substitution. Each instantiated occurrence SHALL retain
+its dimensional identity when implementation code is shared. Instantiation SHALL
+preserve the identity, evaluation multiplicity and sharing of retained
+environments and deferred computations.
+
+> NOTE — Kennedy, *Types for Units-of-Measure: Theory and Practice*, §§3.8–3.10,
+> describes scheme equivalence and a scheme normal form based on Hermite
+> normalization. Normalizing an entire quantified scheme involves relations
+> among its variables as well as the normal form of each unit expression.
+
 ## Measure Definitions
 
 Measure definitions define new named units of measure by using the same syntax as for type definitions, with the addition of the `Measure` attribute. For example:
@@ -207,10 +230,10 @@ Measure definitions define new named units of measure by using the same syntax a
 [<Measure>] type kg
 [<Measure>] type m
 [<Measure>] type s
-[<Measure>] type N = kg / m s^2
+[<Measure>] type N = kg * m / s^2
 ```
 
-A primitive measure abbreviation defines a fresh, named measure that is distinct from other measures. Measure abbreviations, like type abbreviations, define new names for existing measures. Also like type abbreviations, repeatedly eliminating measure abbreviations in favor of their equivalent measures must not result in infinite measure expressions. For example, the following is not a valid measure definition because it results in the infinite squaring of `X`:
+A primitive measure definition introduces a fresh, named measure distinct from other measures. A measure abbreviation defines a new name for an existing measure. Repeatedly eliminating abbreviations must not result in an infinite measure expression. For example, the following definition is invalid:
 
 ```fsharp
 [<Measure>] type X = X^2
@@ -244,87 +267,53 @@ type SceneObject<[<Measure>] 'U> =
     | Disc of Disc<'U>
 ```
 
-Internally, the type checker distinguishes between type parameters and measure parameters by assigning one of two _sorts_ (Type or Measure) to each parameter. This technique is used to check the actual arguments to types and other parameterized definitions. The type checker rejects ill-formed types such as `float<int>` and `IEnumerable<m/s>`.
+The type checker distinguishes ordinary type parameters from measure parameters by their _sorts_ (Type or Measure). Actual arguments must have the declared sort. For example, `float<int>` is ill-formed because `int` is a type, and `seq<m/s>` is ill-formed because a sequence element requires a type. `seq<float<m/s>>` has a properly typed element.
 
 ## Measure Parameters Past the Checker
 
-In contrast to F#, where measures are erased at IL generation, Clef keeps the measure of every value on the program graph after checking. The consequences:
+The program graph SHALL retain the measure of each value after checking.
+Application resolution SHALL use the measured type and its actual scheme
+instantiation. Lowering SHALL preserve those facts beside the selected
+representation of the numeric kind ([Width Inference](width-inference.md),
+[Numeric Selection](numeric-selection.md)).
 
-- There is no runtime metadata and no reflection in Clef, so nothing observes a measure at runtime.
-- Method application resolution (see [§](inference-application-resolution.md#method-application-resolution)) is with respect to the measured type.
-- The lowered form of a measured value is the selected representation of its carrier ([Numeric Selection](numeric-selection.md)); the measure rides beside it as a reified attribute on the emitted operations and is dropped at native emission.
+Each lowering consumer SHALL have access to the measured types, instantiations
+and proof premises its contract requires. A lowering step MAY release source
+type structure after those consumers are satisfied, provided the resulting
+operation retains the required correspondence and preservation evidence under
+[Conformance §6](conformance.md#6-the-preservation-obligation-through-lowering).
+Source associations required by emitted debug metadata SHALL also be retained.
 
-## Type Definitions with Measures in the F# Core Library
+A graph relation that supplies a numerical enclosure or recurrence certificate
+SHALL validate the dimensional compatibility of its operands, state updates and
+results independently of the numerical proof. The relation SHALL retain those
+typed premises as dependencies. A change to a dimensional premise SHALL retract
+the dependent proof until the relation has been revalidated.
 
-The F# core library defines the following types:
+## Numeric Operations with Measures
 
-```fsharp
-type float<[<Measure>] 'U>
-type float32<[<Measure>] 'U>
-type decimal<[<Measure>] 'U>
-type sbyte<[<Measure>] 'U>
-type int16<[<Measure>] 'U>
-type int<[<Measure>] 'U>
-type int64<[<Measure>] 'U>
-type nativeint<[<Measure>] 'U>
-type uint<[<Measure>] 'U>
-type byte<[<Measure>] 'U>
-type uint16<[<Measure>] 'U>
-type uint64<[<Measure>] 'U>
-type unativeint<[<Measure>] 'U>
-```
+The following signatures define dimensional constraints on native operations.
+`N` is consistently either `int` or `float` within an operation; `F` is `float`.
 
-These definitions are called measure-annotated base types and are marked with the
-`MeasureAnnotatedAbbreviation` attribute in the library. This attribute is reserved
-for library use.
-
-These type definitions have the following special properties:
-
-- They extend `System.ValueType`.
-- They explicitly implement `System.IFormattable`, `System.IComparable`, `System.IConvertible`, and corresponding generic interfaces, instantiated at the given type; for example, `System.IComparable<float<'u>>` and `System.IEquatable<float<'u>>` (so that you can invoke, for example, `CompareTo` after an explicit upcast).
-- Their lowered form is the carrier's selected representation; the measure rides as an annotation and never changes the instructions emitted.
-- For the purposes of constraint solving and other logical operations on types, a type equivalence holds between the unparameterized primitive type and the corresponding measured type definition that is instantiated at `<1>`:
-
-    ```fsother
-    sbyte = sbyte<1>
-    int16 = int16<1>
-    int = int<1>
-    int64 = int64<1>
-    byte = byte<1>
-    uint16 = uint16<1>
-    uint = uint<1>
-    uint64 = uint64<1>
-    float = float<1>
-    float32 = float32<1>
-    decimal = decimal<1>
-    ```
-
-- The measured type definitions `byte`,  `uint16`, `uint`, `uint64`, `sbyte`, `int16`, `int`, `int64`, `float`, `float32`, `decimal`, `unativeint`, and `nativeint` are assumed to have additional static members that have the measure types that are listed in the table. Note that `N` is any of these types, and `F` is either `float32` or `float`.
-
-| Member                                            | Measure Type                  |
+| Operation                                         | Measure Type                  |
 | ------------------------------------------------- | ----------------------------- |
-| `Sqrt`                                            | `F<'U^2> -> F<'U>`            |
-| `Atan2`                                           | `F<'U> -> F<'U> -> F<1>`      |
-| `op_Addition`<br>`op_Subtraction`<br>`op_Modulus` | `N<'U> -> N<'U> -> N<'U>`     |
-| `op_Multiply`                                     | `N<'U> -> N<'V> -> N<'U 'V>`  |
-| `op_Division`                                     | `N<'U> -> N<'V> -> N<'U/'V>`  |
-| `Abs`<br>`op_UnaryNegation`<br>`op_UnaryPlus`     | `N<'U> -> N<'U>`              |
-| `Sign`                                            | `N<'U> -> int`                |
+| Square root                                       | `F<'U^2> -> F<'U>`            |
+| Two-argument arctangent                            | `F<'U> -> F<'U> -> F<1>`      |
+| Addition, subtraction, remainder                   | `N<'U> -> N<'U> -> N<'U>`     |
+| Multiplication                                    | `N<'U> -> N<'V> -> N<'U 'V>`  |
+| Division                                          | `N<'U> -> N<'V> -> N<'U/'V>`  |
+| Absolute value, unary negation, unary plus         | `N<'U> -> N<'U>`              |
+| Sign                                              | `N<'U> -> int`                |
 
-This mechanism is used to support units of measure in the following math functions of the F# library:
-`(+)`, `(-)`, `(*)`, `(/)`, `(%)`, `(~+)`, `(~-)`, `abs`, `sign`, `atan2` and `sqrt`.
+Addition, subtraction, remainder and comparison require matching measures.
+Multiplication composes them by product; division composes them by quotient.
+Assignment must preserve the target's measured type. Thus repeatedly multiplying
+an `int<m>` state by a dimensionless `int` preserves its dimension, while
+assigning an `int<m*s>` product back to that state is a type error.
 
-Additionally, the F# core library provides the following measure-annotated aliases, which are functionally equivalent to the previously-listed measure-annotated types, and which are included for the sake of completeness:
-
-```fsharp
-type double<[<Measure>] 'U> // aliases float<'U>
-type single<[<Measure>] 'U> // aliases float32<'U>
-type int8<[<Measure>] 'U>   // aliases sbyte<'U>
-type int32<[<Measure>] 'U>  // aliases int<'U>
-type uint8<[<Measure>] 'U>  // aliases byte<'U>
-type uint32<[<Measure>] 'U> // aliases uint<'U>
- 
-```
+Arithmetic SHALL also satisfy its domain, intermediate-capacity, rounding and
+reassociation requirements under [Numeric Selection §10](numeric-selection.md#10-the-preservation-chain-and-arithmetic-construction)
+and [Width Inference](width-inference.md).
 
 ## Restrictions
 

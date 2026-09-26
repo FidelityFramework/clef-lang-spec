@@ -80,7 +80,15 @@ CCS assigns every numeric node a range: a literal is a point, arithmetic propaga
 
 ### 3.3 Width Is Never Erased by the Checker
 
-The range, width and representation ride the PSG as coeffects from the pass that settles them, are read by every later pass without recomputation, and are dropped only at native emission, where they become debug metadata ([DTS/DMM §2.3](https://arxiv.org/abs/2603.16437)). No pass below the witness boundary decides a width.
+The settling pass SHALL publish the range, selected width and representation as
+PSG coeffects with their value identities, context and premises. Alex SHALL
+consume those settled facts through its witness contract. Each subsequent
+transformation SHALL preserve their correspondence to the resulting operations
+or recheck the affected property under
+[Conformance §6](conformance.md#6-the-preservation-obligation-through-lowering).
+Source type structure MAY be released after its consumers are satisfied and the
+required correspondence and preservation evidence have been retained. Source
+associations required by emitted debug metadata SHALL also be retained.
 
 ## 4. Mapping to Clef Source Types
 

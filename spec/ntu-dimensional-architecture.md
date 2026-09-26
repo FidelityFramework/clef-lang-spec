@@ -9,7 +9,7 @@ status: normative
 
 ## 1. Overview
 
-The Fidelity Framework targets heterogeneous compilation: a single F# application may
+The Fidelity Framework targets heterogeneous compilation: a single Clef application may
 contain sections of its program graph that target CPU, GPU, FPGA, NPU, or other compute
 architectures. Each section resolves to concrete types for its target, but the NTU must
 provide the abstract dimensional substrate that makes cross-target type reasoning possible.
@@ -121,7 +121,7 @@ graph that inhabit different platforms:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  F# Source Program                   │
+│                 Clef Source Program                  │
 │                                                     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
 │  │ CPU      │  │ GPU      │  │ FPGA     │          │
@@ -150,19 +150,20 @@ Each section resolves its NTU types against **its own PlatformContext**:
 - GPU section: `Register → 32`, `Pointer → 64`, `Warp → 32`, `SharedMemory → 49152`
 - FPGA section: `Register → 24` (synthesis parameter), `Pointer → 32`
 
-The NTU type `NTUint(Resolved Register)` is the **same type** in all sections. Its
-concrete width differs per platform context. Type identity is preserved; only
-resolution varies.
+The numeric kind and measure contribute to type identity in every section.
+CCS SHALL select the width from the value's justified range and that section's
+declared representations. A boundary governed by a declared width dimension
+SHALL also satisfy that boundary's coverage and transfer requirements.
 
 ### 3.2 Section Compilation
 
 Each section of the graph is compiled separately against its platform context. Dimensional types are a design-time property this specification requires an implementation to establish, and their preservation across these stages is governed by the [preservation obligation through lowering](conformance.md):
 
-1. **CCS** elaborates the full program graph with dimensional types preserved
-2. **Alex** partitions the graph into target sections (CPU, GPU, FPGA, etc.)
-3. Each section is compiled with its own PlatformContext providing dimension resolutions
-4. BAREWire contracts between sections are verified for structural compatibility
-5. Each section emits target-specific code (LLVM IR, SPIR-V, HLS, etc.)
+1. CCS SHALL elaborate each section's target assignment and dimensional types on the program graph.
+2. CCS SHALL settle each section's required representations and layouts against its declared platform context.
+3. CCS SHALL verify dimensional compatibility, coverage and transfer obligations at BAREWire boundaries between sections.
+4. Alex SHALL compose Elements, Patterns and Witnesses through its Huet zipper from those settled graph facts.
+5. Backend lowering SHALL realize the witnessed operations for the assigned target while preserving the established contracts.
 
 The NTU's dimensional machinery gives CCS the vocabulary to verify both sides of
 every BAREWire contract against their respective platform contexts.
@@ -202,14 +203,16 @@ type PlatformContext = {
 
 ### 4.2 Platform Authority
 
-**PlatformContext is the single source of truth for how abstract dimensions resolve
-on a specific target.** Fidelity.Platform is the component that constructs
-PlatformContext from platform descriptors (fidproj TOML).
+Fidelity.Platform declarations SHALL supply the target's dimensions, available
+representations, storage spaces and boundary constraints. CCS SHALL derive each
+section's platform context from the applicable declarations and SHALL retain
+their provenance in dependent graph facts. Project configuration selects the
+applicable declarations.
 
 ### 4.3 Dimension Resolution Flow
 
 ```
-fidproj TOML → Fidelity.Platform → PlatformContext → CCS saturation (per section)
+project selection → platform declarations → CCS saturation (per section)
                                                       ↓
                                           resolved widths, layouts and spaces
                                           as literal annotations on the PSG
@@ -219,9 +222,11 @@ fidproj TOML → Fidelity.Platform → PlatformContext → CCS saturation (per s
                                           space-appropriate ops
 ```
 
-Resolution happens in CCS, at saturation, against the platform description of each section; the platform
-description is always present, so cross-apply is always available. Nothing below the witness boundary
-resolves a dimension: Alex observes the resolved annotation the way it observes every other saturated fact.
+CCS SHALL resolve required target facts during saturation against each section's
+platform declaration. Facts awaiting a declaration MAY remain pending during
+elaboration. Concrete representation commitment SHALL require those facts to be
+settled; an unresolved required fact SHALL produce a located diagnostic. Alex
+SHALL consume the resulting annotations through the witness contract.
 
 ---
 
@@ -229,10 +234,11 @@ resolves a dimension: Alex observes the resolved annotation the way it observes 
 
 ### 5.1 CCS (Clef Compiler Service)
 
-CCS owns the NTU type definitions and the type checker. Dimensional types are
-first-class in the type system; they don't erase after type checking. CCS validates
-dimensional consistency (e.g., you cannot add a `Pointer`-width integer to a
-`Fixed 32` integer without explicit conversion) without knowing the target platform.
+CCS SHALL check native kind and dimensional identity and retain that information
+through elaboration. Arithmetic typing SHALL follow the unit equations;
+representation selection SHALL follow the justified operand, intermediate and
+result ranges and the applicable declarations. Each value crossing a boundary
+SHALL satisfy that boundary's coverage, dimensional and transfer requirements.
 
 ### 5.2 Composer / Alex (Code Generation)
 
@@ -249,15 +255,16 @@ dimensions for FPGA and NPU targets.
 
 ### 5.4 Farscape (C/C++ Binding Generator)
 
-A consumer of the NTU's dimensional types, not a driver. Farscape maps C/C++ header
-declarations to NTU types:
+A generated Clef binding SHALL represent numeric values using `int` or `float`
+with their applicable dimensions. Its binding descriptor SHALL record C ABI
+widths, signedness and boundary behavior, including integer-valued `size_t` and
+`intptr_t` boundaries. Address values SHALL use typed foreign references under
+[FFI Boundary](ffi-boundary.md).
 
-- **Fidelity output**: Uses PlatformABI to resolve C-specific widths (C `int`,
-  C `long`) at generation time, emitting Fixed-width NTU types. Only genuinely
-  platform-abstract types (`size_t → unativeint`, `intptr_t → nativeint`) use
-  Resolved dimensions.
-- **P/Invoke output**: Uses PInvokeTypeMapper for CLR-concrete types. Entirely
-  separate from the NTU.
+CCS SHALL check the value's justified range against the descriptor's required
+representation and SHALL retain the applicable transfer obligations. The binding
+descriptor and the evidence establishing the value's range SHALL remain distinct
+participants in that check.
 
 ### 5.5 BAREWire
 
