@@ -65,6 +65,56 @@ A hyperedge is an analysis-time structure. It participates in saturation and con
 
 The witness SHALL retain or establish the correspondence between each consumed fact and the operations that realize it. A later transformation SHALL preserve that correspondence through an admitted rule or re-establish the affected property. Copying an attribute alone does not meet this requirement. Static discharge may justify an executable dynamic check or protocol; it does not establish the outcome of an unknown runtime input.
 
+### 5.1 Scoped re-evaluation and witness authorization
+
+A compiler that reuses analysis or emitted artifacts across source changes SHALL
+identify the accepted checked revision to which each current judgment belongs.
+The revision identifier SHALL distinguish revisions within its compilation
+session. Region identity, artifact content identity and an individual traversal's
+identity SHALL remain separately identifiable. A timestamp or content match
+alone SHALL NOT authorize a result for the accepted revision.
+
+The source analysis SHALL determine the affected semantic region from the
+changed facts and their complete dependencies. These dependencies SHALL include
+the participants of joint constraints, consumed rule and declaration identities,
+and any collection membership or absence on which a judgment relies. Adding a
+previously absent participant SHALL invalidate dependent conclusions. Where
+precise support is unavailable, the compiler SHALL conservatively re-evaluate
+the complete owning analysis region. Dependency propagation SHALL account for
+effects, captures, inferred type and dimension instances, representations,
+layout and proof premises whenever they support the affected judgment.
+
+After the required elaboration and saturation, the source analysis SHALL supply
+the witness with an authorized collection of scopes. Each scope SHALL identify
+its checked revision, actual source occurrences and traversal context, settled
+boundary contracts, and the artifacts it replaces or retires. The whole checked
+program MAY be one such scope. A Huet zipper SHALL navigate those authorized
+occurrences while preserving their context. Scope selection and dependency
+closure remain source-analysis responsibilities; emission SHALL obey §5's
+transport rules within each scope.
+
+A changed dependency structure MAY split or merge regions. The replacement
+account SHALL cover every affected definition, storage allocation and activation
+owner, including objects removed by the new partition. Reuse SHALL require
+validation of the reused artifact's consumed premises and boundary contracts
+against the accepted revision. This requirement applies to semantic dependencies
+introduced by specialization, inlining or proof discharge as well as dependencies
+represented by retained calls. Equal physical signatures alone SHALL NOT justify
+reuse of a changed semantic contract.
+
+The compiler SHALL publish diagnostics and executable artifacts only under the
+revision authorization governing their claimed source state. Superseded work
+SHALL NOT replace the accepted result. Reused content MAY originate in an older
+revision when its complete support has been revalidated for the accepted one.
+For live execution, replacement and retirement SHALL preserve the admitted
+lifetime and activation contracts of code and storage still in use.
+
+Applied elaborations and proof transformations SHALL retain the correspondence
+between their source participants and current results through invalidation and
+replacement. Historical evidence SHALL remain distinguishable from current
+premises and executable roots. Artifact projections MAY omit inactive material
+only while preserving the correspondence required for the claims they expose.
+
 ## 6. Domain Instances
 
 The rows below identify hyperedge kinds and the chapters that define their requirements.
@@ -90,6 +140,7 @@ The rows below identify hyperedge kinds and the chapters that define their requi
 6. **Per-family discharge**: A hyperedge spanning solver families SHALL retain coherent premises through separate per-family projections; exchanges between domains SHALL obey sound transfer rules.
 7. **Emission transport**: A hyperedge's consequence SHALL reach emission only as saturated node-local codata or as a reified annotation (an attribute set on emitted operations); the emission traversal SHALL NOT query the hyperedge set; a backend pass SHALL consume reified annotations only.
 8. **Diagnosis**: A contradiction or a required unresolved obligation at commitment SHALL be diagnosed under [Conformance §5](conformance.md). An admitted dynamic check SHALL retain its specified runtime success and failure behavior.
+9. **Scoped preservation**: Reuse and scoped witnessing across source revisions SHALL obey §5.1's dependency, authorization, replacement and provenance requirements.
 
 ## 8. Related Chapters
 
