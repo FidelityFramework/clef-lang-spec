@@ -437,6 +437,8 @@ For each `field-label_i` in the record expression:
 
 2. Otherwise, look up `field-label_i` in the _FieldLabels_ table. This yields a set of field references `FSet_i`, where each reference identifies a field in some record type. The corresponding set of record types is `RSet_i`.
 
+A record expression with no field definitions shall produce CCS8701. A field label that has no record candidate in scope shall produce CCS8702.
+
 #### Step 2: Type Resolution via Intersection
 
 Compute the intersection of all candidate record type sets:
@@ -445,13 +447,15 @@ Compute the intersection of all candidate record type sets:
 R_candidates = RSet_1 ∩ RSet_2 ∩ ... ∩ RSet_n
 ```
 
-The resolution proceeds based on the cardinality of `R_candidates`:
+An expected record type or a qualified field label shall constrain the owning record before ambiguity is decided. For a fresh, complete record literal, the set of supplied field definitions shall also constrain completeness: if candidates defining exactly that field set exist, candidates requiring additional fields shall be removed. A field projection or a partial copy-update shall not use the absence of other field definitions as evidence that those fields do not exist.
+
+The resolution proceeds based on the cardinality of the remaining admissible candidates:
 
 | Cardinality | Result |
 |-------------|--------|
-| 0 | Error CCS8704: "No single record type contains all specified fields" |
+| 0 | Error CCS8703: "No single record type contains all specified fields" |
 | 1 | Success: The unique record type `R` is identified |
-| > 1 | Error CCS8702: "Ambiguous record type. Could be: {types}. Use type annotation to disambiguate." |
+| > 1 | Error CCS8704: "Ambiguous record type. Could be: {types}. Use type annotation to disambiguate." |
 
 #### Step 3: Completeness Verification
 
@@ -486,8 +490,10 @@ Return the resolved record type `R` with:
 
 | Code | Condition |
 |------|-----------|
-| CCS8701 | Field name not found in any record type in scope |
-| CCS8702 | Multiple record types contain all specified fields (ambiguity) |
-| CCS8703 | Record type lookup failed (internal error) |
-| CCS8704 | No single record type contains all specified fields |
+| CCS8701 | Record expression has no field definitions |
+| CCS8702 | Field name not found in any record type in scope |
+| CCS8703 | No single record type contains all specified fields |
+| CCS8704 | Multiple record types remain admissible (ambiguity) |
 | CCS8705 | Record expression is incomplete (missing required fields) |
+
+A field-table reference whose owning record definition is absent violates a compiler invariant and shall produce CCS8090; it is distinct from a source field-resolution failure.
