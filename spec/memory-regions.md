@@ -56,14 +56,22 @@ Arena-allocated values are bulk-allocated and freed together.
 
 Arena is a CCS (Clef Compiler Service) intrinsic type with compiler-provided operations.
 
-**Type Definition**:
-```fsharp
-// Arena<[<Measure>] 'lifetime> - CCS intrinsic type
+**Schematic Type and Layout**:
+```text
+// Arena<'lifetime> - CCS intrinsic with an inferred lifetime identity
 // Layout: NTUCompound(3) = { Base: index, Capacity: index, Position: index }
 //   Base and Capacity are the arena's buffer as a memref<?xi8> view (base index into the declared
 //   space, extent); Position is the bump cursor. No field is an address.
  
 ```
+
+In this section, `'lifetime` denotes the arena's inferred lifetime identity in
+the [coeffect domain](ntu-dimensional-architecture.md#25-temporallifetime-dimension).
+The operation signatures use this schematic notation without declaring source
+lifetime-parameter syntax. Lifetime orderings SHALL be established by the
+[lifetime constraints](#lifetime-constraints), independently of physical units
+of measure. Every allocation and use SHALL retain its relationship to the
+actual backing region and its admitted lifetime.
 
 **Explicit Allocation**:
 ```fsharp
@@ -97,7 +105,7 @@ Allocation can be explicit through `Arena.fromArray` and `Arena.alloc &arena`, o
 - No individual deallocation
 - O(1) bump allocation
 - Cache-friendly locality
-- Scope-bounded lifetime
+- Lifetime bounded by the admitted backing region and allocation/use obligations
 - Backing memory comes from the stack, from static storage (`Sram`/`Flash`), or, where the target has one, from the heap. A target without a heap backs arenas with stack or static storage only.
 
 The `{ Base, Capacity, Position }` layout states the allocation discipline as checkable facts: every allocation advances `Position` by the requested (aligned) size, and `Position` never exceeds `Capacity`. An implementation's allocation emission is subject to the [preservation and diagnostic obligations](conformance.md) over exactly these facts.

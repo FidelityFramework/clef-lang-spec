@@ -123,7 +123,7 @@ There is one integer kind, `int`, with a dimension (`int<m>`, [Units of Measure]
 
 3. **An address is not an integer.** `nativeint`-as-pointer is not denotable ([FFI Boundary §1](ffi-boundary.md)); addresses live in `Ptr<'T, Region, Access>`, `Mmio` and `CHandle<'T>`, which realise as `index`. An integer of the platform's pointer width (a size, an offset handed across a C ABI) is `int` at a boundary whose declared representation is the description's `Pointer` width.
 
-4. **Overflow does not occur on analysed ranges.** Arithmetic's result has an analysed range and a representation selected to cover it. An intended reduction or saturation is written as arithmetic, `x % 2^n` or `clamp lo hi x`, with the range that arithmetic gives it ([Width Inference §7](width-inference.md)). A range a boundary's declared representation does not cover is CCS8012 at design time, a warning promoted under `--warnaserror`. There is no `Checked` module and no debug-build trap, because there is no undefined case for either to catch.
+4. **Overflow does not occur on analysed ranges.** Arithmetic's result has an analysed range and a representation selected to cover it. An intended reduction or saturation is written as arithmetic, `x % 2^n` or `clamp lo hi x`, with the range that arithmetic gives it ([Width Inference §7](width-inference.md)). A range a boundary's declared representation does not cover SHALL produce the hard coverage error CCS8012 at design time ([Numeric Selection §5](numeric-selection.md#5-boundaries-and-reverse-selection)). Warning policy SHALL NOT authorize failed coverage.
 
 **Alignment**: the alignment of an integer is that of the representation selected for it, declared by the platform description; arrays of narrow-range integers pack accordingly, per element range ([Numeric Selection §5](numeric-selection.md), per-coefficient selection).
 
@@ -990,11 +990,17 @@ x <- x + 1  // Direct mutation
 
 | Property | Value |
 |----------|-------|
-| **Scope** | Local to function |
-| **Representation** | Stack slot |
-| **Cannot escape** | Cannot be captured by closures |
+| **Scope** | Lexical binding; storage covers all admitted uses |
+| **Representation** | One shared mutable storage cell |
+| **Capture** | By reference to the original cell ([Closure Representation §2.2](closure-representation.md#22-capture-semantics)) |
 
-**Escape Prevention**: Mutable bindings cannot be captured by closures (use `ref` instead). This restriction enables guaranteed stack allocation.
+All references and capturing closures SHALL retain the same mutable cell identity.
+Capture SHALL NOT read the cell to substitute a snapshot of its current contents.
+The cell's storage SHALL outlive every admitted reference, including references
+held by closures. Placement SHALL follow the
+[lifetime classification](closure-representation.md#33-escape-analysis) and the
+selected target's declared storage; an uncovered lifetime SHALL produce a
+compile-time lifetime diagnostic.
 
 ### 7.3 Mutable Record Fields
 
@@ -1105,10 +1111,17 @@ let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
 
 Arena is a CCS intrinsic type.
 
-**Type Definition**:
-```fsharp
-Arena<[<Measure>] 'lifetime>
+**Schematic Type Notation**:
+```text
+Arena<'lifetime>
 ```
+
+Here `'lifetime` denotes the arena's inferred lifetime identity in the
+[coeffect domain](ntu-dimensional-architecture.md#25-temporallifetime-dimension).
+This notation states the relationship used by the operation signatures below;
+it does not declare source lifetime-parameter syntax. Lifetime orderings SHALL
+follow [Memory Regions](memory-regions.md#lifetime-constraints), independently of
+the physical-dimension algebra.
 
 **Memory Layout** (NTUCompound 3):
 ```
@@ -1124,7 +1137,7 @@ Arena<'lifetime>
 | Property | Value |
 |----------|-------|
 | **CCS Type** | Intrinsic with NTUCompound(3) |
-| **Lifetime param** | Measure type for tracking |
+| **Lifetime identity** | Inferred coeffect with region and use-lifetime ordering obligations |
 | **Allocation** | Stack-backed, static-backed (the platform's declared program-lifetime space: data/rodata on an ELF target, SRAM/flash on an MCU), or heap-backed where a heap exists |
 | **MLIR** | Three-word struct with InsertValue/ExtractValue |
 

@@ -328,7 +328,7 @@ Every diagnostic the compiler service reports carries a code in the CCS series. 
 | CCS8009 | Error | The value or constructor is not defined |
 | CCS8010 | Error | The `null` keyword is not permitted ([Types and Type Constraints](types-and-type-constraints.md)) |
 | CCS8011 | Error | An integer or dimensioned real whose range is unobservable; for a bare real flowing into a dimension, at the dimensioning seam naming the bare source ([Width Inference §6](width-inference.md), [Numeric Selection §6](numeric-selection.md)) |
-| CCS8012 | Warning (error under `--warnaserror`) | A value's analysed range is not covered by the boundary's declared representation ([Numeric Selection §5](numeric-selection.md)) |
+| CCS8012 | Error | A value's analysed range is not covered by the boundary's declared representation ([Numeric Selection §5](numeric-selection.md)); warning policy cannot authorize failed coverage |
 | CCS8013 | retired | "two seals meet": there are no seals ([NTU Types](ntu-types.md)) |
 | CCS8014 | Info | A declared boundary representation wider than the range requires; the representation the open argmin would select is named |
 | CCS8015 | retired | "sealed arithmetic may wrap": arithmetic on analysed ranges never overflows |
