@@ -54,7 +54,7 @@ let example () =
 
 Arena-allocated values are bulk-allocated and freed together.
 
-> **Status (January 2026)**: Arena is implemented as a CCS (Clef Compiler Service) intrinsic type with compiler-provided operations.
+Arena is a CCS (Clef Compiler Service) intrinsic type with compiler-provided operations.
 
 **Type Definition**:
 ```fsharp
@@ -65,7 +65,7 @@ Arena-allocated values are bulk-allocated and freed together.
  
 ```
 
-**Current Implementation (Level 3 - Explicit)**:
+**Explicit Allocation**:
 ```fsharp
 // Create arena from a bounded stack array as backing memory
 let arenaMem : array<byte, 4096, Stack> = [| 0uy; ... |]
@@ -91,12 +91,7 @@ Arena.reset &arena  // Position back to the arena's floor (0, or the sentinel sl
 | `remaining` | `Arena<'lifetime> -> int` | Query remaining capacity |
 | `reset` | `Arena<'lifetime> byref -> unit` | Reset position to the arena's floor (see Floor below) |
 
-**Lifetime Parameter**: The `'lifetime` measure parameter enables future lifetime tracking. Currently documentation-level; compiler enforcement planned.
-
-**Three Levels of Control** (Lifetime Inference Principle):
-1. **Level 3 (Explicit)**: Full control via `Arena.fromArray`, `Arena.alloc &arena` (implemented)
-2. **Level 2 (Hints)**: `arena { }` computation expression (future)
-3. **Level 1 (Inferred)**: Escape analysis via `inline` expansion - see [Inline Functions and Escape Analysis](special-attributes-and-types.md#inline-functions-and-escape-analysis) (implemented)
+Allocation can be explicit through `Arena.fromArray` and `Arena.alloc &arena`, or inferred through escape analysis; see [Inline Functions and Escape Analysis](special-attributes-and-types.md#inline-functions-and-escape-analysis).
 
 **Properties**:
 - No individual deallocation
@@ -183,9 +178,9 @@ let wrong : Ptr<int, Stack, ReadWrite> = peripheralPtr
 
 ## Lifetime Constraints
 
-Lifetime verification in Clef is coeffect discipline carried on the Program Semantic Graph, with no ownership or borrowing annotations in the source language. The normative floor is in place: every value is classified against the four-point lifetime lattice by escape analysis ([Closure Representation §3.3](closure-representation.md)), placement follows the classification, a classification with no home on the selected target is diagnosed at compile time, and the classification is subject to the preservation and introduction obligations of [Conformance §6](conformance.md).
+Lifetime verification in Clef is coeffect discipline carried on the Program Semantic Graph, with no ownership or borrowing annotations in the source language. Every value is classified against the four-point lifetime lattice by escape analysis ([Closure Representation §3.3](closure-representation.md)), placement follows the classification, a classification with no home on the selected target is diagnosed at compile time, and the classification is subject to the preservation and introduction obligations of [Conformance §6](conformance.md).
 
-The rules that remain to be specified are the **lifetime orderings**: that a region outlives every value placed in it, and that every use of a value falls within its region's extent. These are orderings over the lattice, decidable facts stated and discharged as proof obligations that ride the PSG with the escape coeffect ([Program Semantic Graph §14.3](program-semantic-graph.md)). A future revision of this chapter SHALL state the ordering rules and their obligation forms; the mechanism is fixed as coeffect-and-obligation discipline, and no ownership or borrowing vocabulary is planned.
+A region SHALL outlive every value placed in it, and every use of a value SHALL fall within its region's extent. These **lifetime orderings** are discharged as proof obligations carried on the PSG with the escape coeffect ([Program Semantic Graph §14.3](program-semantic-graph.md)).
 
 ## Target Reachability
 

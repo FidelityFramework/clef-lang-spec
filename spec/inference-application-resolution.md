@@ -477,10 +477,9 @@ val append : string -> StringBuilder
 The reason is that if the initial type contains no information about the expected number of
 arguments, the F# compiler assumes that the method has one argument.
 
-### Additional Propagation of Known Type Information in F# 3.1
+### Additional Propagation of Known Type Information
 
-In the above descreiption of F# overload resolution, the argument expressions of a call to an
-overloaded set of methods
+For a call to an overloaded set of methods, the argument expressions have the form:
 
 ```fsgrammar
 callerObjArgTy.Method(callerArgExpr1 , ... callerArgExprN)
@@ -492,10 +491,10 @@ calling
 calledObjArgTy.Method(calledArgTy1, ... calledArgTyN)
 ```
 
-In F# 3.1 and subsequently, immediately prior to checking argument expressions, each argument
+Immediately prior to checking argument expressions, each argument
 position of the unnamed caller arguments for the method call is analysed to propagate type
 information extracted from method overloads to the expected types of lambda expressions. The
-new rule is applied when
+rule is applied when
 
 - the candidates are overloaded
 - the caller argument at the given unnamed argument position is a syntactic lambda, possible
@@ -611,4 +610,3 @@ These expressions do not, because the target type is a variable type:
 M(obj, str)
 M(str, obj)
 ```
-

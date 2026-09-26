@@ -459,30 +459,14 @@ graph before Alex witnesses them. Alex consumes the settled storage and width
 adaptations. Its internal byte/string view requires matching physical carriers
 and cannot repair a wider integer buffer by relabeling its return type.
 
-#### Current native implementation boundary
+Byte-range evidence alone does not prove UTF-8 validity: a lone `255` or
+continuation unit `169` is not admitted as text.
 
-The implemented `fromBytes` admission covers closed array families with proved ASCII
-contents and immutable constant byte sequences checked for UTF-8 validity.
-Unknown writes, escaping aliases and unproved text validity remain explicit
-admission failures. Source-only preparation retains the unresolved operation
-without inventing a platform representation. These compile-time facts result in
-unboxed byte storage; they introduce no runtime type wrapper. Byte-range evidence
-alone does not prove UTF-8 validity: a lone `255` or continuation unit `169` is
-not admitted as text.
-
-The current `fromBytes` recipe uses an explicit full-length `Array.sub` copy and
-retains allocation, alias, write/read and text-validity incidence. The `toBytes`
-recipe composes allocation, length, indexed reads and writes, and an ordinary
-loop to copy an internal read-only byte view into a fresh logical integer array.
-Its internal view carries the encoding's eight-bit storage evidence. The public
+The internal byte view carries the encoding's eight-bit storage evidence. The public
 array's representation follows its complete write range, including subsequent
 ordinary integer writes above 255; it is not restricted to the view's carrier.
 The graph retains the selected representation declaration and copy dependencies,
-and normal range analysis settles the resulting reads and writes. These
-implementation limits do not narrow the language's Unicode semantics or
-establish general dynamic UTF-8 validation. Native acceptance results are
-recorded with the compiler and formatter gates, rather than inferred from this
-specification.
+and normal range analysis settles the resulting reads and writes.
 
 ## Parameterized Types
 
@@ -597,9 +581,12 @@ The middle end emits these portable forms; a target pathway lowers them ([Backen
 | Function | `(A) -> B`: a `func` value |
 | Closure | `(fn, env)`: a `func` value `(memref<Exi8>, A) -> B` and an environment `memref<Exi8>`, never packed ([Closure Representation §6.3](closure-representation.md)) |
 
-## Why IL Infrastructure Is Removed from CCS
+## Native Compilation Boundary
 
-Clef Compiler Service (CCS) targets [native compilation via MLIR](backend-lowering-architecture.md) (Multi-Level Intermediate Representation), not CLR bytecode. While CCS originated from the F# Compiler Services (FCS) codebase, its type universe, compilation passes, and concurrency primitives are independently defined. Consequently, all IL-based infrastructure has been removed from the typed tree operations.
+Clef Compiler Service (CCS) performs type checking, resolution, and inference over
+native types. CCS does not emit CLR bytecode or IL operations. Alex emits portable
+MLIR from the Program Semantic Graph, and target pathways realize those operations
+as specified in [Backend Lowering Architecture](backend-lowering-architecture.md).
 
 ### The Architecture Boundary
 
@@ -638,65 +625,26 @@ Clef Compiler Service (CCS) targets [native compilation via MLIR](backend-loweri
 
 The MLIR optimization passes and everything above them stay portable; a target is committed only at the target pathway. LLVM is one pathway among several.
 
-### Why IL Operations Are Not Stubbed
+### Native Operation Lowering
 
-The original FCS contains IL-based operations for loop optimization, null handling, and arithmetic. These were initially stubbed during the CCS fork, but **stubs produce semantically wrong results**:
-
-| Stubbed Function | Wrong Behavior | Why It's Wrong |
-|------------------|----------------|----------------|
-| `mkAsmExpr` | Returns `Coerce`/identity | Should compute arithmetic |
-| `mkILAsmCeq`, `mkILAsmClt` | Returns constant `false` | Should compare values |
-| `mkGetStringLength` | Returns constant `0` | Should return actual length |
-| `mkDecr` | Returns expression unchanged | Should decrement value |
-
-**Principle**: "Delete, don't stub" - Broken stubs hide defects and produce silent wrong behavior. Complete removal makes missing functionality explicit.
-
-### What Functionality Moves Downstream
-
-| IL Infrastructure | Native Equivalent | Location |
+| Operation | Native Representation | Location |
 |-------------------|-------------------|----------|
-| `TOp.ILAsm` (arithmetic) | MLIR arith dialect ops | Alex code generation |
-| `TOp.ILCall` (method calls) | MLIR func.call / platform bindings | Alex code generation |
+| Arithmetic | MLIR arith dialect ops | Alex code generation |
+| Method calls | MLIR func.call / platform bindings | Alex code generation |
 | Loop optimization | MLIR SCF dialect transforms | MLIR optimization passes |
 | String length/concat | `memref` view operations: `memref.dim` for length, a buffer copy for concatenation | Alex code generation |
-| Integer conversions | MLIR arith.extsi/extui/trunci | Alex type lowering |
-| Null handling | Not needed - Clef has no null | See below |
+| Integer representation adaptation | MLIR arith.extsi/extui/trunci | Alex type lowering |
+
+Loop optimization operates on MLIR. Target-specific transformations must use the
+selected target's established capabilities and preserve the program's semantics.
 
 ### Null Is Not Representable
 
-NORMATIVE: Clef has **no null values**. The `null` keyword and null checking operations are not available.
+Clef has no null values. The `null` keyword and null checking operations are not available.
 
-- `mkNull`, `mkNullTest`, `mkNonNullTest`, `mkNonNullCond` - all removed
 - Option types (`voption`) replace nullable references
 - Pattern matching replaces null checks
 
 This is consistent with Clef's safety guarantees: no null dereference is possible because null cannot be expressed.
 
 On the JSIR pathway, `null` and `undefined` appear in the emitted JavaScript artifact only as boundary representations selected by generated code and as the proven `Option` erasure of [Option Operations Representation §2.1](option-operations-representation.md), per the confinement rule of [JavaScript Boundary Semantics §8](javascript-boundary.md). No Clef-typed value is `null` or `undefined` on any pathway.
-
-### Removed IL Infrastructure
-
-The following were removed from `TypedTreeOps.fs`:
-
-**IL Instruction Stubs**:
-- `ILDataType` type
-- `AI_ldnull`, `AI_cgt_un`, `AI_clt_un`, `AI_add`, `AI_sub`, `AI_div_un`, etc.
-- `ILInstr` module
-- `mkAsmExpr` function
-
-**Loop Optimization (vestigial - no callers)**:
-- `DetectAndOptimizeForEachExpression`
-- `mkOptimizedRangeLoop`, `mkRangeCount`
-- `mkFastForLoop`
-- Pattern matchers: `Int32Expr`, `RangeInt32Step`, `CompiledForEachExpr`, etc.
-- `IntegralConst` module, `IntegralRange`, `EmptyRange`, `ConstCount` patterns
-
-**Null Operations**:
-- `mkNull`, `mkNullTest`, `mkNonNullTest`, `mkNonNullCond`
-
-**Broken Comparison Stubs**:
-- `mkILAsmCeq`, `mkILAsmClt`, `mkDecr`, `mkGetStringLength`
-
-### The Key Insight
-
-IL-based loop optimization at the typed tree level was **premature optimization at the wrong layer**. Native loop optimization belongs in MLIR passes where the target architecture is known and appropriate loop transformations (vectorization, unrolling, tiling) can be applied.

@@ -203,8 +203,6 @@ effectively contains a fully resolved and annotated form of the expression. The 
 expression provides more explicit information than the source form. For example, the elaborated
 form of `Console.WriteLine("Hello")` indicates exactly which overloaded method definition
 the call has resolved to.
-<!-- Elaborated forms are underlined in this specification, for example, <u>let x = 1 in x + x</u>. -->
-
 Except for this extra resolution information, elaborated forms are syntactically a subset of syntactic
 expressions, and in some cases (such as constants) the elaborated form is the same as the source
 form. This specification uses the following elaborated forms:
@@ -376,11 +374,8 @@ checked using `ty` as its initial type.
 
 Array expressions are a primitive elaborated form.
 
-> Note: The F# implementation ensures that large arrays of constants of type `bool`, `char`,
-`byte`, `sbyte`, `int16`, `uint16`, `int32`, `uint32`, `int64`, and `uint64` are compiled to an efficient
-binary representation.
-
-> **Clef Note**: In Clef, constant arrays are placed in read-only data sections of the binary and initialized directly from the executable image.
+Constant arrays are placed in read-only data sections of the binary and initialized
+directly from the executable image.
 
 ### Record Expressions
 
@@ -460,12 +455,6 @@ type C =
     val y : int
     new() = { x = 1; y = 2 }
 ```
-
-> Note: The following record initialization form is deprecated:
-<br>`{ new type with Field1 = expr1 and ... and Fieldn = exprn }`
-<br>The F# implementation allows the use of this form only with uppercase identifiers.
-<br>F# code should not use this expression form. A future version of the F# language will
-issue a deprecation warning.
 
 ### Copy-and-update Record Expressions
 
@@ -658,7 +647,6 @@ response to a `Lazy.force` operation on the lazy value.
 > - No garbage collector involvement
 > - Captures computed at compile time via binding classification
 > - Module-level bindings are referenced directly, not captured
-> - Pure thunk semantics initially (memoization planned with arena support)
 
 ### Computation Expressions
 
@@ -737,8 +725,6 @@ T (e, V , C , q) where e : the computation expression being translated
                            up to a hole to be filled by the result of translating “e”)
                        q : Boolean that indicates whether a custom operator is allowed
 ```
-
-<!-- start of weird section -->
 
 Then, T is defined for each computation expression e:
 
@@ -901,8 +887,6 @@ The following attributes specify custom operations:
 - `ProjectionParameterAttribute` indicates that, when a custom operation is used in a
     computation expression, a parameter is automatically parameterized by the variable space of
     the computation expression.
-
-<!-- end of weird section -->
 
 The following examples show how the translation works. Assume the following simple sequence
 builder:
@@ -1406,10 +1390,8 @@ type SeqBuilder() =
     member x.Using (resource,xs) = SequenceExpressionHelpers.EnumerateUsing resource xs
 ```
 
-> Note that this builder type is not actually defined in the F# library. Instead, sequence expressions are
-elaborated directly. For details, see page 79 of the old pdf spec.
-
-<!-- Text skipped during conversion -->
+Sequence expressions are elaborated directly with behavior equivalent to this
+builder; the builder itself is not a library type.
 
 ### Range Expressions
 
@@ -1445,8 +1427,7 @@ operator generates an `IEnumerable<_>` for the range of values between the start
 (`expr3`) values, using an increment of `expr2`.
 
 The `seq` keyword, which denotes the type of computation expression, can be omitted for simple
-range expressions, but this is not recommended and might be deprecated in a future release. It is
-always preferable to explicitly mark the type of a computation expression.
+range expressions.
 
 Range expressions also occur as part of the translated form of expressions, including the following:
 
@@ -2705,15 +2686,19 @@ The initial type of the overall expression is `ty`. Expression `expr` is checked
 
 ### Dynamic Type-Test Expressions
 
-> **Clef Note**: Dynamic type tests (`:?`) require runtime type information which is not available in native compilation. Use pattern matching on [discriminated unions](discriminated-union-representation.md) instead. This section describes managed F# behavior.
-
-A dynamic type-test expression has the following form:
+A type-test expression has the following form:
 
 ```fsgrammar
 expr :? ty
 ```
 
-For example, with discriminated unions:
+The expression has type `bool`. The compiler must determine the relationship
+between the static type of `expr` and `ty` at compile time. If that relationship
+cannot be determined, the expression is a compile-time error
+([§](types-and-type-constraints.md#type-conversions)). No runtime type inspection
+is performed.
+
+To distinguish cases of a discriminated union, use pattern matching:
 
 ```fsharp
 type Shape = Circle of float | Rectangle of float * float
@@ -2724,29 +2709,23 @@ let isCircle (s: Shape) =
     | Rectangle _ -> false
 ```
 
-The initial type of the overall expression is `bool`. Expression `expr` is checked using a fresh initial type
-`tye`. After checking:
-
-- The type `tye` must not be a variable type.
-- A warning is given if the type test will always be true and therefore is unnecessary.
-- The type `tye` must not be sealed.
-- If type `ty` is sealed, or if `ty` is a variable type, or if type `tye` is not an interface type, then `ty :> tye`
-    is asserted.
-
 ### Dynamic Coercion Expressions
 
-> **Clef Note**: Dynamic coercion (`:?>`) requires runtime type information which is not available in native compilation. Use pattern matching on discriminated unions instead. This section describes managed F# behavior.
-
-A dynamic coercion expression has the following form:
+A coercion expression using `:?>` has the following form:
 
 ```fsgrammar
 expr :?> ty
 ```
 
-The expression downcast `e1` is equivalent to `expr :?> _`, so the target type is the same as the initial
+The expression `downcast expr` is equivalent to `expr :?> _`, so the target type is the same as the initial
 type of the overall expression.
 
-In Clef, use pattern matching for type-safe extraction:
+The expression has type `ty`. The compiler must verify the conversion from the
+static type of `expr` to `ty` at compile time. A conversion that requires runtime
+type information is a compile-time error
+([§](types-and-type-constraints.md#type-conversions)).
+
+Pattern matching extracts values from discriminated unions:
 
 ```fsharp
 type Value = IntVal of int | StrVal of string
@@ -2756,15 +2735,6 @@ let extractInt (v: Value) : int option =
     | IntVal i -> Some i
     | StrVal _ -> None
 ```
-
-The initial type of the overall expression is `ty`. Expression `expr` is checked using a fresh initial type
-`tye`. After these checks:
-
-- The type `tye` must not be a variable type.
-- A warning is given if the type test will always be true and therefore is unnecessary.
-- The type `tye` must not be sealed.
-- If type `ty` is sealed, or if `ty` is a variable type, or if type `tye` is not an interface type, then `ty :> tye`
-    is asserted.
 
 ## Quoted Expressions
 
@@ -2889,15 +2859,8 @@ assumption changes the errors and warnings reported.
 - If `mutation` is `DefinitelyMutates`, then an error is given if a defensive copy must be created.
 - If `mutation` is `PossiblyMutates`, then a warning is given if a defensive copy arises.
 
-An F# compiler can optionally upgrade `PossiblyMutates` to `DefinitelyMutates` for calls to property
-setters and methods named `MoveNext` and `GetNextArg`, which are common cases of struct-mutators. This is done by the F# compiler.
-
-> Note: In F#, the warning "copy due to possible mutation of value type" is a level 4
-  warning and is not reported when using the default settings of the F# compiler. This is
-  because the majority of value types are immutable. This is warning number 52 in the F# implementation.
-  <br> Unless a value is held in arrays or locations marked mutable, or a value type
-  is known to be immutable to the F# compiler, F# inserts copies to ensure that
-  inadvertent mutation does not occur.
+A compiler may upgrade `PossiblyMutates` to `DefinitelyMutates` for calls to property
+setters and methods named `MoveNext` and `GetNextArg`, which are common cases of struct-mutators.
 
 ### Evaluating Value References
 
@@ -3024,48 +2987,21 @@ As runtime, while-loops `while expr1 do expr2 done` are evaluated as follows:
 
 ### Evaluating Static Coercion Expressions
 
-At runtime, elaborated static coercion expressions of the form `expr :> ty` are evaluated as follows:
-
-- Expression `expr` is evaluated to a value `v`.
-- If the static type of `e` is a value type, and `ty` is a reference type, `v` is _boxed_ ; that is, `v` is converted
-    to an object on the heap with the same field assignments as the original value. The expression
-    evaluates to a reference to this object.
-- Otherwise, the expression evaluates to `v`.
-
-> **Clef Note**: The boxing-to-heap step does not occur in Clef. There is no `obj` base type to box to, and a freestanding target has no heap. This section describes managed F# behavior.
+At runtime, a static coercion expression `expr :> ty` evaluates `expr` to a value
+`v` and returns that value through the statically verified target type `ty`.
+The coercion does not box the value onto a heap.
 
 ### Evaluating Dynamic Type-Test Expressions
 
-At runtime, elaborated dynamic type test expressions `expr :? ty` are evaluated as follows:
-
-1. Expression `expr` is evaluated to a value `v`.
-2. If `v` is `null`, then:
-    - If `tye` uses `null` as a representation ([§](types-and-type-constraints.md#nullness)), the result is `true`.
-    - Otherwise the expression evaluates to `false`.
-3. If `v` is not `null` and has runtime type `vty` which dynamically converts to `ty` ([§](types-and-type-constraints.md#dynamic-conversion-between-types)), the
-    expression evaluates to `true`. However, if `ty` is an enumeration type, the expression evaluates to
-    `true` if and only if `ty` is precisely `vty`.
+A type-test expression `expr :? ty` evaluates `expr` and returns the Boolean
+result established at compile time
+([§](#dynamic-type-test-expressions)). It does not inspect a runtime type.
 
 ### Evaluating Dynamic Coercion Expressions
 
-At runtime, elaborated dynamic coercion expressions `expr :?> ty` are evaluated as follows:
-
-1. Expression `expr` is evaluated to a value `v`.
-2. If `v` is `null`:
-    - If `tye` uses `null` as a representation ([§](types-and-type-constraints.md#nullness)), the result is the `null` value.
-    - Otherwise a `NullReferenceException` is raised.
-3. If `v` is not `null`:
-    - If `v` has dynamic type `vty` which _dynamically converts_ to `ty` ([§](types-and-type-constraints.md#dynamic-conversion-between-types)), the expression evaluates to the dynamic conversion of `v` to `ty`.
-        - If `vty` is a reference type and `ty` is a value type, then `v` is _unboxed_ ; that is, `v` is
-             converted from an object on the heap to a struct value with the same field
-             assignments as the object. The expression evaluates to this value.
-        - Otherwise, the expression evaluates to `v`.
-    - Otherwise an `InvalidCastException` is raised.
-
-Expressions of the form `expr :?> ty` evaluate in the same way as the F# library function
-`unbox<ty>(expr)`.
-
-> **Clef Note**: In Clef, the `option<_>` type uses `voption` semantics internally and is null-free. Boxing operations behave consistently since there is no null representation.
+A coercion expression `expr :?> ty` evaluates `expr` and applies the conversion
+verified at compile time ([§](#dynamic-coercion-expressions)). It performs no
+runtime type test, boxing, or unboxing.
 
 ### Evaluating Sequential Execution Expressions
 
@@ -3115,17 +3051,15 @@ mutable static field.
 
 ### Values with Underspecified Object Identity
 
-> **Clef Note**: This section describes reference equality semantics. In Clef, there is no `obj` base type and no runtime type introspection. Equality and hashing are implemented through statically resolved type constraints. The operations `ReferenceEquals`, `GetType()`, and `GetHashCode()` from `System.Object` are not available.
-
-F# supports operations that detect object identity; that is, whether two references refer to the same "physical" location in memory.
-
-The results of identity-based operations are underspecified when used with values of the following F# types:
+Physical identity is not guaranteed for values of the following types:
 
 - Function types
 - Tuple types
 - Immutable record types
 - Union types
 
-For two values of such types, the compiler may produce semantically equivalent but physically distinct values. An implementation of F# is not required to preserve or guarantee physical identity for values of these types.
-
-In Clef, use structural equality (via `=` operator or `IEquatable<'T>` constraint) for value comparison rather than reference identity.
+For two values of such types, the compiler may produce semantically equivalent
+but physically distinct values. Equality and hashing are resolved through static
+type constraints. Value comparison uses structural equality through the `=`
+operator or `IEquatable<'T>` constraint. The `System.Object` operations
+`ReferenceEquals`, `GetType()`, and `GetHashCode()` are not available.

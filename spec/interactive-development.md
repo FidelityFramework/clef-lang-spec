@@ -5,663 +5,176 @@ category: Compiler
 status: normative
 ---
 
-This chapter specifies the interactive development experience for Clef, including the Clef Interactive environment (clefx), script execution, and integration with development tooling.
+This chapter specifies native interactive Clef execution, script files, session
+state, and integration with development tooling.
 
 ## Overview
 
-Clef provides an interactive development experience comparable to F# Interactive (FSI) in managed F#. The goal is to give Clef developers the same exploratory, REPL-driven workflow that .NET developers expect, while respecting the constraints of native compilation.
+Interactive development keeps the compiler available for repeated submissions,
+inspection and native invocation. Clef source has the same type, effect,
+lifetime and target requirements whether submitted interactively or compiled
+ahead of time.
 
-| Aspect | F# Interactive (FSI) | Clef Interactive (clefx) |
-|--------|---------------------|------------------------------|
-| Execution | CLR JIT | Native (LLVM JIT / AOT) |
-| Memory | GC-managed | Deterministic (arena-based) |
-| Script extension | `.fsx` | `.clefx` |
-| Entry command | `dotnet fsi` | `clefx` |
-| Directive prefix | `#r`, `#load` | `#require`, `#load` |
+| Name | Role |
+|---|---|
+| `.clef` | Clef implementation source, compiled through CCS and Composer. |
+| `.clefx` | Clef script file. |
+| `clefx` | Clef interactive CLI. |
 
-## Design Principles
+Clef has no separate signature-file extension. Module signatures are declared
+inline; see [Namespace and Module Signatures](namespace-and-module-signatures.md).
 
-1. **Familiar Experience**: Developers moving from managed F# should find clefx familiar
-2. **Native Semantics**: Interactive execution follows native memory and type semantics
-3. **Tooling Integration**: clefx integrates with the same LSP infrastructure as the compiler
-4. **Exploratory Development**: Support rapid prototyping and experimentation
-5. **Seamless Transition**: Code developed interactively should compile without modification
+## Semantic Requirements
+
+1. **One semantic pipeline.** CCS and Baker perform source admission,
+   construction, saturation and proof checking. Composer and Alex witness the
+   resulting graph under the ordinary target and lowering contracts.
+2. **Native execution.** Interactive Clef behavior comes from the admitted
+   native code.
+3. **Versioned observations.** Types, graphs, proofs, artifacts and execution
+   results retain their source, compiler-generation and target identities.
+4. **Shared authority.** Editors, agents and other clients consume the same
+   compiler-owned facts and session contract.
+5. **Comparable behavior.** For an admitted computation, interactive and AOT
+   execution must agree under equivalent inputs and initialization.
 
 ## Clef Interactive (clefx)
 
 ### Invocation
 
-The Clef Interactive environment is invoked via the `clefx` command:
-
-```bash
-# Start interactive session
-clefx
-
-# Execute a script file
-clefx script.clefx
-
-# Evaluate an expression
-clefx --eval "1 + 1"
-
-# With specific platform target
-clefx --target linux-x64
-```
+The interactive CLI is named `clefx`.
 
 ### Session Model
 
-An clefx session maintains:
+A session identifies its source submissions, selected project and dependencies,
+target, compiler generation, checked definitions, evidence and native execution
+products. Session-visible results must distinguish checking from execution:
+a checked declaration alone establishes neither completed initialization nor
+the existence of a native value.
 
-- A global environment of bound values and types
-- [An arena for interactive allocations](memory-regions.md)
-- A history of evaluated expressions
-- Loaded modules and dependencies
+- A submission and any derived result retain the revision and origin needed to
+  distinguish current state from stale work.
+- Changed source, dependencies, target or compiler implementation invalidate the
+  products that depend on them. Reuse requires valid provenance for every
+  dependency.
+- Required unresolved premises remain explicit at the computation's commitment
+  boundary. Native invocation requires those premises to be established.
+- Shared clients must select their session and target explicitly.
 
-```
-Clef Interactive (clefx) v1.0
-Target: linux-x64
-Arena: 64MB (expandable)
-
-> let x = 42;;
-val x : int = 42
-
-> let greet name = $"Hello, {name}!";;
-val greet : string -> string
-
-> greet "World";;
-val it : string = "Hello, World!"
-```
+A session must define the behavior of binding and type redefinition, references
+retained by earlier code, submission commitment, and recovery after partial
+execution failure for each operation it admits. It must reject an operation
+whose required session semantics it cannot provide.
 
 ### Execution Model
 
-clefx supports multiple execution strategies:
+The native interactive pathway is:
 
-#### Interpretation Mode (Default)
-
-Expressions are interpreted without full native compilation. This provides:
-- Fast feedback for simple expressions
-- Lower latency than full compilation
-- Suitable for exploration and prototyping
-
-```
-> #mode interpret;;
-Execution mode: interpret
-
-> [1..1000] |> List.map (fun x -> x * x);;
-val it : int list = [1; 4; 9; 16; ...]
+```fsother
+Clef source
+  -> CCS and Baker
+  -> versioned semantic graph and required evidence
+  -> Alex witnesses
+  -> admitted MLIR
+  -> LLVM JIT
+  -> native invocation
 ```
 
-#### Compilation Mode
+The [backend lowering contract](backend-lowering-architecture.md) applies at the
+same boundaries as in AOT compilation. Interactive execution uses native code;
+there is no separate interpreter or hybrid execution mode.
 
-Expressions are compiled to native code and executed. This provides:
-- Accurate performance characteristics
-- Full optimization
-- Behavior identical to compiled programs
-
-```
-> #mode compile;;
-Execution mode: compile (target: linux-x64)
-
-> let rec fib n = if n < 2 then n else fib (n-1) + fib (n-2);;
-val fib : int -> int
--- Compiled to native code
-
-> #time on;;
-> fib 40;;
-Real: 00:00:00.892
-val it : int = 102334155
-```
-
-#### Hybrid Mode
-
-The default for production use. Simple expressions are interpreted; complex definitions are compiled.
-
-```
-> #mode hybrid;;
-Execution mode: hybrid
-
-> let x = 1 + 1;;          // Interpreted
-val x : int = 2
-
-> let rec factorial n =    // Compiled (recursive)
-      if n <= 1 then 1
-      else n * factorial (n - 1);;
-val factorial : int -> int
-```
-
-#### Self-Hosted Execution (target architecture)
-
-> **Forward-looking**: This subsection describes the intended model once Clef is self-hosted; it is
-> not yet normative.
-
-When Clef is self-hosted, `clefx` runs as an **actor within the CLI tool environment** rather than as
-a separate runtime process. The actor performs all compilation work on the CPU — lexing, dependency
-analysis, type checking, and [lowering](backend-lowering-architecture.md) — and drives an **LLVM JIT** that emits native machine code
-into executable memory. Entered expressions and definitions are *exercised* by invoking that
-JIT-resident code directly and reporting results back to the prompt. There is no managed runtime, no
-reflection, and no bytecode interpreter on this path: the same compilation pipeline that produces
-ahead-of-time binaries produces the JIT-resident code, so interactive behavior matches compiled
-behavior by construction. This is the operational meaning of the `x` in `clefx` — Clef made directly
-executable — and the substantive break from F# Interactive, whose evaluation bounced off the managed
-runtime via JIT and reflection.
+A .NET or FSI host may execute the compiler implementation and inspect its data.
+The host's evaluation and value representations do not define Clef semantics.
+The session contract does not require a particular actor or process topology.
 
 ## Script Files
 
 ### File Extension
 
-Clef interactive files use the `.clefx` extension:
-
-```
-script.clefx     -- Clef interactive (REPL/script) file
-module.clef      -- Clef implementation file
-```
-
-> **Rationale**: The `.clefx` extension — shared with the `clefx` command — marks the file as Clef
-> made *executable* in a REPL/script workflow. The `x` is a deliberate point of departure from F#'s
-> `fsi`/`.fsx`: F# Interactive bounced expressions off the managed runtime, relying on JIT and
-> reflection against the CLR. `clefx` has no managed runtime and no reflection; interactive code is
-> compiled to native machine code and executed directly (see [§](#execution-model)). The `x`
-> denotes that native-executable character, paralleling `.fsx` in role while breaking with its
-> runtime model. Clef deliberately avoids a `.clefi`-style name: there is no Clef interface file, and
-> an `i` suffix would invite exactly that misreading. Module signatures are declared inline within
-> implementation files (see [Namespace and Module Signatures](namespace-and-module-signatures.md));
-> there is no separate signature-file extension.
+Clef script files use the `.clefx` extension. A Clef script uses Clef source and
+semantics through the native compilation pipeline.
 
 ### Script Structure
 
-A script file contains a sequence of declarations and expressions:
-
-```fsharp
-// script.clefx
-#load "helpers.clef"
-
-open Console
-
-let data = [1; 2; 3; 4; 5]
-let sum = List.fold (+) 0 data
-
-writeln $"Sum: {sum}"
-```
+A script contains declarations and expressions. Script admission and execution
+must preserve source identity, dependency resolution and initialization order.
+Repeated loading and effect replay are subject to the same checking, lifetime
+and invalidation requirements as other session operations.
 
 ### Script Directives
 
-| Directive | Description |
-|-----------|-------------|
-| `#require "name"` | Load a package dependency |
-| `#load "file.clef"` | Load and compile a Clef source file |
-| `#load "file.clefx"` | Load and execute another script |
-| `#time "on"` \| `"off"` | Toggle timing display |
-| `#mode interpret` \| `compile` \| `hybrid` | Set execution mode |
-| `#arena size` | Set arena size (e.g., `#arena 128MB`) |
-| `#target platform` | Set target platform |
-| `#help` | Display help |
-| `#quit` | Exit the session |
+Script directives are subject to the ordinary compiler, project and lifetime
+contracts. F# assembly-loading directives are not Clef dependency mechanisms.
 
 ### Shebang Support
 
-Script files may include a shebang for direct execution:
-
-```fsharp
-#!/usr/bin/env clefx
-// script.clefx
-
-open Console
-writeln "Hello from Clef!"
-```
-
-```bash
-chmod +x script.clefx
-./script.clefx
-```
+The lexer treats a leading shebang as a comment, as described in
+[Lexical Analysis](lexical-analysis.md#shebang).
 
 ## Memory Model in Interactive Mode
 
-### Arena-Based Allocation
+Native interactive values follow the ordinary
+[lifetime](closure-representation.md) and
+[memory-region](memory-regions.md) contracts, including ownership, region,
+representation and target-admission requirements.
 
-Interactive sessions use arena-based memory management:
-
-```
-> #arena 64MB;;
-Arena size: 64MB
-
-> let bigList = [1..1000000];;
-val bigList : int list
--- Allocated in session arena
-
-> #arena status;;
-Arena: 12.4MB used of 64MB
-```
-
-### Arena Reset
-
-The arena can be reset to reclaim memory:
-
-```
-> #arena reset;;
-Arena reset. All interactive values invalidated.
-
-> bigList;;
-Error: Value 'bigList' is no longer valid after arena reset.
-```
-
-### Persistent Values
-
-Values can be marked as persistent to survive arena resets:
-
-```
-> #persist let config = loadConfig();;
-val config : Config  [persistent]
-
-> #arena reset;;
-Arena reset. Persistent values retained.
-
-> config;;  // Still valid
-val it : Config = { ... }
-```
+Retained values require an explicit storage lifetime and an admitted host/native
+boundary. Reset, unloading or replacing code must account for live values,
+closures and external references that depend on that code or storage. The
+session must not expose invalidated native storage as a valid value.
 
 ## Platform Targeting
 
-### Target Selection
+Types, widths, layouts, extern bindings and evidence come from the selected
+target's declarations. The host's .NET types and ABI do not choose Clef layouts.
+Native invocation requires a compatible, explicitly selected execution
+environment and its admitted boundary contracts.
 
-clefx can target different platforms:
-
-```
-> #target linux-x64;;
-Target: linux-x64
-
-> #target linux-arm64;;
-Target: linux-arm64
-
-> #target freestanding-arm-none-eabi;;
-Target: freestanding-arm-none-eabi
--- Note: Limited library support in freestanding mode
-```
-
-### Cross-Compilation in Interactive Mode
-
-When targeting a different platform than the host:
-
-```
-> #target linux-arm64;;
-Target: linux-arm64 (cross-compiling from linux-x64)
-Execution mode: compile-only (cannot execute on host)
-
-> let add x y = x + y;;
-val add : int -> int -> int
--- Compiled for linux-arm64, not executed
-
-> add 1 2;;
-Warning: Cannot execute arm64 code on x64 host.
-Use #target linux-x64 to execute, or #emit to generate binary.
-
-> #emit "add.o";;
-Emitted: add.o (linux-arm64)
-```
+Changing target invalidates target-dependent compiler, proof and execution
+products.
 
 ## Value Display Without Runtime Reflection
 
-A fundamental difference between clefx and managed F# Interactive (FSI) is how values are formatted for display.
+Native value presentation must use compiler-known type and layout information
+and an admitted representation/lifetime boundary. Clef does not provide a
+universal `obj` container or runtime reflection. The ordinary
+[formatting contracts](native-type-mappings.md#the-universal-base-type-obj-is-not-available)
+apply.
 
-### The Managed F# Approach
-
-In FSI, value display relies on `obj` and runtime reflection:
-
-```
-// Managed FSI internals (simplified)
-let displayValue (value: obj) : string =
-    sprintf "%A" value  // Uses reflection to inspect value
- 
-```
-
-This approach is not available in Clef because:
-- There is no universal base type `obj`
-- There is no runtime type information or reflection
-- Values cannot be "boxed" to a common representation
-
-### SRTP-Based Value Formatting
-
-Clef uses statically resolved type parameters (SRTP) to generate formatters at compile time:
-
-```fsharp
-// clefx generates specific formatters via SRTP
-type Displayable = Displayable
-    with static member inline ($) (Displayable, x: int) = 
-             Text.Format.intToString x
-         static member inline ($) (Displayable, x: string) = 
-             "\"" + x + "\""
-         static member inline ($) (Displayable, xs: 'T list) =
-             "[" + (xs |> List.map (fun x -> Displayable $ x) 
-                       |> String.concat "; ") + "]"
-         // ... additional overloads for all displayable types
-
-let inline display x = Displayable $ x
-```
-
-When you enter an expression in clefx:
-
-```
-> [1; 2; 3];;
-```
-
-The system:
-1. Type-checks the expression (determines `int list`)
-2. Generates a display function via SRTP resolution
-3. Compiles both expression and display function
-4. Executes and formats the result
-
-### Implications for Custom Types
-
-User-defined types require explicit display support:
-
-```fsharp
-> type Point = { X: float; Y: float };;
-type Point = { X: float; Y: float }
-
-> { X = 1.0; Y = 2.0 };;
-val it : Point = { X = 1.0; Y = 2.0 }
--- Display generated from record field structure
-```
-
-For types requiring custom formatting:
-
-```fsharp
-> type Point = { X: float; Y: float }
-      with static member ($) (Displayable, p: Point) =
-               $"({p.X}, {p.Y})";;
-
-> { X = 1.0; Y = 2.0 };;
-val it : Point = (1.0, 2.0)
-```
-
-### Format Specifiers
-
-The `%A` format specifier in Clef uses SRTP rather than reflection:
-
-```fsharp
-> printfn "%A" [1; 2; 3];;
-[1; 2; 3]
--- SRTP resolves formatting at compile time
-```
-
-> **Clef Note**: Format specifiers `%A` and `%O` are resolved at compile time via SRTP. Types must have appropriate formatting members resolvable statically. See [Native Type Mappings](native-type-mappings.md#the-universal-base-type-obj-is-not-available).
+Formatting must not require evaluating the user's computation a second time.
 
 ## Tooling Architecture
 
-### Parallel Toolchain Model
-
-Clef uses a parallel toolchain rather than extending managed F# tooling:
-
-| Component | Managed F# | Clef |
-|-----------|------------|-----------|
-| Compiler Services | FCS (F# Compiler Services) | CCS (Clef Compiler Service) |
-| Language Server | FSAC (F# AutoComplete) | Lattice (ClefAutoComplete) |
-| Package Manager | NuGet | Fargo (fpm) |
-| Project Format | `.fsproj` (MSBuild) | `.fidproj` (TOML) |
-| Package Format | `.nupkg` (binary) | `.fidpkg` (source) |
-| Interactive | FSI | clefx |
-| Script Files | `.fsx` | `.clefx` |
-
-### Why Parallel Rather Than Plugin
-
-The toolchains are parallel rather than plugins because:
-
-1. **Type resolution fundamentally differs**: CCS resolves `string` to a native UTF-8 `memref<?xi8>` view; FCS resolves to `System.String`. These cannot be reconciled at runtime.
-
-2. **SRTP resolution differs**: CCS resolves SRTP against native type witnesses; FCS resolves against BCL method tables.
-
-3. **No `obj` escape hatch**: Managed tooling uses `obj` as a universal container for values during type checking and display. Clef has no such type.
-
-4. **Source-based packages**: Fargo distributes source code for whole-program optimization. NuGet distributes compiled binaries.
-
-### Coexistence with Fable and Managed F#
-
-Clef tooling is designed to coexist with other F# targets in a single workspace:
-
-```
-my-project/
-├── web-ui/                 # Fable → JavaScript
-│   ├── App.fsproj         # ← FSAC handles this
-│   └── Components.fs
-├── native-backend/         # Clef → Native binary
-│   ├── Server.fidproj     # ← Lattice handles this
-│   └── Api.clef
-└── shared/                 # Pure F# domain types
-    ├── Shared.fsproj      # ← Both can consume (with constraints)
-    └── Domain.fs
-```
-
-IDE integration (Lattice) routes to the appropriate language server based on project type:
-
-- `.fsproj` → FSAC (managed F# or Fable)
-- `.fidproj` → Lattice (Clef)
-
-### Shared Code Constraints
-
-Code shared between Fable and Clef must avoid:
-
-| Feature | Fable | Clef | Sharable? |
-|---------|-------|-----------|-----------|
-| Pure functions | ✅ | ✅ | ✅ |
-| Records, DUs | ✅ | ✅ | ✅ |
-| `string` operations | `System.String` | `NativeStr` | ❌ |
-| `option` | Reference type | `voption` | ❌ |
-| `printf "%A"` | Reflection | SRTP | ⚠️ |
-| Async | `Async<'T>` | Native async | ❌ |
-| Reflection | Available | Not available | ❌ |
-
-Shared code should be restricted to pure domain modeling without IO or string manipulation.
+Composer provides the compiler/execution service. CCS supplies semantic facts.
+Lattice and other clients present those facts through versioned projections
+with the source, compiler-generation and target identities of the underlying
+observations.
 
 ## Package Management Integration
 
-### Fargo Integration
-
-clefx integrates with Fargo for package management:
-
-```
-> #require "robot-controller";;\n-- Resolving robot-controller from frgo.dev...\n-- Downloaded: robot-controller-1.2.0.fidpkg\n-- Source files: 12\n-- Compiling for current session...\nLoaded: RobotController (3 modules)
-
-> open RobotController.Algorithms;;
-> PIDController.create 1.0 0.1 0.05;;
-val it : PIDController = { Kp = 1.0; Ki = 0.1; Kd = 0.05 }
-```
-
-### Source-Based Loading
-
-Unlike NuGet which loads pre-compiled binaries, Fargo loads source:
-
-```
-> #require "cryptography-algorithms";;\n-- Source package: cryptography-algorithms-2.0.0\n-- Compiling with current target optimizations...\n-- Inlining enabled across package boundary\nLoaded: CryptographyAlgorithms
-```
-
-This enables:
-- Cross-package inlining
-- Target-specific optimization
-- Dead code elimination
-- Consistent native semantics
-
-### Local Package Development
-
-For local package development:
-
-```
-> #require "path: ../my-local-package";;
--- Loading from: /home/dev/my-local-package
--- Watching for changes...
-Loaded: MyLocalPackage
-
-> // Edit my-local-package source files...
-
-> #reload;;
--- Reloading changed packages...
--- MyLocalPackage: 2 files changed
-Reloaded: MyLocalPackage
-```
+Interactive dependencies must participate in the ordinary project/dependency
+identity, checking and invalidation contracts. A package-loading directive must
+not bypass those contracts.
 
 ## Tooling Integration
 
-### LSP Integration
-
-clefx connects to the Clef language server, Lattice, for:
-
-- Autocompletion in the REPL
-- Type information on hover
-- Error diagnostics
-- Go-to-definition for loaded modules
-
-```
-> List.ma<TAB>
-  List.map        : ('a -> 'b) -> 'a list -> 'b list
-  List.map2       : ('a -> 'b -> 'c) -> 'a list -> 'b list -> 'c list
-  List.mapi       : (int -> 'a -> 'b) -> 'a list -> 'b list
-```
-
-### Editor Integration
-
-Editors supporting Clef (via Lattice or similar) provide:
-
-- Syntax highlighting for `.clefx` files
-- Inline evaluation (evaluate selection in clefx)
-- Hover types
-- Error underlining
-- Send-to-REPL functionality
-
-### Notebook Support
-
-clefx supports notebook interfaces (Jupyter, Polyglot Notebooks):
-
-```json
-{
-  "kernelspec": {
-    "name": "clef",
-    "display_name": "Clef",
-    "language": "fsharp"
-  }
-}
-```
-
-## Web Playground
-
-### Online Interactive Environment
-
-A web-based playground provides interactive Clef execution:
-
-```
-try.fidelity.dev
-```
-
-Features:
-- Browser-based editor with syntax highlighting
-- Server-side compilation and execution
-- Shareable code snippets
-- Example gallery
-- Platform target selection
-
-### Playground Limitations
-
-The web playground operates with restrictions:
-
-| Feature | Availability |
-|---------|--------------|
-| Core language | Full |
-| Native library | Full |
-| File I/O | Sandboxed |
-| Network | Restricted |
-| Custom native code | Not available |
-| Execution time | Limited (30 seconds) |
-| Memory | Limited (256MB arena) |
+Editor evaluation and shared client observations use the same session
+authority. Clients must distinguish source diagnostics from execution results.
 
 ## Interoperability
 
-### Loading Compiled Modules
-
-clefx can load pre-compiled Clef modules:
-
-```
-> #load-native "mylib.fno";;
-Loaded: MyLib (5 modules, 42 functions)
-
-> MyLib.Utilities.process data;;
-val it : Result<Data, Error> = Ok { ... }
-```
-
-### FFI in Interactive Mode
-
-[Foreign function interfaces](ffi-boundary.md) work in compile mode:
-
-```
-> #mode compile;;
-
-> [<PlatformBinding>]
-  module Native =
-      let puts : string -> int = native "puts";;
-
-> Native.puts "Hello from C!";;
-Hello from C!
-val it : int = 14
-```
+Native interactive calls retain the ordinary
+[FFI boundary](ffi-boundary.md) requirements, including source declarations,
+target ABI, ownership and lifetime. JIT linking must preserve these requirements
+and the evidence on which admission depends.
 
 ## Diagnostics
 
-| Code | Severity | Message |
-|------|----------|---------|
-| CCS8500 | Error | Cannot execute cross-compiled code on host platform |
-| CCS8501 | Warning | Value invalidated by arena reset |
-| CCS8502 | Error | Arena size exceeded; use `#arena reset` or increase size |
-| CCS8503 | Warning | Interpretation mode may not reflect exact native behavior |
-| CCS8504 | Info | Expression compiled to native code |
-| CCS8505 | Error | Freestanding target has limited library support |
+Interactive clients must distinguish source diagnostics, unresolved premises,
+unsupported session operations, stale observations, target incompatibility and
+execution failures.
 
 ## Grammar
 
-```fsgrammar
-script-file :=
-    shebang-line? script-directive* module-elems
-
-shebang-line :=
-    #! filepath newline
-
-script-directive :=
-    # require string
-    # load string
-    # time on-off
-    # mode exec-mode
-    # arena arena-spec
-    # target platform-spec
-    # persist let-binding
-    # help
-    # quit
-
-exec-mode :=
-    interpret
-    compile
-    hybrid
-
-arena-spec :=
-    size-literal
-    reset
-    status
-
-on-off :=
-    "on"
-    "off"
-```
-
-## Comparison with Other Native REPLs
-
-| Feature | clefx | utop (OCaml) | evcxr (Rust) | Swift REPL |
-|---------|------|--------------|--------------|------------|
-| Official | Yes | Community | Community | Yes |
-| Execution | Hybrid | Bytecode | Compile | JIT |
-| Memory model | Arena | GC | Ownership | ARC |
-| Script files | `.clefx` | `.ml` | N/A | `.swift` |
-| Notebooks | Yes | Yes | Yes | Yes (Playgrounds) |
-| Cross-compile | Yes | Limited | No | No |
-
-## Areas Requiring Further Specification
-
-1. **Interpretation semantics**: Exact behavior of interpreter vs compiled code
-2. **Arena lifecycle**: Interaction between multiple scripts and arena management
-3. **Debugging**: Breakpoints and stepping in interactive mode
-4. **Profiling**: Performance analysis tools in clefx
-5. **Package management**: Integration with a native package manager
-6. **Caching**: Compilation caching for faster repeated execution
-7. **State serialization**: Saving and restoring session state
+Clef source within submissions follows the ordinary language grammar.

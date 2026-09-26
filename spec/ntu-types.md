@@ -5,17 +5,11 @@ category: Language
 status: normative
 ---
 
-> **Status**: Draft
-> **Normative**: Yes
-> **Last Updated**: 2026-09-06
->
-> **Normative Scope**: This chapter defines the canonical NTU naming and identity model. Project-level documentation outside this specification is informative only. The NTU rules in this chapter take precedence over any historical or ephemeral documentation that suggests other names, width semantics, or conversion rules.
-
 ## 1. Overview
 
 This chapter specifies the NTU (Native Type Universe) nomenclature used internally by CCS (Clef Compiler Services) for numeric and pointer-shaped types. NTU types resolve against [quotation-based platform bindings](platform-bindings.md) in CCS, at saturation, per program-graph section.
 
-A numeric type is its **kind**, integer or real, and its **dimension** ([Units of Measure](units-of-measure.md)). Its width and representation are not part of the type: they are coeffects derived from the value's analysed range and selected from the representations the platform declares ([Width Inference](width-inference.md), [Numeric Selection](numeric-selection.md)). There is one integer kind, `int`, and one real kind, `float`; there is no width-named numeric type, no width-bearing literal suffix, no seal and no conversion (decision D10, `Dimensional_Range_Design.md` in clef `docs/fidelity/phg`). "There is only int that happens to be 8 wide."
+A numeric type is its **kind**, integer or real, and its **dimension** ([Units of Measure](units-of-measure.md)). Its width and representation are not part of the type: they are coeffects derived from the value's analysed range and selected from the representations the platform declares ([Width Inference](width-inference.md), [Numeric Selection](numeric-selection.md)). There is one integer kind, `int`, and one real kind, `float`; there is no width-named numeric type, no width-bearing literal suffix, no seal and no conversion.
 
 ### 1.1 Core Principle
 

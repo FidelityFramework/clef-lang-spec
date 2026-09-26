@@ -128,11 +128,11 @@ In a native actor context, the cached value is placed in storage owned by the en
 - **Level 2 (bounded):** The developer marks a computation as incremental via the CE; the compiler infers arena placement.
 - **Level 3 (explicit):** The developer specifies arena placement directly.
 
-> **[Not yet specified]** Detailed reclamation of replaced dynamic subgraphs and the required lifetime orderings remain open. A bump arena reclaimed only at actor retirement does not establish bounded storage for arbitrarily repeated replacement. The JavaScript pathway uses host-managed storage under [Memory Regions' target reachability rules](memory-regions.md#target-reachability), while preserving logical disposal.
+Reclamation of replaced dynamic subgraphs must satisfy the lifetime constraints of [Memory Regions](memory-regions.md#lifetime-constraints). A bump arena reclaimed only at actor retirement does not establish bounded storage for arbitrarily repeated replacement. The JavaScript pathway uses host-managed storage under [Memory Regions' target reachability rules](memory-regions.md#target-reachability), while preserving logical disposal.
 
 ### 3.3 Memory Layout on CPU Target
 
-On CPU targets, an incremental node with element type `T` and `N` tracked dependencies can materialize with the fields below. This is a layout sketch, not a complete specification of dynamic dependency or invalidation bookkeeping. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
+On CPU targets, an incremental node with element type `T` and `N` tracked dependencies can materialize with the fields below, with additional bookkeeping for dynamic dependencies and invalidation. Pointer fields are sized to the platform word: 4 bytes on thumbv8m/M33, 8 bytes on x86-64. The layout is target-parameterized, so the byte totals shown are the x86-64 case with the M33 word given alongside.
 
 ```
 IncrementalNode<T> with dependencies [d₁: T₁, ..., dₙ: Tₙ]
@@ -263,7 +263,7 @@ Implementations may use input versions, invalidation causes or an equivalent dis
 
 ### 6.2 Stabilization Scope
 
-The compiler inserts stabilization at context-specific boundaries. The following table records the intended integration points, not a complete timing contract:
+The compiler inserts stabilization at context-specific boundaries:
 
 | Context | Stabilization Boundary |
 |---|---|
@@ -274,7 +274,7 @@ The compiler inserts stabilization at context-specific boundaries. The following
 
 The developer does not call `stabilize()` manually. The compiler determines insertion points from the enclosing computation context.
 
-> **[Not yet specified]** Reads of derived values after writes and within a batch, nested batches, initial effect timing, ordering among effects, writes during effects, reentrancy, asynchronous suspension and failure behavior require a complete observable contract. Logical stabilization and frame presentation are distinct; the rendering row does not settle when an imperative read becomes current. An adapter to another reactive system must establish its supported behavior rather than infer parity from this table.
+Logical stabilization and frame presentation are distinct. An adapter to another reactive system must establish its read, write, batching, effect, suspension and failure behavior; the stabilization boundary alone does not establish behavioral equivalence.
 
 ### 6.3 Demand Registration
 
@@ -331,7 +331,7 @@ This distinction determines whether the lowered code uses static dispatch (appli
 
 On CPU, incremental nodes are lowered to inline stabilization with arena-allocated cached values. The `llvm.*` operations below are the CPU/MCU target pathway, not what the portable middle end emits. The middle end forms the stabilization control flow in portable dialects only (the staleness branch as `scf`/`cf`, the node struct and its fields as `memref` load and store), commits to no target, and hands that form to a target pathway. The LLVM pathway shown here is one such target commitment; the NPU pathway (§8.2) and GPU pathway (§8.3) realize the same portable form differently. Read the block below as the LLVM pathway's output after that commitment, not as middle-end output.
 
-This sketch shows the recompute/cutoff step for a node already selected for processing. It omits the dependency-validation bookkeeping required by §6.1 and is not a complete stabilization algorithm.
+The following example shows the recompute/cutoff step for a node already selected for processing. Dependency validation follows §6.1.
 
 ```mlir
 // Stabilization check for a single node
@@ -398,7 +398,7 @@ Height 2 tiles: Activated when height 1 outputs land in ObjectFIFO
 ...
 ```
 
-Cutoff at a tile suppresses its output update. A downstream tile still needs evaluation when another input changed; the realization must preserve the cached input or equivalent availability information for the unchanged path. Absence of a new ObjectFIFO write alone is not sufficient to decide that a join remains idle. The target-specific synchronization details are **[Not yet specified]**.
+Cutoff at a tile suppresses its output update. A downstream tile still needs evaluation when another input changed; the realization must preserve the cached input or equivalent availability information for the unchanged path. Absence of a new ObjectFIFO write alone is not sufficient to decide that a join remains idle.
 
 ### 8.3 GPU Target (RDNA)
 

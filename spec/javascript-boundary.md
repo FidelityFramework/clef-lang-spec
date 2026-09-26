@@ -5,7 +5,6 @@ category: Platform
 status: normative
 ---
 
-> **Status (August 2026)**: Design-stage. No conforming implementation exists.
 >
 > **Profile**: This chapter is assigned to the **JavaScript Substrate** profile ([Conformance §7](conformance.md)). Its requirements bind an implementation when, and only when, the implementation claims that profile by providing the JSIR target pathway ([Backend Lowering Architecture](backend-lowering-architecture.md)). An implementation with no JavaScript pathway is unaffected by this chapter in every respect.
 
@@ -115,8 +114,6 @@ type User = { Id: int; Name: string; Email: Option<string> }
 val narrowUser : JsValue -> Result<User, NarrowingError>
 ```
 
-> **Not yet specified.** The concrete shape of the narrowing error type (its path and expected-shape representation).
-
 > **Clef Note**: Narrowing is the boundary instance of the [preservation obligation](conformance.md): premises the closed world discharges by analysis are discharged at the open boundary by a constructed check, with a typed exit on failure. The failure is a value, not a diagnostic. A malformed inbound payload is a runtime condition of the program, handled through `Result` like any other failure ([Error Handling](error-handling.md)).
 
 ### 3.3 Higher-Order Crossings
@@ -153,8 +150,6 @@ The differences are declared where the host surface is typed: TypeScript disting
 
 1. For a declared `Option<'T>` position, the inbound conversion SHALL by default map all three absence states to `None`, and a present value that is neither `null` nor `undefined` through narrowing to `Some`.
 2. Where the binding declares that a position distinguishes absence states (the declared distinction between optionality and `| null`, with JSON merge-patch as the canonical case: `null` meaning clear, absence meaning keep), the generated binding SHALL present a three-case union distinguishing *keep* (absent), *clear* (`null`), and *set with a value*, in place of `Option<'T>`.
-
-> **Not yet specified.** The concrete naming of the generated three-case union.
 
 ### 5.3 Outbound Conversion
 

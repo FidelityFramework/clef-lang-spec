@@ -101,11 +101,9 @@ let response = router.PostAndReply (Route msg)
 
 `[<RpcPriority(n)>]` and `[<SupervisedRpc(...)>]` are CCS attributes. A call carrying `[<SupervisedRpc(...)>]` is classified `Unresolved RequestedSupervision` regardless of its callee resolvability, which lets a developer accept the runtime discipline deliberately for a call that would otherwise be statically guaranteed.
 
-> Attribute names are provisional. `RpcPriority` and `SupervisedRpc` are placeholders pending the final attribute vocabulary. The semantics specified here are stable.
+## Compiler Intrinsics
 
-## Compiler Intrinsic Status
-
-CCS (Clef Compiler Service) SHALL perform wait classification during graph resolution and record it on the RPC node. The following annotation and diagnostic sketches specify the required association:
+CCS (Clef Compiler Service) SHALL perform wait classification during graph resolution and record it on the RPC node. The following annotation and diagnostic forms specify the required association:
 
 ```fsharp
 // In CCS graph annotation

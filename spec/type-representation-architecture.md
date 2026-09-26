@@ -5,9 +5,6 @@ category: Language
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-01-15
-
 ## 1. Overview
 
 This chapter specifies the internal representation of types in CCS (Clef Compiler Service). The design follows the ML tradition established by OCaml, F#/FCS, and F*: **types are references to definitions, not embedded data**.

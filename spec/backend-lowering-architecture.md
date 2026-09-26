@@ -5,9 +5,6 @@ category: Compiler
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-09-20 — target-aware witness admission and information preservation; no additional implementation support asserted.
-
 ## Informative References
 
 > **Commentary**: For accessible explanation of the portable middle end and why a target commitment is deferred to the backend, see [Why Clef Is A Natural Fit for MLIR](https://clef-lang.com/docs/design/compilation/why-clef-fits-mlir/) in the Clef design documentation.
@@ -31,7 +28,7 @@ Clef Source → CCS / Baker → settled PSG → Alex → admitted portable MLIR 
                                 selected platform and correlated evidence ────────────►
 ```
 
-The tier boundary is *portable-versus-target-specific*. While LLVM is the first target we built for, it is one target pathway among several: for instance, an LLVM serializer handles CPU, WASM and MCU targets, a CIRCT path handles FPGA targets, an MLIR-AIE path handles NPU tile-array targets, and a JSIR serializer handles the JavaScript target. CIRCT, MLIR-AIE, and JSIR are also MLIR, but they are *target-specific* MLIR, so they live in the backend for the same reason the LLVM serializer does. What separates the tiers is the commitment, not the technology. The artifact class is part of the pathway's commitment: a native binary from the LLVM pathway, a bitstream from the CIRCT pathway, an NPU binary from the MLIR-AIE pathway, a JavaScript module from the JSIR pathway.
+The tier boundary is *portable-versus-target-specific*. The LLVM serializer handles CPU, WASM and MCU targets, the CIRCT path handles FPGA targets, the MLIR-AIE path handles NPU tile-array targets, and the JSIR serializer handles the JavaScript target. CIRCT, MLIR-AIE, and JSIR are also MLIR, but they are *target-specific* MLIR, so they live in the backend for the same reason the LLVM serializer does. What separates the tiers is the commitment, not the technology. The artifact class is part of the pathway's commitment: a native binary from the LLVM pathway, a bitstream from the CIRCT pathway, an NPU binary from the MLIR-AIE pathway, a JavaScript module from the JSIR pathway.
 
 Premature target-specific encoding can lose information required by later consumers. The middle end's job is therefore *information preservation*: each admitted pathway receives the complete relevant expression and correlated graph facts, without reconstructing semantics from the operation stream. Selecting a target-aware portable form does not itself perform the backend's target-specific encoding. Emitting an `llvm.*` operation above this boundary commits to LLVM; a CIRCT hardware operation likewise belongs to the declared FPGA realization stage. Neither may silently replace the common receiving contract. Target realization SHALL preserve the source observables and proof premises required by the applicable contracts.
 
@@ -47,7 +44,7 @@ The documented baseline vocabulary is:
 | `memref` | Memory and layout | `memref.alloca`, `memref.global`, `memref.load`, `memref.store` |
 | `index` | Index/extent arithmetic, with eventual representation governed by the selected platform | `index.constant`, `index.casts` |
 
-This baseline is not a claim that every operation is implemented on every pathway. Extensions are admitted per expression, selected platform/backend profile and witness form under §2.1.1. Candidate vocabulary includes `math`, `affine`, `vector`, `tensor`, `async` and `cf`; listing a candidate does not admit its operations or assert compiler support. `index` already belongs to the baseline, with coverage still established per operation and pathway.
+Operations are admitted per expression, selected platform/backend profile and witness form under §2.1.1. Extensions to the baseline include `math`, `affine`, `vector`, `tensor`, `async` and `cf`, subject to the same admission requirements. Coverage is established per operation and pathway, including for the baseline dialects.
 
 Structured `scf` and explicit-block `cf` forms can suit different profiles. Alex SHALL select an admitted form using Baker-settled relationships and the selected profile's requirements. A pathway may receive structured control and lower it to `cf` later; direct `cf` witnessing requires its own admission. There is no universal requirement to give every backend an identical dialect subset.
 
@@ -65,11 +62,11 @@ Numeric selection and arithmetic construction govern the choice and composition 
 
 Parallel and suspended execution SHALL retain the blocking dependencies and classification of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md), together with the target-specific progress, admission and assumption requirements of [Scheduler Contract](scheduler-contract.md). Numeric equivalence and concurrency progress are separately required. An `async` or control-flow operation SHALL NOT substitute for those graph relationships or establish them by its presence.
 
-The operation/profile contract SHALL identify missing or inconsistent prerequisites and preserve their source provenance for design-time projection. Changing a depended-upon target fact invalidates its form-selection and preservation evidence. Requirements in this section do not resolve the implementation mechanisms explicitly left open in Numeric Selection §14 or assert that proposed target pathways are operational.
+The operation/profile contract SHALL identify missing or inconsistent prerequisites and preserve their source provenance for design-time projection. Changing a depended-upon target fact invalidates its form-selection and preservation evidence.
 
 ### 2.2 Constructs Whose Realization Is a Target Commitment
 
-Some constructs are expressed portably in the middle end and take a target-specific form only in the pathway. None requires a deferred cast: each has a portable carrier the pathway's standard lowerings already consume. An earlier revision of this section held that a function address as data and a raw environment pointer had no portable representation and carried each as a `builtin.unrealized_conversion_cast`; that premise is retired by §4, which shows a function value is never data in the interior.
+Some constructs are expressed portably in the middle end and take a target-specific form only in the pathway. Each has a portable carrier consumed by the pathway's standard lowerings, without a deferred cast. Function values use the multi-value encoding of §4.
 
 | Category | Portable middle-end carrier | Committed by the target pathway |
 |----------|-----------------------------|------------------------------|
@@ -102,7 +99,7 @@ The middle end represents a function value as two SSA values — a function symb
 
 ### 4.1 Why No Commitment Is Deferred
 
-An earlier revision of this chapter held that a portable dialect cannot express a function pointer in memory, and therefore encoded a closure as an `index` pair carried through `builtin.unrealized_conversion_cast` and resolved by a target-specific pass. That analysis was right about `memref` — a memref of function type is not expressible — and wrong in its conclusion, because a Clef closure is not that object. The environment is a byte buffer of captured *data*; the code is a `func.func` symbol referenced by name. `func.constant` is a first-class SSA value in the portable dialect, `func.call_indirect` consumes it, and the pair `(fn, env)` crosses any function boundary as two parameters. The things the earlier revision named as inexpressible — a function pointer in memory, an indirect call through it, its representation type — never need expressing. The interior forms are enumerated in [Closure Representation §7](closure-representation.md), all in `func` + `memref` + `arith`.
+The environment is a byte buffer of captured *data*; the code is a `func.func` symbol referenced by name. `func.constant` is a first-class SSA value in the portable dialect, `func.call_indirect` consumes it, and the pair `(fn, env)` crosses any function boundary as two parameters. This encoding does not require a memref of function type. The interior forms are enumerated in [Closure Representation §7](closure-representation.md), all in `func` + `memref` + `arith`.
 
 ### 4.2 The Multi-Value Encoding
 
@@ -122,11 +119,11 @@ A lazy thunk shows the interior at its simplest: `Lazy<int>` is an environment `
 
 ### 4.4 Function-Body Composition
 
-Within a target pathway, MLIR allows portable and committed operations to coexist in one body, which is what makes the deferred-resolution pass a local rewrite rather than a whole-program retype:
+Within a target pathway, portable and committed operations can coexist in one function body during lowering:
 
 1. **`func.call` inside `llvm.func`**: valid; an `llvm.func` can call a `func.func` using `func.call`.
 2. **`llvm.call` target restriction**: `llvm.call` can only call functions defined as `llvm.func`.
-3. **Portable ops in any function**: `arith.*`, `cf.*`, `scf.*`, `memref.*` operations remain valid in a committed `llvm.func` body after resolution.
+3. **Portable ops in any function**: `arith.*`, `cf.*`, `scf.*`, `memref.*` operations remain valid in a committed `llvm.func` body during lowering.
 
 ### 4.5 Carrier Realization on Pathways Without Linear Memory
 

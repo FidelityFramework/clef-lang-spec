@@ -45,7 +45,7 @@ marks. As a result of this rule, the following is a valid comment:
 (* Here's a code snippet: let s = "*)" *)
 ```
 
-However, the following construct, which was valid in F# 2.0, now produces a syntax error because a
+The following construct produces a syntax error because a
 closing comment token *) followed by a triple-quoted mark is parsed as part of a string:
 
 ```fsharp
@@ -143,7 +143,7 @@ not allowed even inside double-backtick marks:
 ‘.', '+', '$', '&', '[', ']', '/', '\\', '*', '\"', '`'
 ```
 
-All input files are currently assumed to be encoded as UTF-8. See the C# specification for a list of the
+All input files must be encoded as UTF-8. See the C# specification for a list of the
 Unicode characters that are accepted for the Unicode character classes \Lu, \Li, \Lt, \Lm, \Lo, \Nl,
 \Pc, \Mn, \Mc, and \Cf.
 
@@ -159,7 +159,7 @@ token ident-keyword =
     true try type upcast use val void when while with yield
 ```
 
-The following identifiers are reserved for future use:
+The following identifiers are reserved:
 
 ```fsgrammar
 token reserved-ident-keyword =
@@ -169,9 +169,7 @@ token reserved-ident-keyword =
     sealed tailcall trait virtual
 ```
 
-A future revision of the F# language may promote any of these identifiers to be full keywords.
-
-The following identifiers were previously reserved but can now be used:
+The following identifiers are not reserved:
 
 ```fsgrammar
 token ident =
@@ -320,7 +318,7 @@ token symbolic-keyword =
     _? ?? (*) <@ @> <@@ @@>
 ```
 
-The following symbols are reserved for future use:
+The following symbols are reserved:
 
 ```fsgrammar
 token reserved-symbolic-sequence =
@@ -466,7 +464,7 @@ sequence to be a floating-point number followed by a “`.`”.
 
 ### Reserved Numeric Literal Forms
 
-The following token forms are reserved for future numeric literal formats:
+The following numeric literal token forms are reserved:
 
 ```fsgrammar
 token reserved-literal-formats =
@@ -475,14 +473,9 @@ token reserved-literal-formats =
 
 ### Shebang
 
-A shebang (#!) directive may exist at the beginning of F# source files. Such a line is treated as a
-comment. This allows F# scripts to be compatible with the Unix convention whereby a script
-indicates the interpreter to use by providing the path to that interpreter on the first line, following
-the #! directive.
-
-```fsharp
-#!/bin/usr/env fsharpi --exec
-```
+A shebang (`#!`) may appear at the beginning of a Clef source file and is treated
+as a comment by the lexer. Under the Unix convention, the operating system uses
+such a line to select a program when executing a script.
 
 ## Line Directives
 
@@ -514,6 +507,6 @@ The following table lists identifiers that are automatically replaced by express
 
 | Identifier | Replacement |
 | --- | --- |
-| `__SOURCE_DIRECTORY__` | A literal verbatim string that specifies the name of the directory that contains the <br> current file. For example:<br>`C:\source`<br>The name of the current file is derived from the most recent line directive in the file. If no line directive has appeared, the name is derived from the name that was specificed to the command-line compiler in combination with<br> `System.IO.Path.GetFullPath`.<br> In F# Interactive, the name `stdin` is used. When F# Interactive is used from tools such as Visual Studio, a line directive is implicitly added before the interactive execution of each script fragment. |
+| `__SOURCE_DIRECTORY__` | A literal verbatim string specifying the directory containing the current source file. The source filename comes from the most recent line directive, or otherwise from the source identity supplied to the compiler, resolved against the compilation's source base directory. Interactive submissions must supply an explicit source identity. |
 | `__SOURCE_FILE__` | A literal verbatim string that contains the name of the current file. For example:<br>`file.clef` |
 | `__LINE__`| A literal string that specifies the line number in the source file, after taking into account adjustments from line directives. |

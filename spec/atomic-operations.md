@@ -328,7 +328,7 @@ The actor model eliminates most need for explicit atomics:
 
 Most developers never use `Atomic` directly. The actor runtime uses it internally.
 
-## Compiler Intrinsic Status
+## Compiler Intrinsics
 
 Atomic operations are CCS (Clef Compiler Service) intrinsics:
 

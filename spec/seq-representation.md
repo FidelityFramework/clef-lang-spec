@@ -5,12 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Normative specification for sequence values, storage and suspension in Clef.**
-> Implementation coverage and final native acceptance are recorded separately in
-> [Composer C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md) and its linked
-> waypoints. A required representation contract is not a claim that every source
-> composition or target path already implements it.
-
 ## 1. Overview
 
 A Clef `seq { }` expression creates a deferred computation that produces elements
@@ -182,19 +176,13 @@ storage or extend its lifetime.
 
 A sequence may capture a surrounding sequence template when the source
 allocation's activation covers every use of the capturing sequence and its
-iterators. Lexical containment alone is insufficient. Current Baker evidence
+iterators. Lexical containment alone is insufficient. Baker evidence
 retains the allocation, covering activation, captured declaration, capturing
 generator and constructor identities in `SequenceTemplateBorrow`. Nested and
 repeated uses can preserve that covering lifetime; returned, stored, opaque or
 ambiguously owned uses require additional settlement. Capturing the template
 preserves its mutable capture identities while each enumeration gets fresh
 iteration state.
-
-Current native support uses explicit per-occurrence destination/origin rows and
-finite parent/child region coordinates. It does not establish arbitrary escaping
-factory results, recursive region growth, mixed callable origins or generic
-aggregate transport. These cases still require the canonical callable and
-lifetime contracts; they are not redefined by that implementation scope.
 
 ## 5. MoveNext Calling Convention
 
@@ -380,5 +368,3 @@ nested empty delegation continues the outer body within the current pull.
   suspension recipe and proof obligations.
 - [Seq Operations Representation](seq-operations-representation.md): operations
   that compose the same sequence contracts.
-- [Composer C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md): implementation scope
-  and final source, graph, MLIR, native and tooling gates.

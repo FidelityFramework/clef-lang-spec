@@ -5,16 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Normative language and representation requirements.** Implementation coverage
-> is recorded separately in [Composer C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md)
-> and the [coverage waypoints](../../Composer/docs/Language_Coverage_Waypoints.md).
-> A source signature or a graph recipe is not evidence of native conformance for
-> every callback, lifetime, composition or target.
->
-> **Reconciled:** 2026-09-20. The earlier fixed wrapper field order, fixed state
-> widths, mandatory whole-environment inline copies and fixed SSA formulas are
-> superseded by the sequence and closure contracts cited below.
-
 ## 1. Overview
 
 Sequence operations compose deferred producers and eager consumers over Clef
@@ -264,8 +254,7 @@ storage. Values needed only within one pull may use activation scratch. A retain
 mutable cell can require persistent storage after its last scalar read. Current
 needs physical storage only where an admitted successful yield can establish it.
 
-The earlier fixed-width state/current diagrams and mandatory nested inline
-wrapper structs are superseded. Physical fields and regions follow the settled
+Physical fields and regions follow the settled
 requirements, not a capture-count formula or a source operation's name. Source
 NTU types remain intact while target representation is selected.
 
@@ -378,8 +367,7 @@ elide an environment's formation effects or lifetime requirements.
 
 ## 10. Behavioral and Negative Conformance
 
-These are required observations, not completed test results or additional public
-APIs. The compiler/native conformance record belongs to the linked C-07 waypoint.
+Conforming implementations SHALL satisfy the following observations:
 
 | Contract | Required observation |
 |----------|----------------------|
@@ -401,33 +389,7 @@ Missing current, callback-environment, lifetime, range or target-placement
 premises are separate settlement failures. Unknown origins or factory-local
 captured storage must not pass through an accidental native representation.
 
-## 11. Implementation Status and Design Direction
-
-C-06 supplies the shared sequence graph contracts, guarded current protocol,
-placed frame/scratch storage, supported destinations and bounded child/borrowed
-storage relationships. Its native implementation scope and remaining gates are
-recorded in [C-06](../../Composer/docs/PRDs/C-06-SimpleSeq.md) and the coverage
-waypoints. It does not establish native conformance for every operation here.
-
-C-07 extends producer composition and eager/short-circuit consumers under those
-contracts. Registered source schemes and existing recipes are distinguished from
-source-to-native results in [C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md).
-The eleven operations in §2 have shared Baker recipes and native acceptance
-evidence for the source forms recorded there. Broader operation-value forms
-remain open: stored partials must retain supplied sequence/callable values with
-their formation and residence evidence. Native success for direct and pipeline
-applications does not close that boundary.
-
-[Closure values captured by other computations](../../Composer/docs/Closure_As_Data.md)
-records the implemented bounded known-callee environment form and the remaining
-callable work; it is not an additional normative schema. It describes common
-environment facts while retaining the full callable contract. Its implementation
-names and phase APIs are not mandated here. Unknown callable storage,
-returned environments and opaque/escaping uses still require their own settled
-representation and lifetime premises. Known code alone must not be advertised
-as completion of that work.
-
-## 12. References
+## 11. References
 
 - [Sequence Representation](seq-representation.md): base callable, capture,
   suspension, storage and current-value requirements.
@@ -438,5 +400,3 @@ as completion of that work.
 - [Expressions](expressions.md): application, pipeline and evaluation rules.
 - [Backend Lowering Architecture](backend-lowering-architecture.md): passive
   witnessing and standard target lowering.
-- [Composer C-07](../../Composer/docs/PRDs/C-07-SeqOperations.md): implementation
-  dependencies, coverage and remaining gates.

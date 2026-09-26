@@ -331,9 +331,9 @@ let inline writeln (s: string) : unit =
     Sys.write 1 nl 1 |> ignore
 ```
 
-### Incorrect Pattern (Deprecated)
+### Invalid Binding Stubs
 
-The following pattern is **deprecated** and should not be used:
+Platform bindings SHALL NOT use BCL stubs:
 
 ```fsharp
 // WRONG - Do not declare platform bindings with BCL stubs
@@ -343,7 +343,7 @@ module Platform.Bindings =
  
 ```
 
-This pattern was used historically but creates BCL dependencies and requires special handling in the compiler.
+This pattern creates BCL dependencies and does not provide a platform binding contract.
 
 ---
 
@@ -525,9 +525,7 @@ The record vocabulary of `PlatformDescriptor` presumes an instruction-set target
 3. the host API surface that bindings are generated against, and its version ([JavaScript Boundary Semantics §7](javascript-boundary.md)); and
 4. the wide-integer realization ([Width Inference §8](width-inference.md)).
 
-The managed-substrate capability requirements discussed in [Platform Predicates §6](platform-predicates.md) require a consumer of these descriptor facts. The implemented static MMIO predicate fragment does not resolve managed-substrate capabilities or provide general instruction-set capability dispatch.
-
-> **Not yet specified.** The concrete record shape of the managed-substrate descriptor.
+The managed-substrate capability requirements in [Platform Predicates §6](platform-predicates.md) require a consumer of these descriptor facts.
 
 ### Compile-Time Resolution
 

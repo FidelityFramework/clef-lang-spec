@@ -459,7 +459,7 @@ Here, a compile-time error is reported. This check is necessarily approximate be
 under function expressions are assumed to be delayed, and in this case the use of a lazy initialization
 means that runtime checks and forces are inserted.
 
-> Note: In F# 3 .1 this check does not apply to value definitions that are generic through
+This check does not apply to value definitions that are generic through
 generalization because a generic value definition is not executed immediately, but is
 instead represented as a generic method. For example, the following value definitions
 are generic because each right-hand-side is generalizable:
@@ -719,4 +719,3 @@ let test1 =
 
 Again, `ff` is not generalized, and its use with arguments of type `int list` and `string list` is not
 permitted.
-

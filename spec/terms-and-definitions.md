@@ -21,8 +21,6 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 **implementation-defined behavior**, **unspecified behavior**, **undefined behavior** — the three classes of behavior not fully fixed by this specification, defined and distinguished in [Behavior Classification](behavior-classification.md).
 
-**[Design decision]**, **[Not yet specified]** — the maturity markers a requirement may carry, defined in [Change Process and Specification Management §2](change-process-management.md).
-
 ## Compiler architecture
 
 **CCS (Clef Compiler Services)** — the front end that elaborates Clef source, builds and saturates the program graph, and discharges design-time obligations. Introduced in [Introduction](introduction.md).
@@ -51,15 +49,11 @@ This clause is normative: a requirement stated elsewhere in terms of these words
 
 ## Types and dimensions
 
-**dimensional type** — a type carrying a dimension drawn from a finitely generated free abelian group of base dimensions with integer exponents. Rational measure exponents would be a separate extension from fractional value types. Defined across [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md).
+**dimensional type** — a type carrying a dimension drawn from a finitely generated free abelian group of base dimensions with integer exponents. Defined across [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md).
 
 **dimension** versus **range** — a value's *dimension* establishes its kind (e.g. *meters*); its *range* `[a, b]` establishes the concrete interval it occupies. Numeric selection takes the **range**, not the dimension, as its input. See [Numeric Selection §1](numeric-selection.md).
 
 **grade** — the algebraic grade (scalar, vector, bivector, …) of a value in the geometric/Clifford algebra; a structural property the type system preserves.
-
-**negative type**, **fractional type** *(proposed; non-normative)* — forms investigated through directed evaluation and value-indexed resource pairing. In the proposed reference core, a negative value participates in reversal of evaluation direction; a fractional resource `1/v` retains a particular value index whose matching and permitted use govern discharge. `Neg<'T>` and `Recip<'T>` are provisional notation, not admitted NTU constructors. A demand for any value of type `'T` is not automatically `1/v`; logic-variable search is a separate candidate semantics. Fractional resources imply neither rational measure exponents nor inverse physical dimensions. The discipline is developed in the [companion architecture](../../Composer/docs/Negative_Fractional_Types_Architecture.md) and [composition plan](../../Composer/docs/Bidirectional_Composition_Plan.md), not a normative chapter. The specified type universe operates without these forms, and no normative requirement depends on them.
-
-**braid type** *(proposed; non-normative)* — a type that would decorate a tensor arrangement's crossing order, the non-abelian exchange of concurrent strands recorded as an element of the braid group. Its abelian projection, the writhe, is a single-generator quantity of the same kind the dimensional discipline already carries; the non-abelian remainder is the order-sensitive content the writhe discards. This is a proposed extension: the type universe as specified operates without reference to the braid word, and the discipline is the subject of a companion treatment, not a normative chapter of this specification. Only the writhe is available to normative text; no normative requirement in this specification depends on the non-abelian braid word.
 
 ## Foreign boundaries
 

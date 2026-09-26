@@ -43,7 +43,7 @@ Field Indices:
   [2..N+1] = captured values
 ```
 
-The thunk symbol is never stored in the environment as data: it travels as the function-value half of the pair, and where the force site knows the thunk (a lazy value that does not escape) it is elided altogether and force is a direct call. An earlier revision of this chapter placed a `code_ptr` word at `[2]`; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)).
+The thunk symbol is never stored in the environment as data: it travels as the function-value half of the pair, and where the force site knows the thunk (a lazy value that does not escape) it is elided altogether and force is a direct call.
 
 ### 3.2 Field Semantics
 
@@ -91,22 +91,22 @@ thunk_fn: (memref<Exi8>) -> T      // E = the environment extent of §3.3, a lit
 
 The thunk body:
 1. Receives the lazy struct's environment as `%arg0`
-2. Extracts captures from indices `[3..N+2]`
+2. Extracts captures from indices `[2..N+1]`
 3. Executes the deferred computation
 4. Returns the result
 
-The middle end emits the thunk as a portable `func.func` and reads captures through a `memref`, exactly as the flat closure does (see [Flat Closure Pattern and Deferred Resolution](backend-lowering-architecture.md#4-flat-closure-pattern-and-deferred-resolution)). Nothing in the middle-end form names a target:
+The middle end emits the thunk as a portable `func.func` and reads captures through a `memref`, exactly as the flat closure does (see [Function Values in the Interior](backend-lowering-architecture.md#4-function-values-in-the-interior)). Nothing in the middle-end form names a target:
 
 ```mlir
 // Middle end — portable dialects only.
 func.func private @thunk_example(%env: memref<?xi64>) -> i64 {
-    // Extract capture at index 3 — portable memref access, no ABI committed.
-    %c3 = arith.constant 3 : index
-    %a = memref.load %env[%c3] : memref<?xi64>
+    // Extract capture at index 2 — portable memref access, no ABI committed.
+    %c2 = arith.constant 2 : index
+    %a = memref.load %env[%c2] : memref<?xi64>
 
-    // Extract capture at index 4.
-    %c4 = arith.constant 4 : index
-    %b = memref.load %env[%c4] : memref<?xi64>
+    // Extract capture at index 3.
+    %c3 = arith.constant 3 : index
+    %b = memref.load %env[%c3] : memref<?xi64>
 
     // Compute result.
     %result = arith.addi %a, %b : i64
@@ -248,7 +248,7 @@ type LazyLayout = {
 }
 ```
 
-This layout is computed in Composer's SSA assignment today, which is interim: it is the consequence of the closure hyperedge and moves into CCS with it (`clef/docs/fidelity/phg/Closure_Retooling_Plan.md`). The witness reads it; it does not compute it.
+SSA assignment derives this layout from the closure hyperedge before witnessing. The witness reads it; it does not compute it.
 
 ### 7.2 SSA Cost Formula
 
@@ -280,7 +280,7 @@ When `Context = LazyThunk`:
 
 ## 8. MLIR Generation
 
-The middle end emits lazy construction over `memref`, with the thunk address carried as a deferred `func_type → index` cast. The struct is a `memref` of the lazy layout; field writes are `memref.store` at the fixed indices. Nothing here commits a target ABI.
+The middle end emits lazy construction as the pair of a thunk function value and a `memref` of the lazy environment. The thunk is created with `func.constant`; environment field writes use `memref.store` at the fixed indices. Nothing here commits a target ABI.
 
 ### 8.1 Lazy Value Creation
 
@@ -336,8 +336,11 @@ Force reads the `computed` flag, and either returns the cached value or calls th
     // Where the force site knows the thunk this is func.call @thunk_lazyAdd_body(%lazy).
     %result = func.call_indirect %thunk(%lazy) : (memref<4xi64>) -> i64
 
-    // For memoizing: store %result at [1] and set the flag at [0]
-    // (§9; current implementation uses pure thunk semantics, no memoization).
+    // Store the memoized result at [1] and set the computed flag at [0].
+    %c1 = arith.constant 1 : index
+    memref.store %result, %lazy[%c1] : memref<4xi64>
+    %true = arith.constant 1 : i64
+    memref.store %true, %lazy[%c0] : memref<4xi64>
     scf.yield %result : i64
 }
 // %value is the forced result.
@@ -347,17 +350,15 @@ The target pathway commits this through its standard lowerings: on the LLVM path
 
 ## 9. Memoization Strategy
 
-### 9.1 Current Implementation: Pure Thunk Semantics
+### 9.1 Memoization Semantics
 
-The initial Clef implementation provides **pure thunk semantics**:
-- Forcing always executes the computation
-- No memoization state is updated
-- Correct for pure computations (same result each time)
+The first force evaluates the computation and stores its result. Subsequent
+forces return the stored result without evaluating the computation again.
 
 ```fsharp
 let expensive = lazy (printfn "Computing..."; 42)
 Lazy.force expensive  // Prints, returns 42
-Lazy.force expensive  // Prints again, returns 42
+Lazy.force expensive  // Returns the cached 42 without printing
  
 ```
 
@@ -376,8 +377,6 @@ Memoization is a mutation-in-place property that interacts with this placement, 
 
 - A **scope-bounded** or **program-lifetime** lazy value already has a stable address (its `alloca` slot or its `memref.global`), so memoization writes directly to `value` at index `[1]` and sets `computed` at `[0]`.
 - Under concurrent access to a program-lifetime lazy value, the write-once obligation is discharged at compile time by the single-forcer discipline of §11: ownership establishes one semantic forcer, so the race is resolved in the proof before it is resolved in the code. Beneath that discharged proof, the target realization is a compare-and-swap on the `computed` flag (one force wins) and a memory barrier that makes the memoized `value` visible across threads.
-
-The current implementation (§9.1) uses pure thunk semantics and updates no state, so it is insensitive to placement. Memoizing semantics are placement-sensitive precisely because they mutate the struct in place.
 
 ### 9.3 Thread Safety Considerations
 
@@ -408,10 +407,10 @@ let x: Lazy<int> = lazy 42
 At the native level, the actual struct type includes captures:
 ```fsharp
 // No captures
-TStruct [TInt I1; TInt I64; TPtr]
+TStruct [TInt I1; TInt I64]
 
 // With captures [a: int; b: int]
-TStruct [TInt I1; TInt I64; TPtr; TInt I64; TInt I64]
+TStruct [TInt I1; TInt I64; TInt I64; TInt I64]
 ```
 
 ### 10.2 Lazy.create and Lazy.force
@@ -440,7 +439,7 @@ Lazy.create (fun () -> expr)
 4. **Module-Level Exclusion**: Module-level bindings SHALL NOT be captured
 5. **Thunk Convention**: Thunks SHALL receive their environment as the sole environment parameter; a lazy value SHALL be the two-value pair `(thunk, env)` of [Closure Representation §6.3](closure-representation.md), with the thunk elided where the force site knows it
 6. **Lifetime-Driven Placement**: A lazy value's storage SHALL be placed by escape analysis in the storage whose lifetime covers it, per the four-point lattice of [Closure Representation §3.3](closure-representation.md#33-escape-analysis): the stack when scope-bounded, a region when region-bounded, static storage (`memref.global`) when its lifetime is the whole program, and the heap only when its extent is genuinely dynamic. On a target without a heap, a lazy value that classifies as dynamic SHALL be a compile-time lifetime error, not a heap allocation. Lazy values SHALL NOT be placed on a GC-managed heap.
-7. **Pure Thunks Initially**: Initial implementation SHALL use pure thunk semantics (no memoization)
+7. **Memoization**: The first force SHALL evaluate the computation and store its result. Subsequent forces SHALL return the stored result without evaluating the computation again.
 8. **Single-Forcer Memoization**: A memoizing lazy value SHALL be forced under a single-forcer discipline: for each lazy value, exactly one semantic forcer performs the transition from unevaluated to computed. A lazy value whose force sites span threads or actor boundaries SHALL carry an ownership obligation discharged at compile time by establishing that single semantic forcer. This discipline keeps the write-once conditions on `computed` at `[0]` and `value` at `[1]` quantifier-free: each slot is written at one statically identified site, so the verification conditions quantify over enumerated structure only ([Closure Representation §11](closure-representation.md#11-proof-extraction-at-closure-sites)).
 
 ## 12. Implementation in CCS/Composer Pipeline
@@ -461,7 +460,7 @@ Lazy.create (fun () -> expr)
 
 ### 12.2 Alex Preprocessing Phase
 
-1. **SSAAssignment** (interim — this computation is a closure-hyperedge consequence and moves into CCS; `Closure_Retooling_Plan`):
+1. **SSAAssignment**:
    - Computes `LazyLayout` for LazyExpr nodes
    - Computes `ClosureLayout` for thunk Lambda nodes
    - Assigns SSAs for all construction operations

@@ -5,13 +5,9 @@ category: Platform
 status: normative
 ---
 
-> **Status**: Draft
-> **Normative**: Yes
-> **Last Updated**: 2026-01-08
-
 ## 1. Overview
 
-This chapter specifies two new intrinsic modules for CCS (Clef Compiler Service):
+This chapter specifies two intrinsic modules for CCS (Clef Compiler Service):
 
 1. **Cryptography** - Cryptographic operations (SHA-1, Base64 encoding/decoding)
 2. **Bits** - Bit manipulation and byte order operations
@@ -26,7 +22,6 @@ This chapter's `Cryptography` module is the narrow SHA-1/Base64 protocol surface
 for the broader algorithm portfolio, key custody, authenticated encryption and
 post-quantum implementations. Its hardware providers bind through
 [Fidelity.Platform](../../Fidelity.Platform/docs/CRYPTOGRAPHY_PROVIDERS.md).
-Those implementations are planned separately from these intrinsic declarations.
 SHA-1 here serves the WebSocket handshake and is not the credential-signature or
 MBS sealing policy. Base64 is an encoding operation.
 
@@ -194,7 +189,7 @@ val ntohl : uint32 -> uint32
 
 ### 3.3 No Bit Casting (Reinterpret) — Use BAREWire Instead
 
-**[Design decision.]** This specification **does not** provide a bit-cast /
+This specification **does not** provide a bit-cast /
 reinterpret-cast facility (no `floatToIntBits`, no `intBitsToFloat`, no
 type-punning of a typed value into its raw representation). The C and C++ idiom of
 reinterpreting an IEEE-754 float as an integer to inspect or transmit its bit

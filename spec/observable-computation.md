@@ -11,8 +11,6 @@ status: normative
 
 Clef specifies `Observable<'T>` as a compiler-known intrinsic type for push-based, producer-driven reactive observation. Its subscription and delivery plan is preserved in the [Program Semantic Graph](program-semantic-graph.md) through lowering. Active subscriptions, observer closures and dynamically created sources remain runtime instances with owned state. The compiler can specialize their representation and fuse an observable into the demand-driven computation it feeds; intrinsic status does not eliminate that runtime state or require a separate reactive package.
 
-This chapter specifies the intended semantics and lowering contracts. Its representation and lowering sketches are not evidence that each target pathway is implemented.
-
 `Observable<'T>` occupies the push pole of the spectrum of evaluation strategies that the compiler understands natively (the same spectrum specified in [Incremental Computation §1](incremental-computation.md)):
 
 | Property | Observable&lt;'T&gt; | Cold&lt;'T&gt; | Lazy&lt;'T&gt; | Incremental&lt;'T&gt; |
@@ -123,11 +121,11 @@ An observer's logical lifetime is bounded by its subscription owner. Native clos
 
 On JavaScript targets, closures may reside in host-managed storage. Logical unsubscribe and owned resource cleanup remain deterministic and do not wait for host garbage collection. On native targets, removing a subscription does not imply that an individual allocation can immediately be reclaimed from a longer-lived bump arena.
 
-> **Not yet specified.** Dynamic subscription reclamation within a continuing owner, teardown ordering, and subscription changes or retirement during an active emission require a precise protocol. Pending invocations and shared captured resources must be accounted for before physical reclamation; arena placement alone does not supply this protocol.
+Physical reclamation must account for pending invocations and shared captured resources, including when subscription changes or retirement occur during an active emission.
 
 ### 3.3 Memory Layout on CPU Target
 
-The following CPU representation sketch uses a source reference and a flat list of `N` observer closures. It omits the bookkeeping needed for dynamic registration, safe removal and active delivery:
+The following CPU layout illustrates the source reference and a flat list of `N` observer closures. Dynamic registration, safe removal and active delivery require additional bookkeeping:
 
 ```
 Observable<T>
@@ -183,8 +181,6 @@ val distinctUntilChanged : Observable<'T> -> Observable<'T>   // requires 'T : e
 
 `distinctUntilChanged` suppresses *emission* when its output is unchanged. Incremental cutoff suppresses change propagation along the unchanged node's path; a dependent with another changed input may still need recomputation. Cutoff is intrinsic to `Incremental<'T>`; duplicate suppression is optional for `Observable<'T>` (the default observable delivers every emission).
 
-> **Not yet specified.** The full operator surface (e.g. `filter`, `merge`, `scan`, scheduling/backpressure combinators) and whether a `reactive { ... }` computation-expression builder is provided are not yet normative. When a builder is specified it SHALL desugar to PSG observer edges by the same discipline the `incremental` CE uses for dependency edges ([Incremental Computation §7](incremental-computation.md)).
-
 ## 6. SemanticKind in the PSG
 
 ```fsharp
@@ -233,8 +229,6 @@ Other pathways realize the same indirect dispatch through their own lowering (a 
 ### 7.2 Fusion into Incremental (Accelerator Path)
 
 An `Observable<'T>` has no standalone NPU or GPU lowering, because its opacity gives the compiler nothing to schedule statically. When an observable feeds an `Incremental<'T>`, fusion can realize the subscription as an invalidation trigger, subject to preservation of event delivery and effects. The incremental node's lowering (CPU inline, AIE tile activation, or HSA dispatch, per [Incremental Computation §8](incremental-computation.md)) then carries the computation schedule. The observable contributes the *event*; the incremental contributes the *bounded, target-specific response*.
-
-> **Not yet specified.** Standalone lowering of an observable whose consumer is itself an accelerator-resident actor (i.e., push delivery across a hardware boundary without an intervening `Incremental<'T>`) is open. The expected path is BAREWire-mediated event delivery (§8.3), but the scheduling discipline is not yet normative.
 
 ## 8. Interaction with Other Intrinsics
 

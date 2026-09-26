@@ -191,8 +191,6 @@ type IOError =
     | DeviceError of code: int
 ```
 
-> **Note**: The exact set of standard error types is subject to further specification as the standard library matures.
-
 ### The voption Type
 
 For optional values where absence is not an error, `voption<'T>` (ValueOption) provides a null-free representation:
@@ -247,13 +245,8 @@ with
 | :? SomeException as e -> handleError e
 ```
 
-However, the semantics differ:
-
-- In Clef, `try`/`with` may be used for effect handling (delimited continuations) rather than exception catching
-- The exact semantics depend on the effect system specification
-- Code using `try`/`with` for exception handling must be migrated to Result-based patterns for native compilation
-
-> **Tooling Note**: Lattice and other editors will parse `try`/`with` expressions normally. CCS may emit warnings when exception-style patterns are detected, guiding migration to Result-based alternatives.
+Native compilation uses `Result` values and pattern matching for recoverable
+failures. Exception-style error handling is diagnosed with `CCS8300`.
 
 ### Null-Freedom
 
@@ -307,7 +300,7 @@ CCS uses error codes in the CCS8xxx range to distinguish native-specific diagnos
 
 #### The CCS code table
 
-Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the compiler service reports carries a code in the CCS series; the `FS` prefix is retired. Codes are allocated inside the blocks above and never reassigned. Inherited lexer and parser diagnostics keep their F# number under the CCS prefix (`FS0058` becomes `CCS0058`); the block `CCS0000`–`CCS0999` is reserved for that family.
+Every diagnostic the compiler service reports carries a code in the CCS series. Codes are allocated inside the blocks above and never reassigned. Inherited lexer and parser diagnostics keep their F# number under the CCS prefix (`FS0058` becomes `CCS0058`); the block `CCS0000`–`CCS0999` is reserved for that family.
 
 | Code | Severity | Meaning |
 |------|----------|---------|
@@ -330,7 +323,7 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8016 | Warning (error under `--warnaserror`) | An analysed range exceeds a higher-provenance claim, a library law's range or a declaration ([Numeric Selection §3.4](numeric-selection.md)) |
 | CCS8017 | retired | "a conversion cannot hold the range": there are no conversions |
 | CCS8018 | Error | A literal suffix: every width suffix (`L`, `u`, `uy`, `s`, `n`, `f`), `I`, and any suffix the language does not have ([Width Inference §7](width-inference.md)) |
-| CCS8019 | Warning (not promoted by `--warnaserror` during the alias period) | A width-named spelling (`uint32`, `byte`, `float32`, ...) or a width suffix on a literal (`0L`, `5u`, `1.0f`, ...) during the CS-12 alias period: the spelling denotes the one kind and the representation it names is an interim declared boundary; retired at step three of the migration, when a spelling is CCS8706 and a suffix CCS8018 |
+| CCS8019 | Warning (not promoted by `--warnaserror`) | A compatibility alias uses a width-named spelling (`uint32`, `byte`, `float32`, ...) or a width suffix on a literal (`0L`, `5u`, `1.0f`, ...); the alias denotes the numeric kind with a declared boundary representation |
 | CCS8020–CCS8022 | Error | Access kinds ([Access Kinds](access-kinds.md)) |
 | CCS8030–CCS8033 | Error | Platform intrinsics ([Platform Bindings](platform-bindings.md)) |
 | CCS8040–CCS8050 | Error | Units of measure ([Units of Measure](units-of-measure.md)): mismatch, no integer solution, not in scope, cyclic abbreviation, variable in a literal, sort mismatch, no dimension, unresolved at a non-generalisable binding, rational exponent, parameterised definition, arity |
@@ -366,7 +359,6 @@ Decision D3 of the dimensional hardening (2026-09-04): every diagnostic the comp
 | CCS8300 | Warning | Exception-style error handling detected; use the Result-based pattern |
 | CCS8400 | Error | Code generation error |
 | CCS8401 | Error | Unsupported construct in code generation |
-| CCS8500–CCS8505 | see [Interactive Development](interactive-development.md) | Interactive session |
 | CCS8701–CCS8705 | Error | Record field label resolution ([Name Resolution](inference-name-resolution.md)) |
 | CCS8706 | Error | A type name in an annotation that resolves to nothing (no abbreviation, definition, primitive or built-in constructor), reported at the annotation; the error type it leaves unifies with anything, so this is the one report of the failure |
 | CCS8710 | Error | Null constraint is not a Clef constraint |
@@ -497,14 +489,3 @@ Null-freedom is by construction and has exactly one diagnostic, `CCS8010` (the `
 | CCS8300 | Warning | Exception-style error handling detected; use the Result-based pattern |
 
 A warning is promoted to an error under the `--warnaserror` policy, the rule every warning in the framework follows (the FPGA timing budget's `CCS0100` is the reference case).
-
-## Areas Requiring Further Specification
-
-The following areas require additional design work:
-
-1. **Effect System Integration**: How Result interacts with algebraic effects and delimited continuations
-2. **Async/Concurrent Errors**: Error propagation in concurrent and asynchronous contexts
-3. **Interop Boundaries**: Error translation at [FFI boundaries](ffi-boundary.md) with C libraries
-4. **Panic vs. Error**: Distinction between recoverable errors (Result) and unrecoverable panics
-5. **Stack Traces**: Diagnostic information for debugging without managed exception infrastructure
-6. **Tooling PR Strategy**: Concrete changes needed for Lattice/FSAC to support CCS

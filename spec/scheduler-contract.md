@@ -7,8 +7,6 @@ status: normative
 
 Clef actor execution is realized by **Olivier** (the actor runtime) under **Prospero** (the supervisor). Dispatch within that system is realized by **Ariel** (the scheduler). This file specifies the contract every conforming Ariel implementation SHALL satisfy. The contract exists so that obligations discharged elsewhere in this specification have a named premise: the acyclicity discharge of [Synchronous RPC and Wait Classification](synchronous-rpc-liveness.md) rules out cyclic waiting, and the progress of the acyclic remainder rests on the clauses below.
 
-> **Status (July 2026)**: This contract is design-stage. No conforming implementation exists. The simulated profile (§7) is the first implementation target, because it doubles as the conformance harness for the other profiles.
-
 ## 1. Scope
 
 This file specifies the observable dispatch discipline of the scheduler: fairness, turn semantics, control-plane capacity, admission, determinism, and the per-implementation assumption manifest. It does not specify supervision policy, restart strategy, or actor placement, which belong to Prospero, and it does not specify actor semantics, mailbox ordering within a delivery, or message representation, which belong to Olivier and to [BAREWire](native-type-universe.md). It does not prescribe implementation mechanism. A conforming implementation MAY be a thread pool, an event loop, an interrupt binding, or a lowered continuation surface, provided the clauses hold.
@@ -33,8 +31,6 @@ The dependency direction is part of the contract's purpose. Prospero's supervisi
 
 **latency domain** — a set of processing elements over which a turn-granularity dispatch decision is meaningful: one core, one coherent multicore package, one board-level fabric. A network hop always crosses a latency domain.
 
-> **Clef Note**: The word *sentinel* in this specification names the numeric width and representation placeholders of [Numeric Selection](numeric-selection.md) (the sentinel/resolver pattern). The runtime structure that carries an actor reference's liveness state is called the *actor-reference sentinel* in the design documentation. Where this file needs that concept it says **reference state**, and §10 gives the states.
-
 ## 3. Fairness
 
 An actor that is ready SHALL be dispatched within a finite number of scheduling events. The bound MAY vary with load and with implementation profile, and it SHALL exist in every execution.
@@ -53,7 +49,7 @@ The actor definition in [Terms and Definitions](terms-and-definitions.md) relies
 
 Control-plane actions SHALL NOT contend with data-plane traffic for the same bounded capacity. When every data-plane resource an implementation bounds (mailbox slots, message envelopes, channel slots) is exhausted, the implementation SHALL still be able to: retire an actor, execute a supervisor restart, deliver a timer expiry, and update reference state.
 
-On the native profile, the design realization is Prospero on an elevated thread with supervision executed as direct calls rather than as messages competing for data-plane capacity. On the freestanding single-core profile the separation is hardware exception priority rather than a thread: dispatch runs in the processor's thread mode, and supervision, timer expiry, and turn-budget enforcement execute at reserved handler priorities with capacities set at build time. A freestanding implementation SHALL arm the control-plane tier, its timer, its watchdog, and its vector entries, before dispatching the first turn. Other profiles satisfy the clause by equivalent separation.
+On the native profile, Prospero runs on an elevated thread with supervision executed as direct calls rather than as messages competing for data-plane capacity. On the freestanding single-core profile the separation is hardware exception priority rather than a thread: dispatch runs in the processor's thread mode, and supervision, timer expiry, and turn-budget enforcement execute at reserved handler priorities with capacities set at build time. A freestanding implementation SHALL arm the control-plane tier, its timer, its watchdog, and its vector entries, before dispatching the first turn. Other profiles satisfy the clause by equivalent separation.
 
 ## 6. Admission
 
@@ -88,8 +84,6 @@ For a platform-supplied isolate execution model, the implementation MAY realize 
 
 On a single-core freestanding target, [DCont Representation](dcont-representation.md) already states that the suspend/resume semantics become the cooperative scheduler and that resume is the scheduling event. On that profile the conforming implementation is the lowered continuation surface together with the interrupt-to-continuation binding. There the contract names the discipline the reduction must preserve, and adds no mechanism of its own, so the smallest profile can be audited clause by clause.
 
-The compiler is designed to emit the capacity manifest a freestanding profile provisions from, derived from escape classification and arena extents, so the numbers a boot image is provisioned with would be outputs of analysis rather than developer guesses.
-
 ## 8. Authority
 
 An implementation occupies one of three authority positions, recorded in its manifest.
@@ -116,23 +110,7 @@ A freestanding implementation SHOULD preserve a last-words region across reset, 
 
 > **Clef Note**: The record and the determinism mode of §7 MAY share one mechanism. The recorded source sequence that makes replay possible and the telemetry stream are one object at two fidelities: total in a simulated implementation, a lossy prefix in production. Interpretation of user-level logging effects is Olivier's concern and out of scope here, except that the interpreter SHALL respect this section's invariants, with the turn as the natural batch boundary. The mechanism names in this section (ring, drain, last-words region) are illustrative. The invariants are the contract.
 
-## 10. Dormant References and Hydration (Proposed)
-
-> **Status (July 2026)**: This section is informative and proposed. Nothing in it is assumed by the normative clauses above.
-
-The design documentation gives an actor reference four states: `Valid`, `ActorTerminated`, `ProcessUnavailable`, `Unknown`. This proposal adds a fifth, `Dormant`: the reference designates an actor whose identity is current and whose execution state is at rest.
-
-Delivery to a `Dormant` reference is an admission decision at the actor's mailbox under §6, because the mailbox precedes the actor: addressability and admission capacity exist independently of whether execution state is hydrated. An accepted delivery raises a control-plane event to the resident supervisor. The supervisor decides hydration as policy, under a hydration budget symmetric with its restart budget, and the scheduler dispatches the initialization turn under §4. The message waits in the actor's own bounded mailbox for the duration. The supervisor holds the doorbell and never the mail: routing data-plane messages through the control plane would convert the supervisor into a queue, and §5 exists to keep those planes separate.
-
-Hydration preserves the actor's identity, so a reference held across passivation and hydration reads `Valid` before and after, and the interval is a scheduling delay rather than a semantic event. Restart after a fault re-mints identity, so a stale reference reads `ActorTerminated` and the failure stays observable to every holder. A design in which the two are indistinguishable would surrender the supervision model's visibility, which is the reason this proposal keeps them distinct states rather than one transparent activation mechanism.
-
-State at rest is a BAREWire layout. Passivation writes the actor's state through the same structural contract its messages use, and hydration maps that layout back. Both endpoints interpret the region by construction, so hydration never parses tagged bytes.
-
-On the freestanding profile, hydration SHALL only activate capacity the build's capacity manifest provisioned. There is no novel allocation on that profile, only activation of what the compiler already sized.
-
-The wire-crossing case, where a sender on one node holds a `Dormant` reference to an actor whose home is another node, composes the pieces above: admission at the remote mailbox, a control-plane event raised to the remote node's resident supervisor, hydration dispatched by that node's own scheduler. The sender neither observes nor orchestrates any of it. We are aware this reach of the design carries the most open questions, and we are taking some care to treat the referential-transparency and supervision-visibility consequences properly before any of it hardens into normative text.
-
-## 11. Conformance Requirements
+## 10. Conformance Requirements
 
 1. An implementation SHALL dispatch every ready actor within a finite number of scheduling events (§3).
 2. An implementation SHALL run every turn to completion without scheduler preemption, and SHALL report turn-budget exhaustion to the supervisor as a fault (§4).

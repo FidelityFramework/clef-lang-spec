@@ -188,21 +188,12 @@ let ptr = FnPtr.ofFunction (fun x -> x * multiplier)  // Compile error
  
 ```
 
-### 3.5 Removed Intrinsics
+### 3.5 Optional Function Pointers
 
-The following intrinsics are NOT available in Clef:
+An absent function pointer is represented by `None` of type `Option<FnPtr<'F>>`.
+Pattern matching distinguishes absence from a callable value.
 
-- ~~`FnPtr.null`~~: Use `Option<FnPtr<'F>>` with `None` instead
-- ~~`FnPtr.isNull`~~: Use pattern matching on `Option<FnPtr<'F>>` instead
-
-**Migration:**
 ```fsharp
-// Old (NOT SUPPORTED):
-let maybeCallback = FnPtr.null<int -> unit> ()
-if not (FnPtr.isNull maybeCallback) then
-    FnPtr.invoke maybeCallback 42
-
-// New (CORRECT):
 let maybeCallback : Option<FnPtr<int -> unit>> = None
 match maybeCallback with
 | Some cb -> FnPtr.invoke cb 42

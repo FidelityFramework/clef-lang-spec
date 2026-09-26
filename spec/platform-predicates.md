@@ -5,8 +5,7 @@ category: Platform
 status: normative
 ---
 
-> **Scope**: Implemented static device-access predicate fragment; extensions are identified below.
-> **Last Updated**: 2026-09-10
+This chapter specifies predicates for static device access.
 
 ## 1. Predicate authority
 
@@ -14,11 +13,6 @@ A Clef predicate preserves a proposition, its declaration dependencies and its
 standing until a concrete use requires a decision. CCS owns that decision.
 Composer consumes the resulting evidence; it SHALL NOT reinterpret quotations
 or infer hardware capabilities from architecture names.
-
-This chapter supersedes the earlier Alex-time capability-resolution design.
-The implemented consumer is static MMIO binding. General capability dispatch,
-runtime mapping guards and program-wide relational proofs are not implemented
-by this fragment.
 
 ## 2. Source declaration
 
@@ -50,7 +44,7 @@ The identifiers in this example must be declared in scope. The condition checks
 the relationship between those declarations. It does not measure a clock or
 prove the correctness of the code that establishes it.
 
-## 3. Implemented expression fragment
+## 3. Expression fragment
 
 The evaluator supports integer and Boolean literals, immutable references,
 fields of declaration-only records, arithmetic, comparisons, same-kind equality,
@@ -74,7 +68,7 @@ nodes, source provenance and one of these states:
 
 Pending SHALL NOT be interpreted as either Boolean value. An unused declaration
 may remain pending. A used binding that needs it SHALL be rejected until it can
-be established; this implementation does not synthesize a runtime guard.
+be established. A runtime guard SHALL NOT substitute for the required evidence.
 
 ## 4. Device access consumer
 
@@ -95,20 +89,20 @@ Before lowering, CCS SHALL establish:
 - Both register and workload permissions for the requested operation.
 - Full unsigned range coverage for a written value.
 - Supported byte order and ordering semantics.
-- The mapping establishment and lifetime requirements of this implementation.
+- The mapping establishment and lifetime requirements in this section.
 - Every additional predicate required by the grant.
 
 An additional condition, including `<@ true @>`, SHALL NOT waive these checks.
 Source integers and memory/transaction requirements remain distinct from the
-concrete Pointer width in the platform. Current lowering supports 32-bit and
+concrete Pointer width in the platform. Static MMIO bindings support 32-bit and
 64-bit pointers with volatile 8/16/32-bit transactions.
 
-Only nonzero static bases and image-lifetime mappings are currently lowered.
+Static MMIO bindings require nonzero static bases and image-lifetime mappings.
 `reset-identity` requires equal region/mapping bases and address-space names.
 `boot-contract` admits a CPU-visible placement supplied by an external boot
 contract. A missing base, runtime establishment or scoped lifetime remains
 pending when used. Unused declarations may retain these requirements or
-transaction widths for which no accessor has yet been implemented.
+transaction widths outside the accessor set.
 
 ## 5. Evidence and trust boundary
 
@@ -123,28 +117,20 @@ memory attributes, DMA visibility or lifetime of an external mapping. Grants
 also do not themselves establish MPU/MMU/TrustZone isolation. Assembly and
 foreign code remain explicit trust boundaries.
 
-The current closed-expression checks are compiler evidence, not an SMT solver
-certificate. Existing typed `ObligationBody` families and their proof dispatch
-remain separate mechanisms. A future symbolic or runtime extension must connect
-its evidence to the actual operation and its scope before claiming support.
+Closed-expression checks are compiler evidence, not an SMT solver certificate.
+Typed `ObligationBody` families and their proof dispatch are separate mechanisms.
 
-## 6. Capability declarations and remaining design work
+## 6. Capability declarations
 
-The legacy `PlatformPredicate` union and Boolean `PlatformContext.Predicates`
-map are retained in CCS, but no general resolver/consumer populates that map.
-Literal Ariel capability quotations do not by themselves implement automatic
-pthread selection or conditional compilation.
-
-Future capability consumers must distinguish instruction availability, numeric
+Capability consumers SHALL distinguish instruction availability, numeric
 representation, concurrency support and deployment permission. Neither a
 64-bit word size nor an architecture name establishes vector extensions,
 atomicity, cache behavior or access to a particular device.
 
 Managed-substrate requirements such as shared-memory availability and the exact
-integer envelope remain relevant to [width inference](width-inference.md) and
-[behavior classification](behavior-classification.md). They need a concrete
-host/platform declaration and consumer. This fragment does not enforce a
-universal capability list or the old cross-architecture implication matrices.
+integer envelope require a concrete host/platform declaration and consumer
+under [width inference](width-inference.md) and
+[behavior classification](behavior-classification.md).
 
 ## 7. Diagnostics
 

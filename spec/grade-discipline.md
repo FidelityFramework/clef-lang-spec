@@ -2,12 +2,9 @@
 title: "Grade Discipline"
 weight: 170
 category: Language
-status: draft
+status: normative
 ---
 
-> **Status**: Draft
-> **Normative**: Prospective
-> **Last Updated**: 2026-07-31
 > **Companion Specs**: [algebra-declarations.md](algebra-declarations.md), [annotation-disciplines.md](annotation-disciplines.md), [units-of-measure.md](units-of-measure.md), [ntu-dimensional-architecture.md](ntu-dimensional-architecture.md), [width-inference.md](width-inference.md)
 
 This chapter specifies the grade structure of geometric algebra as two annotation disciplines of different algebraic character, together with their inference, their interaction, and their erasure behaviour.
@@ -77,13 +74,7 @@ The parity annotation is not an approximation. Where §3 gives a containment for
 
 In the majority of observed cases, the class of geometric-algebra error that produces a structurally meaningless result, as distinct from a numerically inaccurate one, is a parity error. The parity constraint is exact, and the check is one bit wide.
 
-### 2.4 Parametricity
-
-A term well-typed in the parity-extended measure algebra commutes with the grade involution, which is the algebra automorphism acting by $-1$ on the odd subspace. Parity instantiates the dimensional invariance property that [Units of Measure](units-of-measure.md) inherits from Kennedy's design, with the character group $\{\pm 1\}$ in place of $\mathbb{R}_{+}$.
-
-> **Status.** Claimed, not proved. The interaction with the numeric representation layer, where the involution acts on stored coefficients and annotations erase before lowering, has not been discharged. The property is not relied upon by any normative requirement in this chapter.
-
-### 2.5 Erasure
+### 2.4 Erasure
 
 Parity is a measure and erases with the other measures, per [Measure Parameter Erasure](units-of-measure.md#measure-parameter-erasure). It is absent from code generation and does not affect layout.
 
@@ -142,8 +133,6 @@ The mask, the Cayley sign data, and the constraint queries are compiler data str
 
 Each choice above is unobservable in the language and in the generated program. This specification imposes no host word size and no packing convention, and states no bound on $n$: the practical bound is a compiler-resource figure that an implementation determines against its own graph sizes and solver budget.
 
-The host row is contingent on two things that are scheduled to change: the machine CCS runs on, and the runtime CCS is written in. A concrete type written here would bind the compiler's representation to the bootstrap host. At self-hosting, the compiler's own blade masks become Clef values whose representation is selected by the discipline this chapter specifies.
-
 ### 3.4 Composition
 
 | Operation | Rule |
@@ -163,6 +152,13 @@ On masks, symmetric difference is XOR. Addition is a bitwise OR. The product is 
 The complement is the combinatorial right complement, defined on index sets, so it exists in a degenerate algebra where the pseudoscalar has no inverse. On the mask it is an involutive permutation of bit positions, index $i$ to index $(2^n - 1) \oplus i$, fixed at algebra declaration; signs do not affect support. The regressive product's rule follows from the complement identity and stays in QF_BV. The $k$-ary join is definable as a fold of the binary rule because the outer product is associative; it is stated for the hyperedge form directly so that no intermediate node is introduced; a binarized join would type intermediate nodes that carry no geometric identity.
 
 No grade-indexed product table is required. Knowing that two operands are grade $p$ and grade $q$ leaves $|A \oplus B| = p + q - 2|A \cap B|$ undetermined, so a grade-indexed support would require a $(n{+}1)^2$ table of reachable grades to recover what the blade rule computes directly.
+
+A derivative node carries a sound support over-approximation; that support alone
+does not establish an exact parity constraint.
+
+A sandwich product typed through these binary rules carries the sound
+over-approximate support. Parity and blade support alone do not establish that
+an operand is a versor and do not justify narrowing by a grade-preservation theorem.
 
 ### 3.5 The grade view
 
@@ -251,8 +247,6 @@ Grade admits no additive inverse in the value algebra. During constraint solving
 
 A formal negative grade SHALL cancel before elaboration completes. A residual negative grade at the elaboration boundary is `CLEF9622`.
 
-> **Design note.** The additive dual constructor carries the same cancellation obligation. This applies it to the grade axis. Whether negative grade admits a referent, and not only a discipline, is an open research question and is not part of this specification.
-
 ## 7. Normative Requirements
 
 1. **Optionality.** A compilation unit that declares no algebra SHALL be unaffected by this chapter.
@@ -269,14 +263,6 @@ A formal negative grade SHALL cancel before elaboration completes. A residual ne
 12. **Component width independence.** The representation of each coefficient of a multivector SHALL be selected from that coefficient's analyzed range. An implementation SHALL NOT impose a single representation across a multivector's components in the absence of a range that justifies it.
 13. **Stage separation.** The blade support SHALL NOT appear in emitted MLIR or in the generated program. A conformance requirement SHALL NOT be stated in terms of a host type, an MLIR type, or a device resource, and a figure belonging to one of the four stages of §3.3.1 SHALL NOT be presented as governing another.
 14. **Pathway invariance.** The component count $\lvert\beta\rvert$ SHALL be identical across target pathways for a given program. Only the per-coefficient realization of §5.5 varies by pathway.
-
-## 8. Open items
-
-- The parametricity claim of §2.4 requires discharge against the representation layer.
-- The multivector-derivative convention is unsettled, so the parity behaviour of a derivative node is specified only as the support over-approximation. See the amendment note for the Decidable by Construction paper.
-- The language server surface described in the PHG paper's §6.1 (grade resolution display, sparsity profile) is not specified here and is tracked separately.
-- The interaction between blade support and the BAREWire schema discipline at process boundaries is unspecified. A packed multivector's wire layout depends on its support, and two peers must agree on it. [NTU Dimensional Architecture §7.3](ntu-dimensional-architecture.md#73-barewire-contract-verification) raises the same question for resolved widths, and the resolution is likely the same. The intended resolution is containment against a declared mask (PHG paper §8.9): the schema declares the support, a sender's derived support lies within the declaration, widening to the declared mask is sound in the containment direction of §3.2, and a derived support exceeding the declaration is diagnosed at the producing endpoint.
-- The sandwich product's grade preservation holds for versor operands and not for arbitrary even multivectors, and versor-ness (an even element whose product with its own reversion is a scalar) is a value-level property that neither parity nor the blade mask carries. The candidate carrier is a nominal versor type whose constructors (bivector exponentials, products of unit vectors, checked normalization) are the discharge sites. Tracked with the metatheory agenda of the PHG paper §8.3; until it is settled, a sandwich typed through the binary rules of §3.4 carries the sound over-approximate support, not the theorem-narrow one.
 
 ## References
 

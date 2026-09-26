@@ -5,10 +5,6 @@ category: Language
 status: normative
 ---
 
-> **Status**: Draft
-> **Phase**: A (Type Universe) - Part of Clef principled type system redesign
-> **Last Updated**: 2024-12-30
-
 ## Overview
 
 This document specifies the native type universe for Clef, the F# native compiler. The design follows ML/OCaml foundations while preserving familiar F# developer experience.
@@ -18,8 +14,6 @@ This document specifies the native type universe for Clef, the F# native compile
 1. **Familiar Design-Time Experience**: Use F# type names (`string`, `option`, `int`), not foreign alternatives
 2. **Absolute Null-Freedom**: Everything is `voption<'T>` - no null values anywhere
 3. **Null-Freedom Cascades Through APIs**: Magic return values (`-1`, null, a throw) become `voption` returns
-4. **Leverage Existing F# Machinery**: Reuse FSharp.Core where possible
-5. **Spec Before Scaffold**: Document before implementing
 
 ---
 
@@ -93,7 +87,7 @@ type bool = true | false
 
 **OCaml Provenance**: OCaml represents booleans as unboxed integers (`false` = 0, `true` = 1). Clef preserves this representation but uses a full byte for alignment efficiency in arrays and structs.
 
-**Design Decision**: Booleans occupy 1 byte rather than 1 bit because:
+Booleans occupy 1 byte rather than 1 bit because:
 1. Sub-byte addressing is inefficient on modern hardware
 2. Array indexing requires byte-addressable elements
 3. Cache line efficiency favors byte alignment
@@ -115,9 +109,9 @@ There is one integer kind, `int`, with a dimension (`int<m>`, [Units of Measure]
 |------|------|-------|-----------|
 | integer | `int`, `int<dim>` | the smallest declared integer representation covering the analysed range; exactly the range's width on fabric; the platform's declared `Register` or `Pointer` width at a boundary its ABI governs | `i<w>` from the node; `index` where the value is an address held by a handle |
 
-**Design Decisions**:
+**Representation rules**:
 
-1. **No width-named integer type.** `int8`, `int16`, `int32`, `int64`, their unsigned forms, `byte`, `sbyte`, `uint`, `nativeint` and `unativeint` are not Clef types (D10, `Dimensional_Range_Design.md`). "There is only int that happens to be 8 wide." A width appears only in a declaration the compiler reads: the platform description and a boundary declaration (a wire-schema field, an MMIO register, a C ABI parameter in a binding descriptor, an endpoint contract). OCaml's `Int32.t` and `Int64.t` have no counterpart; interop widths belong to the descriptor, and the Clef signature beside it says `int`.
+1. **No width-named integer type.** `int8`, `int16`, `int32`, `int64`, their unsigned forms, `byte`, `sbyte`, `uint`, `nativeint` and `unativeint` are not Clef types. A width appears only in a declaration the compiler reads: the platform description and a boundary declaration (a wire-schema field, an MMIO register, a C ABI parameter in a binding descriptor, an endpoint contract). OCaml's `Int32.t` and `Int64.t` have no counterpart; interop widths belong to the descriptor, and the Clef signature beside it says `int`.
 
 2. **No GC tagging overhead**: Unlike OCaml's 63-bit tagged integers (which reserve 1 bit for runtime GC discrimination), Clef integers use full precision. Compile-time type safety eliminates the need for runtime type tags.
 
@@ -137,13 +131,13 @@ There is one integer kind, `int`, with a dimension (`int<m>`, [Units of Measure]
 
 ### 2.4 Real Kind
 
-There is one real kind, `float`, with a dimension (`float<m>`). Its representation, IEEE-754 binary32 or binary64, a posit, or a fixed-point format, is *selected* from the value's analysed range among the real representations the platform declares ([Numeric Selection §2](numeric-selection.md)); it is never fixed by a type name, and `float32`, `single`, `double` and `float64` are not Clef types (D10).
+There is one real kind, `float`, with a dimension (`float<m>`). Its representation, IEEE-754 binary32 or binary64, a posit, or a fixed-point format, is *selected* from the value's analysed range among the real representations the platform declares ([Numeric Selection §2](numeric-selection.md)); it is never fixed by a type name, and `float32`, `single`, `double` and `float64` are not Clef types.
 
 | Kind | Clef | Representation | MLIR type |
 |------|------|----------------|-----------|
 | real | `float`, `float<dim>` | the argmin of [Numeric Selection §2](numeric-selection.md) over the declared real representations covering the range; IEEE `f64` for a bare real of unobservable range | `f32`, `f64`, a posit or fixed-point format, from the node |
 
-**Design Decisions**:
+**Representation rules**:
 
 1. **`float` carries no representation claim.** A bare `float` with an unobservable range selects IEEE `f64`, the no-bet representation, without a diagnostic, and still carries range propagation; a dimensioned real with an unobservable range is a diagnostic at the dimensioning seam ([Numeric Selection §6](numeric-selection.md)).
 
@@ -178,7 +172,7 @@ type char = (* Unicode scalar value *)
 | **Alignment** | 4 bytes | Natural alignment |
 | **MLIR** | `i32` | Direct mapping |
 
-**Design Decision (RESOLVED)**: Characters are UTF-32 codepoints (4 bytes), not UTF-16 code units.
+Characters are UTF-32 codepoints (4 bytes), not UTF-16 code units.
 
 **Rationale**:
 1. **String encoding is UTF-8**: Clef strings are UTF-8 `memref<?xi8>` views (see Part 4.1)
@@ -248,7 +242,7 @@ Tuple: int * string (64-bit platform)
 | **Fields** | Word-sized slots | Naturally aligned |
 | **Boxing** | Floats often boxed | Never boxed |
 
-**Design Decision**: Tuples are **unboxed** - no heap allocation, no indirection, no headers. Fields are laid out contiguously with natural alignment.
+Tuples are **unboxed** - no heap allocation, no indirection, no headers. Fields are laid out contiguously with natural alignment.
 
 **Padding and Alignment Rules**:
 
@@ -537,8 +531,7 @@ for c in String.chars s do
 byte-range and UTF-8-validity evidence. It constructs an immutable snapshot;
 `String.toBytes : string -> array<int>` returns an independent mutable snapshot
 of those UTF-8 bytes. Neither direction exposes a mutable alias of string
-storage. The [conversion contract and current admission limits](native-type-mappings.md#integer-byte-unit-conversions)
-distinguish these language laws from the implemented proof coverage.
+storage. See the [conversion contract](native-type-mappings.md#integer-byte-unit-conversions).
 
 > **JSIR pathway** (JavaScript Substrate profile): `string` is realized as a host string, whose internal encoding is UTF-16 code units. The observable semantics of this section bind unchanged: `String.byteLength` SHALL return the UTF-8 byte count, `String.chars` SHALL yield Unicode scalar values, and indexing SHALL be by codepoint. The `memref<?xi8>` layout and its cost figures are properties of layout-realizing pathways and do not bind on this pathway ([Backend Lowering Architecture §4.5](backend-lowering-architecture.md)).
 
@@ -867,7 +860,7 @@ Set<'T>  (AVL tree node)
 
 ## Part 6: Function Types
 
-> **Principle**: Functions are first-class values. Explicit `inline` (never inline-by-default, which was tried and reverted because it multiplied bodies at every call site and exploded the PSG) lifts a scope-bounded buffer into the caller's frame so a returned view stays valid.
+> **Principle**: Functions are first-class values. Explicit `inline` lifts a scope-bounded buffer into the caller's frame so a returned view stays valid.
 
 ### 6.1 Pure Functions
 
@@ -921,7 +914,7 @@ Functions are real functions unless marked `inline`, and `inline` is a semantic 
 | SRTP-constrained definition | a `^typar` can only be generalized at an `inline` definition |
 | Lifting a scope-bounded buffer | a function that fills a stack buffer and returns a view over it must expand into the caller's frame so the view does not dangle ([Special Attributes and Types](special-attributes-and-types.md), "Inline Functions and Escape Analysis") |
 
-Everywhere else `inline` is discouraged, and platform-library code stays real functions: Clef targets many substrates through MLIR, and the optimizer decides inlining with whole-program context that a source-level `inline` binds away early. Inline-by-default (every function transparent, the model absorbed from an earlier library) was tried and reverted: it multiplied bodies at every call site and exploded the PSG.
+Everywhere else `inline` is discouraged, and platform-library code stays real functions: Clef targets many substrates through MLIR, and the optimizer decides inlining with whole-program context that a source-level `inline` binds away early.
 
 ```fsharp
 let inline dot (a: ^V) (b: ^V) = ...        // required: SRTP generalization
@@ -1103,7 +1096,7 @@ let readFlash (p: Ptr<byte, Flash, ReadOnly>) =
 
 ### 8.4 Arena as CCS Intrinsic Type
 
-> **Status (January 2026)**: Arena is implemented as an CCS intrinsic type.
+Arena is a CCS intrinsic type.
 
 **Type Definition**:
 ```fsharp
@@ -1153,11 +1146,6 @@ let buffer = Arena.alloc &arena 256
 
 **Byref Parameter**: Operations that mutate arena state (alloc, reset) take `Arena<'lifetime> byref` to enable in-place position updates without copying the three-word struct (24 bytes on x86-64, 12 bytes on thumbv8m/M33).
 
-**Lifetime Inference Principle**: Arena demonstrates the three-level approach:
-- **Level 3 (Explicit)**: Current - full manual control
-- **Level 2 (Hints)**: Future - `arena { }` computation expressions
-- **Level 1 (Inferred)**: Future - compiler escape analysis
-
 > **See**: [memory-regions.md](memory-regions.md#arena) for detailed Arena semantics.
 
 ### 8.5 Hardware Peripheral Descriptors
@@ -1182,106 +1170,51 @@ type GPIO_TypeDef = {
 
 ## Part 9: Coeffects and Resource Tracking
 
-> **DEFERRED TO PHASE B**: This section will be completed after QuantumCredential PoC.
-
-### 9.1 Pure vs Effectful Classification
-
-TBD - Continuation-based RAII model
-
-### 9.2 Resource Coeffects
-
-TBD - `ResourceCoeffect` type integration
+Coeffects record the context required by a computation. Their carriage and
+preservation are specified in [Program Semantic Graph](program-semantic-graph.md).
+Resource ownership and cleanup follow the [Memory Regions](memory-regions.md)
+and [Closure Representation](closure-representation.md) contracts.
 
 ---
 
 ## Part 10: Interactive Development (clefx)
 
-> **Spec Reference**: See [`interactive-development.md`](../../spec/interactive-development.md) for full specification.
-
-The type universe must account for interactive development scenarios where types are defined and evaluated incrementally.
+[Interactive Development](interactive-development.md) specifies the native session
+contract. The interactive CLI is named `clefx`, matching the `.clefx` script extension.
 
 ### 10.1 Interactive Session Types
 
-In clefx (Clef Interactive), types are resolved in an evolving environment:
+Session-local and dependency definitions must be checked by CCS under the same
+native type rules as project source. A session must retain the revision,
+compiler-generation and target identities of those judgments.
 
-```fsharp
-> type Point = { x: int; y: int };;
-type Point
+### 10.2 Lifetimes in Interactive Mode
 
-> let origin = { x = 0; y = 0 };;
-val origin : Point
-```
+The ordinary lifetime and memory-region contracts apply to retained interactive
+values. A session must establish storage and code lifetimes before admitting
+retained values, reset or unloading.
 
-**Type Resolution in Interactive Mode**:
-- Types defined in the session are immediately available
-- Types from `#require` directives are loaded into the type environment
-- CCS resolves types against both session-local and loaded definitions
+### 10.3 Native Execution and the Compiler Host
 
-### 10.2 Arena Semantics in Interactive Mode
-
-Interactive sessions use arena-based allocation:
-
-| Aspect | Compiled Program | Interactive Session |
-|--------|-----------------|---------------------|
-| Arena Lifetime | Program-controlled | Session-controlled |
-| Reset | Explicit | `#arena reset` directive |
-| Persistence | N/A | `#persist` for cross-reset values |
-
-**Type Implications**:
-```fsharp
-> let data = [1..1000000];;
-val data : int list  // Allocated in session arena
-
-> #arena reset;;
-// data is no longer valid - type checker knows this
- 
-```
-
-### 10.3 Interpretation vs Compilation Type Semantics
-
-| Mode | Type Checking | Execution |
-|------|---------------|-----------|
-| Interpret | Full CCS | Interpreted |
-| Compile | Full CCS | Native code |
-| Hybrid | Full CCS | Mode-dependent |
-
-All modes use identical type semantics. The difference is only in execution:
-
-```fsharp
-> #mode compile;;
-> let rec fib n = if n < 2 then n else fib (n-1) + fib (n-2);;
-val fib : int -> int  // Same type in all modes
- 
-```
+Native interactive execution follows CCS/Baker construction, the versioned
+semantic graph, Alex witnessing, admitted MLIR and LLVM JIT invocation. There
+is no separate interpreter or hybrid execution mode. A
+.NET or FSI bootstrap host may execute the compiler implementation and inspect
+its data; FSI never supplies Clef evaluation or native value representation.
 
 ### 10.4 Script File Type Semantics
 
-Script files (`.clefx`) follow the same type semantics as compiled modules:
-
-```fsharp
-// script.clefx
-let greeting : string = "Hello"  // string as a UTF-8 memref<?xi8> view
-let maybe : int option = Some 42  // voption<int>, non-null
- 
-```
+`.clefx` scripts use the same native type universe as `.clef` modules.
+The extension does not introduce managed string, option or object types.
 
 ### 10.5 Cross-Compilation Type Considerations
 
-When targeting a different platform:
-
-```fsharp
-> #target linux-arm64;;
-Target: linux-arm64 (cross-compiling from linux-x64)
-
-> sizeof<nativeint>;;
-val it : int = 8  // Reflects target, not host
- 
-```
-
-**Platform-Specific Types**:
-- `nativeint`/`unativeint` size reflects target platform
-- `index` width and the `Ptr<'T, 'Region, 'Access>` handle width reflect the target architecture
-- Type layouts follow target ABI
+Type layouts, numeric widths, `index` width and pointer-handle representation
+follow the selected target's declarations and ABI. They do not inherit the
+compiler host's layout. Checking or inspecting a target-dependent type is
+separate from executing code for that target; native invocation requires a
+compatible execution environment. Target changes invalidate dependent session
+judgments and execution products.
 
 ---
 
@@ -1392,7 +1325,7 @@ CCS (Clef Compiler Service) resolves types to native representations at the sour
 
 > **Design Philosophy**: Clef draws provenance from OCaml's direct memory layout idioms - concepts that F#/.NET lacks entirely because the CLR abstracts memory away. However, OCaml is desktop-centric and non-cache-aware. Fidelity extends OCaml's foundation with modern hardware realities while incorporating Rust's RAII principles.
 
-### E.1 What OCaml Provides (KEEP)
+### E.1 What OCaml Provides
 
 OCaml contemplates direct memory layout in ways F#/.NET never does:
 
@@ -1407,7 +1340,7 @@ OCaml contemplates direct memory layout in ways F#/.NET never does:
 
 These concepts form the bedrock of Clef's type universe. The structural assembly semantics, deterministic tag assignment, and explicit-length model are adopted with minimal modification.
 
-### E.2 What OCaml Lacks (SET ASIDE)
+### E.2 What OCaml Lacks
 
 OCaml's desktop-centric, non-cache-aware limitations that Clef explicitly diverges from:
 
@@ -1424,7 +1357,7 @@ OCaml's desktop-centric, non-cache-aware limitations that Clef explicitly diverg
 
 OCaml assumes a desktop environment with ample RAM and a garbage collector managing memory. Clef targets the full spectrum from microcontrollers to GPU clusters.
 
-### E.3 Rust RAII Guideposts (ADAPT)
+### E.3 Rust RAII Guideposts
 
 Rust's ownership model provides valuable guideposts, adapted to F#'s functional idioms:
 
@@ -1434,7 +1367,6 @@ Rust's ownership model provides valuable guideposts, adapted to F#'s functional 
 | **Borrow checker** | Type-guided analysis | Less invasive than Rust's explicit lifetimes |
 | **Drop semantics** | Continuation-bounded resources | RAII via delimited continuation completion |
 | **Deterministic cleanup** | Arena/scope-bounded lifetimes | Resources released at scope exit, not GC |
-| **Move semantics** | Linear types (Phase B) | Ownership transfer without copying |
 
 Rust's insight that ownership can be tracked statically is preserved, but expressed through F#'s type system rather than explicit lifetime annotations.
 
@@ -1494,19 +1426,9 @@ Clef's type universe represents a synthesis:
 3. **From Rust**: Deterministic cleanup; ownership tracking (adapted to coeffects); RAII semantics
 4. **Fidelity Original**: Memory regions; access kinds; cache hierarchy awareness; processor-specific optimization
 
-This synthesis provides provenance (we didn't start from scratch) while forging a path suited to native compilation across the full hardware spectrum - from embedded microcontrollers to GPU clusters.
-
 ### E.6 References
 
 - OCaml Memory Representation: https://ocaml.org/docs/memory-representation
 - Real World OCaml, Runtime Memory Layout: https://dev.realworldocaml.org/runtime-memory-layout.html
 - Rust Ownership: https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html
 - Fidelity Cache-Aware Compilation: See SpeakEZ blog posts on cache-conscious memory management
-
----
-
-## Changelog
-
-- **2024-12-30**: Session 1 (Unit, Bool, Integers) - Comprehensive primitive type specification with OCaml provenance, cache alignment considerations, resolved char design decision (UTF-32 codepoints)
-- **2024-12-30**: Added Appendix E (OCaml Provenance and Fidelity Extensions) documenting design heritage and extensions
-- **2024-12-30**: Initial skeleton created from plan

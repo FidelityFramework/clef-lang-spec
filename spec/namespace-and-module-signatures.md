@@ -8,43 +8,15 @@ status: normative
 A _module signature_ specifies the functionality exposed by a module: the public values, types, and
 nested modules. Signatures hide implementation details.
 
-> **NORMATIVE**: Clef has no separate signature files. There is no `.fsi` analog; CCS does not
-> recognize a distinct interface artifact, and no file extension is reserved for one. A module's
-> public surface is described **in the same source file as its implementation**, using an inline
-> `signature ... end` block placed immediately before the `module` declaration it constrains.
+Clef has no separate signature files. CCS does not recognize a distinct interface artifact,
+and no file extension is reserved for one. A module's public surface is described in the same
+source file as its implementation, using an inline `signature ... end` block placed immediately
+before the `module` declaration it constrains.
 
-Because Clef is closely related to F#, this position is stated explicitly rather than left to
-inference. F# inherited separate signature files (`.fsi`) from the ML tradition, in which a
-separately compiled, separately reified interface supports compilation against a declared contract.
-Clef's model removes both preconditions that justify a separate interface artifact:
-
-- **The source is always available.** CCS computes compilation order from a whole-program syntactic
-  dependency analysis (see [§](program-structure.md#compilation-pipeline)); it never checks a client
-  against an interface in the absence of the corresponding implementation. The "compilation firewall"
-  that a C header or an ML `.mli` provides is not needed.
-- **Nothing is separately reified.** Clef compiles directly to native binaries with no assembly
-  metadata (see [§](program-structure-and-execution.md)). There is no metadata artifact for an
-  interface file to shape, so a separate interface would merely restate information the compiler
-  already holds in full.
-
-What is genuinely valuable in the ML signature tradition — *information hiding* (exposing a type
-abstractly while concealing its representation) and a *readable, reviewable statement of a module's
-public surface* — is retained by the inline `signature ... end` form, without a second file. A
-separate per-module artifact would impose maintenance overhead disproportionate to any guarantee it
-adds: every change to a module's surface would require editing two locations that the compiler can
-already reconcile from one. Where Clef does require an explicit cross-boundary contract that the
-compiler cannot infer — for instance a BAREWire descriptor for cross-processor memory layout — that
-contract is written once, at the boundary it governs, rather than mirrored across every
-module interface.
-
-> **Note**: This position was settled during the 2026 specification audit informed by F#'s
-> `--file-order-auto` work (the Costanich contribution). That work established that signature/
-> implementation pairs add non-trivial cost to dependency analysis: the export map must coalesce each
-> pair and redirect references from the signature to the implementation. Languages without separate
-> signature files avoid both steps. Clef aligns with mature ML-family practice that pairs
-> order-independent compilation with a single source of truth per module. The grammar of inline
-> signatures and the abstraction discipline they encode are given below; see also
-> [§](#design-discipline-and-prior-art).
+CCS computes compilation order from whole-program syntactic dependency analysis
+([§](program-structure.md#compilation-pipeline)). It checks clients against the corresponding
+module implementations and their inline signatures. A signature may expose a type abstractly
+while concealing its representation ([§](#abstract-type-signatures)).
 
 ```fsgrammar
 signature-decl :=
@@ -234,9 +206,6 @@ the following exceptions:
     constructors may not hide its `inherit` declaration, abstract dispatch slot declarations, or abstract
     interface declarations.
 
-> Note: This section does not yet document all checks made by the F# 3.1 language
-implementation.
-
 ### Signature Conformance for Functions and Values
 
 If both a signature and an implementation contain a function or value definition with a given name,
@@ -287,9 +256,11 @@ lambda value as in the following:
 let F x = x + 1
 ```
 
-> Note: Because arity inference also permits right-hand-side function expressions, the
-implementation may currently also be:
-<br>`let F = fun x -> x + 1`
+Arity inference also permits a right-hand-side function expression:
+
+```fsharp
+let F = fun x -> x + 1
+```
 
 The second signature
 
@@ -368,38 +339,3 @@ implementation must conform as follows:
     functions and values).
 - The `static`, `abstract`, and `override` qualifiers must match precisely.
 - Abstract members must be present in the signature if a representation is given for a type.
-
-> Note: This section does not yet document all checks made by the F# 3 .1 language
-implementation.
-
-## Design Discipline and Prior Art
-
-Clef's inline-signature design is not a novelty; it recombines well-established positions from the
-languages in its lineage, keeping the capabilities that earn their place and declining the artifact
-whose justification Clef's compilation model removes.
-
-- **OCaml (`.mli`) and the ML signature tradition.** The defining contribution of ML signatures is
-  the _abstract type_: a signature may expose `type t` while concealing its representation, so that
-  clients depend only on the operations, never the layout. Clef adopts this capability directly (see
-  [§](#abstract-type-signatures)) while declining the separate file. The abstraction is the asset;
-  the sidecar artifact is incidental to it.
-- **Standard ML signatures and opaque ascription.** SML distinguishes transparent ascription
-  (`structure M : S`) from opaque ascription (`structure M :> S`), where opacity is a property of how
-  a signature is *applied* to a structure — not of a separate compilation unit. Clef's inline
-  `signature ... end` is precisely an ascription on the module that follows it. Opacity is expressed
-  per type (reveal the name only) rather than per module, which is finer-grained than whole-module
-  sealing and does not require ML's functor machinery to be useful.
-- **Modula-2 and Mesa definition modules.** The separate `DEFINITION`/`IMPLEMENTATION` (Modula-2) and
-  `DEFINITIONS`/`PROGRAM` (Mesa) split is the historical origin of the two-file interface model. Its
-  motivation was separate compilation with cross-module type checking at a time when that was a novel
-  capability — the same compilation-model necessity a C header serves, and the same one that Clef's
-  whole-program dependency analysis makes unnecessary. The split solved a problem Clef does not have.
-- **Scheme (R6RS libraries).** A Scheme `library` form declares its public surface with an in-form
-  `export` clause; there is no separate interface artifact. This is direct prior art for the position
-  that a module's exported surface belongs *in the module's source*, declared explicitly, rather than
-  in a parallel file.
-
-The synthesis: Clef keeps **abstraction** (OCaml/SML opaque types) and **in-source declaration of the
-public surface** (Scheme `export`), and declines the **separate interface artifact** (Modula/Mesa,
-ML `.mli`, F# `.fsi`) whose rationale — a compilation firewall across separately reified units — does
-not apply to a whole-program, directly-native compiler.

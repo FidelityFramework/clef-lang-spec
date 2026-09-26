@@ -5,9 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-01-21 (Added Section 13: Enrichment, Section 14: Coeffect Analysis)
-
 ## 1. Overview
 
 The [Program Semantic Graph (PSG)](https://arxiv.org/abs/2603.17627) is the unified intermediate representation produced by CCS (Clef Compiler Service). It carries semantic information from type checking through to code generation, preserving the meaning of F# programs in a form suitable for native compilation.
@@ -356,7 +353,6 @@ Certain F# constructs require runtime structures that don't appear directly in s
 | Source Construct | Synthetic Structure | Location in PSG |
 |------------------|---------------------|-----------------|
 | `seq { }` | MoveNext state machine | SeqStateMachine nodes |
-| `async { }` | Continuation state machine | (Future) AsyncStateMachine nodes |
 | Pattern matching | Decision tree / switch | Match decomposition |
 
 Without saturation, code generators must synthesize these structures during emission, leading to:

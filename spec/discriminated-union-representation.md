@@ -5,9 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Draft
-> **Last Updated**: 2026-01-22
-
 ## Informative References
 
 > **Commentary**: Discriminated Unions (DUs) are arguably F#'s most distinctive feature: the embodiment of algebraic data types that enable type-safe modeling of domain variants. Their native representation must support the full power of F# while enabling efficient compilation without a managed runtime.

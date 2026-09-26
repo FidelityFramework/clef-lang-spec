@@ -5,10 +5,6 @@ category: Compiler
 status: normative
 ---
 
-> **Status**: Draft
-> **Phase**: A (Core Representation) - Part of CCS architecture
-> **Last Updated**: 2026-01-12
-
 ## Overview
 
 `ClefExpr` is the CCS (Clef Compiler Service) native typed expression representation. It provides an **expression-centric view** over [the SemanticGraph](program-semantic-graph.md), the core intermediate representation used by Clef compilation.
@@ -611,14 +607,3 @@ Key modules:
 ClefExpr is not a port or modification of FSharpExpr - it is a clean-room implementation with native-first semantics.
 
 ---
-
-## Appendix C: Evolution Notes
-
-### January 2026 - Initial Implementation
-
-ClefExpr was introduced as part of the CCS nanopass infrastructure to provide:
-1. Inspectable intermediates for debugging
-2. Expression-centric view for tooling
-3. Clean break from FCS's BCL-dependent representation
-
-The implementation follows the principle that SemanticGraph is the source of truth, and ClefExpr is a derived view for convenience.

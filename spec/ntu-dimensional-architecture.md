@@ -5,62 +5,20 @@ category: Language
 status: normative
 ---
 
-> **Status**: Design: Active
-> **Normative**: Prospective (will become normative as sections are implemented)
-> **Last Updated**: 2026-09-06
 > **Companion Specs**: [ntu-types.md](ntu-types.md), [platform-bindings.md](platform-bindings.md), [program-semantic-graph.md](program-semantic-graph.md)
->
-> **Normative Scope**: This chapter is the normative definition of Clef's dimensional substrate. Historical notes, project blogs, and ephemeral design memos under `docs/` are informative only. They may be retired, merged, or discarded without affecting the conformance obligations of this specification. Where a project document and this chapter disagree, this chapter governs.
 
-## 1. Motivation
-
-The NTU width-as-dimension redesign (February 2026) replaced 16 discrete integer/float
-variants with 3 parameterized kinds (`NTUint of NTUWidth`, `NTUuint of NTUWidth`,
-`NTUfloat of NTUWidth`), where `NTUWidth = Fixed of int | Resolved of WidthDimension`.
-This was a structural improvement, but it addressed only one axis of what the Fidelity
-Framework's Dimensional Type System (DTS) requires.
+## 1. Overview
 
 The Fidelity Framework targets heterogeneous compilation: a single F# application may
 contain sections of its program graph that target CPU, GPU, FPGA, NPU, or other compute
 architectures. Each section resolves to concrete types for its target, but the NTU must
 provide the abstract dimensional substrate that makes cross-target type reasoning possible.
 
-This document specifies the architectural direction for the NTU as a multi-dimensional
-type substrate, not merely "integers with variable width" but a type system where
+This chapter specifies the NTU as a multi-dimensional type substrate, where
 multiple dimensions survive compilation, [flow through the Program Semantic Graph](program-semantic-graph.md), and
 inform code generation for any target.
 
-### 1.1 Design Provenance
-
-The insight chain that motivates this architecture:
-
-1. **Farscape exposed the C `int`/`long` problem**: C `int` and `long` have
-   platform-dependent widths that don't map cleanly to `Pointer` or `Register`.
-   This revealed that width resolution is a genuine design axis, not a detail.
-
-2. **PlatformABI works for desktop but not heterogeneous compute**: Concrete
-   per-platform width resolution (PInvokeTypeMapper) is correct for .NET P/Invoke
-   targeting desktop/server platforms. But the same approach cannot extend to
-   microcontrollers (8-bit registers, 16-bit pointers), FPGAs (synthesis-parameter
-   datapaths), GPUs (warp-level execution, shared memory tiling), or NPUs (vector
-   registers, cascade accumulators).
-
-3. **Not every platform needs a binding generator**: FPGAs don't have C libraries to
-   bind; the application IS the hardware design. NPU tile code is native, not foreign.
-   The NTU needs to express target-native types directly, not only through FFI mappings.
-
-4. **Width is one dimension among many**: The DTS vision (see "Doubling Down on DMM
-   and DTS", SpeakEZ Technologies, January 2026) identifies dimensional types that
-   don't erase after type checking; they flow through the PSG and inform code
-   generation. Width, memory space, access pattern, alignment, tensor shape are all
-   dimensions in this sense.
-
-5. **BAREWire reconciles heterogeneous sections**: When a CPU component hands data
-   to a GPU kernel, BAREWire defines the memory layout contract. Each side compiles
-   against its own PlatformContext, but the BAREWire contract ensures the handoff is
-   type-safe. "Good contracts make good boundaries."
-
-### 1.2 Core Principle
+### 1.1 Core Principle
 
 **The NTU is a [multi-dimensional type substrate](https://arxiv.org/abs/2603.16437).** Types carry dimensional metadata
 that survives compilation and informs target-specific code generation. When a section
@@ -72,11 +30,9 @@ It is to have the dimensional underpinnings to accept and map from target to tar
 
 ## 2. Dimensional Axes
 
-The NTU's type system is organized around multiple orthogonal dimensional axes.
-Width (the current `NTUWidth`) is the first implemented axis. This section catalogs
-the full dimensional landscape.
+The NTU's type system carries orthogonal dimensional metadata through the program graph.
 
-### 2.1 Width Dimension (Implemented)
+### 2.1 Width Dimension
 
 The bit-width of numeric types. Can be fixed or platform-resolved.
 
@@ -86,7 +42,7 @@ The bit-width of numeric types. Can be fixed or platform-resolved.
 type WidthDimension = WidthDimension of name: string
 
 /// The width coeffect on a numeric node: the width selected from the analysed
-/// range (never written in source, D10), or the platform's declared dimension at
+/// range (never written in source), or the platform's declared dimension at
 /// a site its ABI governs.
 type NTUWidth =
     | Selected of bits: int           // from the range, among the declared representations
@@ -96,42 +52,22 @@ type NTUWidth =
 **Resolution**: `PlatformContext.Dimensions` (declared name → bits) and
 `PlatformContext.Representations` provide the declared widths and representations per target.
 
-**Current scope**: Sufficient for CPU and MCU targets where Pointer and Register
-capture the two independent hardware width axes. Farscape carries C ABI widths (C `int`,
+On CPU and MCU targets, Pointer and Register describe independent hardware width axes.
+Farscape carries C ABI widths (C `int`,
 C `long`) in the binding descriptor quotation it emits, a boundary declaration the compiler
-reads; the Clef signature beside it is `int`. There is no fixed-width NTU type
-(`Dimensional_Range_Design.md` §4, §9).
+reads; the Clef signature beside it is `int`. There is no fixed-width NTU type.
 
 **Declared, not enumerated**: `WidthDimension` is a name the platform description declares (§7.1). `Pointer` and `Register` are the CPU declarations; a fabric binding declares its port widths; the `Dimensions` map is keyed by the declared name. Fidelity.Platform, not Farscape, declares width dimensions.
 
-### 2.2 Memory Space Dimension (Design)
+### 2.2 Memory Space Dimension
 
 The memory space a value inhabits. Critical for GPU targets where global, shared,
 and private memory have fundamentally different performance and coherency characteristics.
 
-Candidate dimensional axis:
+Memory-space identity follows §7.2. Region placement and target reachability are
+specified in [Memory Regions](memory-regions.md).
 
-| Memory Space | Meaning | Primary Target |
-|---|---|---|
-| Stack | Thread-local stack allocation | All |
-| Heap / Arena | Arena-managed allocation | CPU, MCU |
-| Global | Device global memory | GPU |
-| Shared | Workgroup-shared memory (programmer-controlled cache) | GPU |
-| Private | Per-thread register file | GPU |
-| Peripheral | Memory-mapped I/O | MCU (via BAREWire) |
-| Constant | Read-only, broadcast-optimized | GPU |
-
-**Interaction with type system**: Memory space annotations could be type-level
-properties (analogous to Rust's lifetime annotations or CUDA's `__device__`,
-`__shared__`, `__constant__` qualifiers) that flow through the PSG and constrain
-code generation. The type system would prevent invalid cross-space access at
-compile time rather than runtime.
-
-**BAREWire relationship**: BAREWire already describes peripheral memory-mapped
-access patterns (ReadOnly, WriteOnly, ReadWrite) and address layouts. The memory
-space dimension would formalize what BAREWire expresses operationally.
-
-### 2.3 Access Pattern Dimension (Design)
+### 2.3 Access Pattern Dimension
 
 How a memory location may be accessed. Overlaps with memory space but is
 orthogonal: a global memory location can be read-only or read-write.
@@ -146,7 +82,7 @@ orthogonal: a global memory location can be read-only or read-write.
 **BAREWire relationship**: BAREWire's `PeripheralDescriptor` already carries
 access qualifiers. This dimension formalizes them in the NTU.
 
-### 2.4 Alignment Dimension (Design)
+### 2.4 Alignment Dimension
 
 Alignment constraints that flow through the type system and inform layout decisions.
 
@@ -166,15 +102,9 @@ preventing false sharing between actors without runtime discipline.
 Cache line size comes from PlatformContext; natural alignment comes from the type's
 layout; explicit alignment comes from annotations.
 
-### 2.5 Tensor Shape Dimension (Design, Future)
+### 2.5 Temporal/Lifetime Dimension
 
-For ML/compute targets, tensor indices (batch, channel, height, width) are dimensional
-metadata that could flow through the type system. This is relevant for NPU targeting
-where tensor layout affects memory access patterns and computation scheduling.
-
-### 2.6 Temporal/Lifetime Dimension (Existing, Coeffect System)
-
-Resource lifetimes and ownership semantics are already partially modeled through
+Resource lifetimes are modeled through
 CCS's coeffect system and the Deterministic Memory Management (DMM) architecture.
 These interact with memory space and access pattern dimensions: a value's lifetime
 constrains which memory spaces it can inhabit, and ownership determines which access
@@ -255,9 +185,9 @@ BAREWire serves three roles in the multi-stack model:
 
 ---
 
-## 4. PlatformContext Evolution
+## 4. PlatformContext
 
-### 4.1 Current State (Width Only)
+### 4.1 Width Context
 
 ```fsharp
 type PlatformContext = {
@@ -270,26 +200,8 @@ type PlatformContext = {
 }
 ```
 
-### 4.2 Multi-Dimensional Evolution
+### 4.2 Platform Authority
 
-As new dimensional axes are implemented, PlatformContext evolves to carry resolutions
-for all axes. The existing `Dimensions` map may generalize:
-
-```fsharp
-// Conceptual direction: NOT a concrete implementation proposal
-type PlatformContext = {
-    PlatformId: string
-    WidthDimensions: Map<WidthDimension, int>
-    CacheLineSize: int                           // bytes
-    MemorySpaces: Set<MemorySpace>               // what spaces exist on this target
-    SimdWidth: int option                        // SIMD register width, if applicable
-    ComputeModel: ComputeModel                   // Sequential | SIMT | Dataflow | ...
-    Predicates: Map<PlatformPredicate, bool>
-    // ...
-}
-```
-
-The exact shape depends on which dimensional axes are implemented. The principle is:
 **PlatformContext is the single source of truth for how abstract dimensions resolve
 on a specific target.** Fidelity.Platform is the component that constructs
 PlatformContext from platform descriptors (fidproj TOML).
@@ -331,10 +243,9 @@ graph already carries ([Program Hypergraph §5](program-hypergraph.md)).
 
 ### 5.3 Fidelity.Platform
 
-The platform descriptor layer. Constructs PlatformContext from fidproj TOML
-configuration. As dimensional axes are added, Fidelity.Platform grows the set of
-resolutions it provides. For novel targets (FPGA, NPU), Fidelity.Platform is the
-component that would declare target-specific dimensions, not Farscape, not BAREWire.
+The platform descriptor layer constructs PlatformContext from fidproj TOML
+configuration. Fidelity.Platform declares target-specific dimensions, including
+dimensions for FPGA and NPU targets.
 
 ### 5.4 Farscape (C/C++ Binding Generator)
 
@@ -347,10 +258,6 @@ declarations to NTU types:
   Resolved dimensions.
 - **P/Invoke output**: Uses PInvokeTypeMapper for CLR-concrete types. Entirely
   separate from the NTU.
-
-Farscape's contribution to the dimensional architecture was diagnostic: it revealed
-that the NTU's WidthDimension vocabulary was insufficient for C ABI diversity, which
-catalyzed the broader rethinking documented here.
 
 ### 5.5 BAREWire
 
@@ -367,59 +274,15 @@ graph sections is structurally sound.
 
 ---
 
-## 6. Implementation Roadmap
-
-### Phase 1: Width Dimension (COMPLETE, February 2026)
-
-- `NTUWidth = Fixed of int | Resolved of WidthDimension`
-- `WidthDimension` declared by the platform description; `Pointer` and `Register` are the CPU declarations (§7.1)
-- `PlatformContext.Dimensions: Map<WidthDimension, int>`
-- 3 parameterized kinds replace 16 discrete variants
-- NTUother eliminated; no escape hatch
-
-### Phase 2: Farscape Type System Separation (COMPLETE, February 2026)
-
-- PInvokeTypeMapper.fs: CLR-concrete types per PlatformABI
-- TypeMapper.fs: NTU-abstract types for Fidelity output
-- PInvokeCodeGenerator uses PInvokeTypeMapper; FidelityCodeGenerator uses TypeMapper
-
-### Phase 3: Farscape Fidelity Output PlatformABI Awareness (IN PROGRESS)
-
-- TypeMapper gains PlatformABI parameter for C type resolution in Fidelity mode
-- C `int`/`long` resolve to Fixed-width NTU types based on target platform
-- Resolved dimensions reserved for genuinely platform-abstract types
-
-### Phase N: Memory Space Dimension
-
-- Memory space annotations as type-level properties
-- GPU shared/global/private memory space tracking
-- MCU peripheral memory via BAREWire integration
-- Compile-time prevention of invalid cross-space access
-
-### Phase N+1: Alignment Dimension
-
-- Cache-line alignment as platform-resolved dimension
-- False sharing prevention by construction
-- SoA/AoS layout transformations guided by dimensional analysis
-
-### Phase N+2: Multi-Stack Section Compilation
-
-- Program graph partitioning into target sections
-- Per-section PlatformContext resolution
-- BAREWire contract verification between sections
-- Target-specific code emission (LLVM, SPIR-V, HLS)
-
----
-
-## 7. Open Questions
+## 7. Dimensional Identity and Boundaries
 
 ### 7.1 WidthDimension Extensibility
 
-Settled 2026-09-04 by the design the pre-prints set: a width dimension is a name the platform description declares, not a closed enumeration in the language. A CPU description declares `Pointer` and `Register`; a fabric binding declares the width of each port it governs; an NPU description declares its lane and accumulator widths. `Resolved d` is the platform description's declared width at a site its ABI governs ([NTU Types §1](ntu-types.md)); no width is ever written by a developer (D10). `Dimensions: Map<WidthDimension, int>` is already keyed by the declared name, so the only change from the earlier closed form is that the key is declared by Fidelity.Platform rather than enumerated here. Interior widths on any target come from the analysed range and need no dimension at all ([Width Inference](width-inference.md)).
+A width dimension is a name the platform description declares, not a closed enumeration in the language. A CPU description declares `Pointer` and `Register`; a fabric binding declares the width of each port it governs; an NPU description declares its lane and accumulator widths. `Resolved d` is the platform description's declared width at a site its ABI governs ([NTU Types §1](ntu-types.md)); no width is written by a developer. `Dimensions: Map<WidthDimension, int>` is keyed by the name declared by Fidelity.Platform. Interior widths on any target come from the analysed range and need no dimension at all ([Width Inference](width-inference.md)).
 
 ### 7.2 Dimensional Type Identity
 
-Decided 2026-09-04. Identity is exact on every dimensional component: unit, memory space, region and access kind. No component is subtyped. Width and representation are not components: they are coeffects beside the type ([NTU Types §1](ntu-types.md), [Width Inference §5](width-inference.md)), selected from the analysed range; two integers of different selected widths meeting at an operator are one kind, and their result's width is selected from the result's range. There are no seals and no conversion sites (D10).
+Identity is exact on every dimensional component: unit, memory space, region and access kind. No component is subtyped. Width and representation are not components: they are coeffects beside the type ([NTU Types §1](ntu-types.md), [Width Inference §5](width-inference.md)), selected from the analysed range; two integers of different selected widths meeting at an operator are one kind, and their result's width is selected from the result's range. There are no seals and no conversion sites.
 
 - `int` at `Stack` and `int` at `Global` are different types; a value crosses memory spaces only through an explicit transfer.
 - Access is invariant. A `ReadWrite` handle where `ReadOnly` is required passes only through `Ptr.asReadOnly` ([Access Kinds](access-kinds.md)), a node in the graph; a `ReadOnly` handle where `ReadWrite` is required is `CCS8022`.
@@ -428,11 +291,8 @@ The enumeration sort needs no ordering; every check is equality ([DTS/DMM §2.5]
 
 ### 7.3 BAREWire Contract Verification
 
-How does CCS verify that both sides of a BAREWire contract are dimensionally
-consistent? The layout description must be interpretable from both platform contexts.
-This likely requires BAREWire layouts to be expressed in terms of Fixed dimensions
-(concrete widths/alignments) rather than Resolved dimensions, since the two sides
-may have different resolutions for the same dimension.
+CCS SHALL verify that both sides of a BAREWire contract are dimensionally
+consistent. The layout description SHALL be interpretable from both platform contexts.
 
 ---
 

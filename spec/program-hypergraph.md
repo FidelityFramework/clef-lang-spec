@@ -5,10 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status (September 2026)**: Normative for the structure and checking boundaries it defines. Graph-resident joint relations have implemented instances; the general saturation machinery and additional domain instances remain under development. This chapter does not establish their implementation acceptance.
->
-> **Informative reference**: The design exposition, the domain analyses (geometric algebra, spatial dataflow, physics-aware computation), and the motivating measurements are developed in *The Program Hypergraph* (Haynes 2026, working draft, `arxiv-papers/program-hypergraph-paper.md`). This chapter carries the normative distillation of that design; the paper's application sections impose no requirement.
-
 The Program Hypergraph (PHG) is the [Program Semantic Graph](program-semantic-graph.md) with explicit directed relations of arbitrary source arity. A relation retains the participants of a joint requirement: buffers sharing a capacity budget, the ordered operands of a geometric operation, or mesh elements sharing a boundary. A binary graph can encode the same relation using a relation node and role-labelled links. Ordered hyperedges make that identity direct and available to the analyses that need it. Pairwise equality of locations already establishes a common location; checking whether all buffers fit there additionally requires their joint resource constraint.
 
 The program's semantic nodes and structural/reference relationships remain its computational spine. A local fact may remain a node coeffect. When its justification depends on several participants, the PHG retains that incidence, the premises, and the applicable rule as a joint relation. Elaboration can construct operational nodes as well as analysis relations. These are different roles within one graph; an obligation edge is not an executable instruction. The lattice used by an analysis orders its information, not the graph's topology.
@@ -71,7 +67,7 @@ The witness SHALL retain or establish the correspondence between each consumed f
 
 ## 6. Domain Instances
 
-> *Informative.* The rows below locate the hyperedge kinds this specification and the design corpus currently use. Each is normative only in the chapter that owns it.
+The rows below identify hyperedge kinds and the chapters that define their requirements.
 
 | Hyperedge kind | Discharge | Owning treatment |
 |---|---|---|

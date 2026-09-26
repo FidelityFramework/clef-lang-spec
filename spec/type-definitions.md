@@ -1652,9 +1652,8 @@ called `Item` are special in the sense that they are accessible via the `.[]` no
 that takes one argument is accessed by using `x.[i]`; with two arguments by `x.[i,j]`, and so on.
 Setter properties must return type `unit`.
 
-> Note : As of F# 3. 1 , the special `.[]` notation for `Item` properties is available only for
-instance members. A static indexer property cannot be accessible by using the `.[]`
-notation.
+The `.[]` notation for `Item` properties is available only for instance members.
+A static indexer property cannot be accessed using the `.[]` notation.
 
 Property members may be declared `abstract`. If a property has both a getter and a setter, then both
 must be abstract or neither must be abstract.

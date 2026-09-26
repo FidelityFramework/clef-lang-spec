@@ -11,17 +11,13 @@ status: normative
 
 Numeric selection is the **real-valued counterpart** of [Width Inference](width-inference.md). Width inference sizes an *integer* from the bit count its value range requires; numeric selection chooses the *representation* of a *real* — whether a value is best carried as a posit, an IEEE-754 float, or a fixed-point number — from that value's dimensional range. The two are halves of one discipline: representation follows from analyzed range, never from a target type name. Unresolved facts remain pending during elaboration and are diagnosed when required for representation commitment, subject to the explicit bare-float policy in §6.
 
-The objective is a single, deterministic, compile-time function: for a real value with range `[a, b]` on a target offering a set of representations `R`, select the representation that minimizes worst-case relative error over the range. This is the objective sketched in [Width Inference §4](width-inference.md), made sound here by two side-conditions the bare form requires; the present chapter specifies it in full, including those side-conditions, the range-evidence and boundary-constraint model, the unobservable-range contract split on dimensionedness, the capability-coeffect treatment of performance, and the concrete/parameterized representation scope split. Section 10 specifies the subsequent arithmetic-construction obligations, including quire accumulation and permitted parallel decomposition.
+The objective is a single, deterministic, compile-time function: for a real value with range `[a, b]` on a target offering a set of representations `R`, select the representation that minimizes worst-case relative error over the range. The coverage constraint and error metric of §2 determine the eligible candidates and their scores. Range evidence, boundary constraints and target capabilities govern selection as specified below. Section 10 specifies the subsequent arithmetic-construction obligations, including quire accumulation and permitted parallel decomposition.
 
 The single observation that unifies the design: **the dimensional range, not the dimension, is the input to selection.** Knowing that a value carries dimension *meters* does not distinguish nanometers from astronomical units. The dimensional algebra (see [Units of Measure](units-of-measure.md) and [NTU Dimensional Architecture](ntu-dimensional-architecture.md)) establishes the *kind*; the concrete `[a, b]` establishes the *representation*. Range evidence constrains selection; target capabilities and boundary declarations determine which representations may be considered.
 
 > **Governing principle — design-time range selection provisions the runtime envelope.** A representation is selected whose dynamic range and precision profile *cover* the value's range with margin (§2.1), so that runtime — or training-time — behavior cannot out-run the representation's ability to preserve precision. For an evolving computation (e.g. an adaptive model whose distribution shifts during training), the range must cover the evolution admitted by its contract; expected drift alone does not establish a hard bound. Preservation of representation is therefore a **design-time guarantee, not a runtime mechanism**: nothing re-selects at runtime. Intended loss is expressed in arithmetic whose range is analyzed ([Width Inference §7](width-inference.md#7-intended-loss-is-arithmetic)); a known failure of coverage is a hard error. A boundary declaration fixes the required representation (§3.3, §5); the value's justified range must still pass the coverage check.
 
-> **Lineage.** Kennedy's units-of-measure work supplies the dimensional algebra. Refinement and automated-verification work in F* and Dafny provides context for range obligations. Quotations and active patterns, developed in F#, inform the proposed library interface. Posit formats and quires follow their declared arithmetic specifications. These precedents explain the design without imposing their host representations on Clef.
-
-### 1.1 Status discipline
-
-This chapter distinguishes requirements that follow directly from prior art and standards from requirements that are this specification's own design construction. Where a requirement is a forced consequence of the objective plus the integer-twin infrastructure, it is stated as normative without qualification. Where a requirement is a design decision this specification *adopts* — implementable and recommended, but not compelled by external canon — it is marked **[Design decision]**. Genuinely unresolved items are marked **[Not yet specified]** rather than invented.
+> **Lineage.** Kennedy's units-of-measure work supplies the dimensional algebra. Refinement and automated-verification work in F* and Dafny provides context for range obligations. Quotations and active patterns, developed in F#, provide mechanisms for carrying range laws. Posit formats and quires follow their declared arithmetic specifications. These precedents explain the design without imposing their host representations on Clef.
 
 ## 2. The Selection Objective
 
@@ -45,7 +41,7 @@ The bare argmin as written above is **ill-posed without two side-conditions**, s
 
 ### 2.1 The feasibility (coverage) constraint
 
-**[Design decision.]** A candidate whose dynamic range does not cover `[a, b]` is *not* excluded by the raw argmin. For `x` beyond `r`'s maximum representable magnitude, `round_r(x)` saturates and the relative-error term approaches a finite value near `1.0` — so a non-covering representation produces a *bounded* score and can pathologically *win* when every candidate scores near `1.0`. A diagnostic bolted on after selection does not protect the objective. The candidate set is therefore filtered *before* the argmin:
+A candidate whose dynamic range does not cover `[a, b]` is *not* excluded by the raw argmin. For `x` beyond `r`'s maximum representable magnitude, `round_r(x)` saturates and the relative-error term approaches a finite value near `1.0` — so a non-covering representation produces a *bounded* score and can pathologically *win* when every candidate scores near `1.0`. A diagnostic bolted on after selection does not protect the objective. The candidate set is therefore filtered *before* the argmin:
 
 \[R_{\mathrm{cov}}(T, [a, b]) = \{\, r \in R(T) \;:\; \mathrm{dynrange}(r) \supseteq [a, b] \,\}\]
 
@@ -55,7 +51,7 @@ A range or platform context that is still unresolved during elaboration is a pen
 
 ### 2.2 The zero-crossing error metric
 
-**[Design decision.]** The relative-error term `|x − round_r(x)| / |x|` **diverges as `x → 0`**. Signed dimensioned ranges routinely straddle zero (e.g. a membrane potential range `[−80, +40] mV`). For any range containing a neighborhood of zero, the unmodified worst-case is unbounded for *every* candidate — IEEE included, since near zero IEEE precision is governed by the subnormal floor, not by `2⁻ᵖ` — and the argmin is undefined.
+The relative-error term `|x − round_r(x)| / |x|` **diverges as `x → 0`**. Signed dimensioned ranges routinely straddle zero (e.g. a membrane potential range `[−80, +40] mV`). For any range containing a neighborhood of zero, the unmodified worst-case is unbounded for *every* candidate — IEEE included, since near zero IEEE precision is governed by the subnormal floor, not by `2⁻ᵖ` — and the argmin is undefined.
 
 The error metric is therefore a **mixed absolute/relative form with an ULP floor**:
 
@@ -86,11 +82,11 @@ These sources do not form an authority ranking. Their provenance records why a f
 
 The compiler propagates ranges through the PSG together with dimensional information. Real quantities require the real/dimensional interval domain of §9. A bounded expression can yield a range directly; division requires suitable bounds on its denominator. For gravitation, dimensional inference alone cannot establish `r ≥ r_min > 0`. That premise must come from applicable input evidence, a guard, or another justified fact before the law can yield a bounded force range.
 
-Profiling observations can inform analysis and suggestions, but observed extrema alone do not establish bounds on every admitted execution. Any use as a hard range requires a justified contract, validation, or other evidence establishing that bound (§14).
+Profiling observations can inform analysis and suggestions, but observed extrema alone do not establish bounds on every admitted execution. Any use as a hard range requires a justified contract, validation, or other evidence establishing that bound for the executions to which it applies.
 
 ### 3.2 Domain and library laws
 
-A domain library supplies laws and their premises, from which a range can be derived. For example, a membrane-potential model may establish `[−80, +40] mV` under stated conditions. Importing the library does not establish those conditions for an arbitrary value. The compiler checks the law's applicability and carries its justification with the derived range before running the selector against the target's formats. The quotation mechanism in §4 is a design sketch; its precise binding contract is **[Not yet specified]**.
+A domain library supplies laws and their premises, from which a range can be derived. For example, a membrane-potential model may establish `[−80, +40] mV` under stated conditions. Importing the library does not establish those conditions for an arbitrary value. The compiler checks the law's applicability and carries its justification with the derived range before running the selector against the target's formats. Quoted range laws satisfy §4.
 
 ### 3.3 Input contracts and boundary declarations
 
@@ -100,7 +96,7 @@ A contract about input values is a separate fact. Its bounds must be established
 
 ### 3.4 Composing evidence and discharging constraints
 
-**[Design decision.]** Range evidence SHALL compose according to its logical meaning and scope:
+Range evidence SHALL compose according to its logical meaning and scope:
 
 1. Each fact retains its value identity, dimension and scale, applicable path or context, premises, and justification. Facts about different values or incompatible contexts SHALL NOT be combined as facts about one value. Facts depending on mutable state require revalidation after a relevant change; an immutable capture retains the identity of the captured value.
 2. Sound enclosures established for the same value in the same context may refine one another by intersection. Bounds from alternative control-flow paths require a join that covers those alternatives, rather than an intersection. A library result participates only when its premises and parameter correspondence are established; a missing premise remains an obligation.
@@ -108,53 +104,23 @@ A contract about input values is a separate fact. Its bounds must be established
 4. Contradictory premises require a diagnostic unless the applicable path is established to be unreachable. An empty intersection SHALL NOT silently authorize representation commitment for a reachable value. Unreachable-path reasoning must be justified in the PSG; dropping a fact because another source has purportedly higher authority is not a remedy.
 5. Selection uses the resulting sound enclosure. A required representation fixes the candidate, while coverage and transfer fidelity remain obligations. If the available evidence cannot establish them, the compiler may seek refinement or retain a pending obligation during elaboration. At commitment it SHALL diagnose an unresolved obligation or a known coverage failure, as applicable (§2.1, §5, §6); it SHALL NOT fabricate a bound or select an uncovered representation.
 
-This composition rule supplies no blanket decidability or cost claim for the combined analysis. Each analysis and proof dispatch must satisfy its own admitted-domain and termination requirements.
+Each analysis and proof dispatch must satisfy its own admitted-domain and termination requirements. Measurement and rounding uncertainty allowances SHALL be reflected in sound bounds before consistency and coverage are checked; they SHALL NOT permit a value outside the committed representation's range ([Conformance §5](conformance.md#5-the-diagnostic-obligation)).
 
 Imported numerical laws and results used by another reasoning discipline SHALL satisfy [Conformance §6.1](conformance.md#61-verification-evidence-and-composition). Their checked evidence is used as lemma justification, not as an extension of the foundational axiom basis. Automatic instantiation SHALL preserve the identities of the values, partitions, representations and execution contexts on which the numerical result depends.
 
-## 4. The `Fidelity.Physics` Mechanism (design sketch)
+## 4. Quoted Range Laws
 
-`Fidelity.Physics` is **planned, not built.** This section is a design sketch, not a settled specification; the binding contract is **[Not yet specified]** (§11).
-
-The mechanism is **quotation-symbolic**: the library carries a range *law*, and the compiler *derives* the range by evaluating it. The derived capability — obtaining a range such as a force interval from the gravitation law — is the reason the law, rather than a precomputed range, is the carried object.
+A quoted range *law* carries an expression from which the compiler derives a range by evaluation over justified input bounds.
 
 The native Clef quotation must retain the law's numeric kinds, dimensional parameters, and value-level premises. PSG elaboration checks that structure and evaluates the admitted law over justified input ranges. The result includes a sound enclosure and its provenance, which remain available when a representation is selected.
 
 A hosted library can transport a quotation through an unmeasured `Expr<float -> ... -> float>` plus companion metadata where its host requires that encoding. This is a transport convention. Before using the law, Clef must reconstruct and validate the dimensional correspondence from the supplied metadata. Missing or contradictory dimensions are diagnostics. The hosted encoding does not define the type of a native Clef quotation or permit erasure of its source-level measure identity.
 
-This is a design sketch of a planned, unbuilt mechanism; the input-range leaves are tabulated, and the export interface and details of the admitted bound-evaluation language remain open (§14).
-
-> **Bound evaluation and selection.** The selected representation is a member of the target's finite candidate set. That finite result does not establish decidability or cost bounds for every upstream obligation. The compiler retains the sound input enclosure, the selected format's declared properties, and the justification for coverage. Product and partial-sum adequacy for a quire require the numerical obligations of §10.2.1. Any regime classifier used to reduce the search must preserve the covering candidates needed by the specified objective. A representation catalogue need not form a lattice under a single order.>
+> **Bound evaluation and selection.** The selected representation is a member of the target's finite candidate set. That finite result does not establish decidability or cost bounds for every upstream obligation. The compiler retains the sound input enclosure, the selected format's declared properties, and the justification for coverage. Product and partial-sum adequacy for a quire require the numerical obligations of §10.2.1. Any regime classifier used to reduce the search must preserve the covering candidates needed by the specified objective. A representation catalogue need not form a lattice under a single order.
 > Two consequences for the bound computation that feeds the classifier:
 >
 > - It must be **total and terminating**. The quotation range-law is restricted to a **total, terminating, closed-form sub-language**, and its bound `[a, b]` is obtained by **directly evaluating the expression in the outward-rounded interval domain of §9.1 — an image computation, not a satisfiability query handed to a decision procedure.** Algebraic operations (`+`, `−`, `×`, reciprocal, `sqrt`) evaluate to image intervals by the standard outward-rounded rules (including the sign-crossing reciprocal split); the `r²`-in-denominator case (§3.1) is bounded here when the law's premise `r ≥ r_min > 0` is established at the use site, so `r²`'s interval excludes zero. Transcendentals (`exp`, `log`, `sin`) evaluate on **pre-split non-oscillatory segments** where each is monotone (for `sin`, split at the half-period extrema), so the image interval is read from the endpoint images. They are deliberately *not* admitted as a logical theory — the first-order theory of the reals with `sin` is undecidable, which is exactly why the design evaluates rather than decides over them. The bound computation forms no logical formula at all; it is an image computation in the interval domain. Each downstream obligation dispatched as a formula must identify its supported theory and encoding. Finite output categories alone do not establish that every source law translates to linear integer arithmetic or bitvectors.
-> - The **method** used to compute the bound (interval arithmetic, affine forms, or any other sound image method) is an implementation detail of one terminating evaluation. Its safety obligation is **sound enclosure**: the interval must contain every result permitted by the stated premises. **Tightness** additionally bears on completeness and selection quality. An over-estimated bound remains sound, but an interval over-estimate where a variable recurs (e.g. `r` in `r·r`, the dependency problem) can push the bound across a regime boundary, change which lattice element wins, or manufacture a spurious `R_cov = ∅` error where a tighter method would have found a covering element. Refining that bound can resolve the error; accepting an under-covering representation cannot. No particular refinement algorithm is required here, and the tightness target remains open in §14.
->
-> The remaining open detail is the precise segment-splitting convention for each admitted transcendental (§14).
-
-The proposed library interface carries:
-
-1. **Dimensional parameters.** The law's input and result dimensions, checked by the measure algebra.
-2. **A typed quotation.** The range-law expression and its value-level premises, evaluated in the admitted bound domain.
-3. **Range classification.** An optional classifier over the resulting enclosure, subject to the coverage and selection requirements.
-4. **Registration and provenance.** An association between the law, its declaration, and its accepted justification, so the compiler can instantiate it at a relevant use site and check its premises.
-
-The same quotation form is a candidate interface for parameterized lemma libraries. A quoted proposition is an obligation until its justification is accepted. A domain library can supply an established theorem for repeated automatic instantiation, while each use still requires its premises to hold. The general proof-library admission contract is outside this numeric-selection sketch.
-
-The developer experience, under the honest scope of §3.1:
-
-```fsharp
-open Fidelity.Physics.OrbitalMechanics
-let gravForce (m1: float<kg>) (m2: float<kg>) (r: float<m>) : float<N> =
-    GravConst * m1 * m2 / (r * r)   // dimension inferred N (free, HM+ℤ unification);
-                                    // range requires justified input bounds,
-                                    // including r >= r_min > 0
- 
-```
-
-The compiler infers `N` structurally. A bounded force range additionally requires bounds on the masses and a positive lower bound on `r`. The planned library can supply the law and its reusable justification; importing it cannot establish those input premises. They may remain pending until sufficient context is available, but must hold before representation commitment.
-
-> **ML activation tuning.** A planned `Fidelity.ML` companion library may recommend an asymmetric posit configuration, such as an exponent bias that centers precision on an activation mode. The general selector still evaluates §2's worst-case objective over a justified enclosure of all admitted values. Concentration near a mode does not permit the library to remove possible outliers from that enclosure; a narrower range requires established bounds or explicit arithmetic that bounds the values. A recommendation is considered only among offered configurations and need not win the objective. A distribution-weighted expected-error objective remains a possible future refinement scoped to the ML domain library (§14).
+> - The **method** used to compute the bound (interval arithmetic, affine forms, or any other sound image method) is an implementation detail of one terminating evaluation. Its safety obligation is **sound enclosure**: the interval must contain every result permitted by the stated premises. **Tightness** additionally bears on completeness and selection quality. An over-estimated bound remains sound, but an interval over-estimate where a variable recurs (e.g. `r` in `r·r`, the dependency problem) can push the bound across a regime boundary, change which lattice element wins, or manufacture a spurious `R_cov = ∅` error where a tighter method would have found a covering element. Refining that bound can resolve the error; accepting an under-covering representation cannot. The bound computation must preserve sound enclosure when refining a range.
 
 ## 5. Boundaries and Reverse Selection
 
@@ -163,18 +129,18 @@ A boundary declaration fixes a representation at a site (§3.3). The compiler ch
 - If the declared representation covers the value's range and satisfies the transfer requirements of §10.1, selection SHALL honor it. Coverage alone does not establish exact representability or authorize an implicit conversion. A covering-but-suboptimal declaration that satisfies those requirements compiles and SHALL be witnessed at design time with the representation the open argmin would have chosen (CCS8014, information).
 - If it does *not* cover the range, that is the §2.1 hard coverage error, CCS8012; the remedies are to bound the value in arithmetic (`%`, `clamp`, a guard) or to change the declaration. The compiler never inserts a conversion and never selects a wrap or saturate discipline ([Width Inference §7](width-inference.md)).
 
-The parameterized `posit<n, es, rs, bias>` of §8 item 3 is a synthesis configuration for reconfigurable targets and never appears in source. Concrete representation names (`Posit32`, `f64`, `int` at 32 bits) are the codomain of selection and the vocabulary of platform declarations, never types in the language.
+Concrete representation names (`Posit32`, `f64`, `int` at 32 bits) are the codomain of selection and the vocabulary of platform declarations, never types in the language (§8).
 
 ## 6. The Default and Unobservable Case
 
-**[Design decision.]** Numeric selection distinguishes pending inference during elaboration from the boundary that commits a concrete representation ([Width Inference §6](width-inference.md#6-unobservable-ranges)). At that boundary, the unobservable-range contract is split on **dimensionedness**:
+Numeric selection distinguishes pending inference during elaboration from the boundary that commits a concrete representation ([Width Inference §6](width-inference.md#6-unobservable-ranges)). At that boundary, the unobservable-range contract is split on **dimensionedness**:
 
 - **Dimensioned real with unobservable range → ERROR at representation commitment.** A `float<newtons>` whose required range remains unresolved is reported with its missing provenance. The dimension establishes the kind of quantity; it does not supply a numeric magnitude bound. That bound may be established by later source context or an applicable domain or platform declaration. The obligation need not be discharged by an annotation at the first dimensioned expression, and the compiler SHALL NOT fabricate a representation while it remains pending.
 - **Bare `float` with unobservable range → IEEE `f64`, when offered and permitted.** This is the specified bare-float exception. It preserves the IEEE path without requiring a locality claim about where values cluster. It does not prove that an unbounded mathematical range fits a finite representation, authorize an unavailable format, or override a known coverage failure. The target's binding must offer `f64` and the capability policy of §7 must permit it; otherwise the required capability is diagnosed before commitment. Bare reals remain subject to range propagation, and known bounded ranges are checked under §2.1.
 
 ### 6.1 The bare/dimensioned seam
 
-**[Design decision.]** Ranges are composition-dependent, so the bare/dimensioned boundary needs explicit handling. Consider:
+Ranges are composition-dependent, so the bare/dimensioned boundary needs explicit handling. Consider:
 
 ```fsharp
 let x : float = bareInput in
@@ -191,7 +157,7 @@ There is one source real kind, `float` ([NTU Types §2.2](ntu-types.md#22-the-nu
 
 ## 7. Performance as a Capability Gate
 
-**[Design decision.]** Performance never enters the *score*. It enters as a **capability-coeffect filter on the candidate set**, with a three-valued capability per format: *native*, *emulated*, or *unavailable*.
+Performance never enters the *score*. It enters as a **capability-coeffect filter on the candidate set**, with a three-valued capability per format: *native*, *emulated*, or *unavailable*.
 
 ```
 R(T)      = { r : capability(T, r) ≠ unavailable }            -- the target's offered formats
@@ -214,37 +180,36 @@ Two reasons performance is a filter and not a cost term:
 
 The `allow-emulated-warn` policy lets emulated-ness influence *which diagnostic fires* — cost re-enters as a *reporting* side channel only, never as a representation-selection input. The pure-accuracy invariant is scoped to the *representation choice*, not to what is reported about it. Comparison of implementations preserving that choice and the required numerical contract is specified separately in §10.4.
 
-## 8. Concrete vs. Parameterized Representations
+## 8. Source Kinds and Representations
 
-**[Design decision.]** The representation space lives on three layers, split across the CPU/FPGA fork so that surface syntax and synthesis configurations never collide:
+The source kind and its selected representation have distinct roles:
 
-1. **Surface: `float<dim>`.** A range is a coeffect on the node; no posit width appears in the source type. A boundary declaration uses the platform vocabulary (§5), never a source `Posit32` type or seal ([NTU Types §2.2](ntu-types.md#22-the-numeric-kinds)).
-2. **Lowering codomain on fixed-ISA (CPU / SIMD / RISC-V): four concrete types `Posit8 / 16 / 32 / 64`.** Direct struct layout, clean SRTP dispatch, clean hardware mapping, clean error messages, clean quire pairing (a `Quire32.fma` takes `Posit32` by construction). Selection chooses *among these concrete types* plus IEEE and fixed-point. Concrete types are the **codomain of selection, not the surface syntax.**
-3. **Parameterized `posit<n, es, rs, bias>`: FPGA / reconfigurable-only synthesis search.** The `(rs, es)` grid is enumerable (`rs ∈ [2, 6]`, `es ∈ [1, 5]`, ≤ 25 points); **bias and asymmetry are a bounded but continuous parameterization explored heuristically, not enumerated.** Calling the *full* space "enumerable" would be wrong. This is type-directed *hardware synthesis*, not a type the developer instantiates, and it is future work.
+1. **Source kind: `float<dim>`.** A range is a coeffect on the node; no posit width appears in the source type. A boundary declaration uses the platform vocabulary (§5), never a source `Posit32` type or seal ([NTU Types §2.2](ntu-types.md#22-the-numeric-kinds)).
+2. **Lowering codomain on fixed-ISA targets (CPU / SIMD / RISC-V).** Selection chooses among the offered concrete representations: `Posit8`, `Posit16`, `Posit32`, `Posit64`, IEEE and fixed-point. A concrete posit format fixes its layout, dispatch, hardware mapping and quire pairing; a `Quire32.fma` takes `Posit32` operands. Concrete representation names belong to the codomain of selection.
 
-ML routing follows from this split: the domain library supplies a justified range and an asymmetric-bias recommendation. Reconfigurable targets may offer parameterized configurations; fixed-ISA targets offer their concrete formats. The recommendation does not bypass coverage, capability filtering, or the selection objective. A precision-floor finding concerns accuracy; failure to cover the value's dynamic range is the hard coverage error of §2.1. The two findings SHALL NOT be conflated.
+A precision-floor finding concerns accuracy; failure to cover the value's dynamic range is the hard coverage error of §2.1. The two findings SHALL NOT be conflated.
 
 ## 9. Carriage and the Real Interval Domain
 
-Numeric selection rides the same Program Semantic Graph coeffect frame that width inference uses for integers. The pattern to replicate, with honest cost annotations:
+Numeric selection uses the same Program Semantic Graph coeffect frame that width inference uses for integers:
 
-1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a peer `RepresentationSelection` coeffect beside the width-inference coeffect, computed in the same coeffect pass: range propagation runs in Elaboration wherever no platform fact is needed and is closed, together with selection, at Saturation against the platform description of the section ([NTU Dimensional Architecture §4.3](ntu-dimensional-architecture.md)). *(Cheap: a new field and a new producer.)*
-2. **Abstract sentinel at type-lowering.** Just as platform-word integers lower to an abstract width sentinel resolved at narrowing, reals lower to an abstract real/float sentinel resolved by a single `selectRepresentation` choke point into `posit<n, es, bias>`, IEEE `f32`/`f64`, or fixed-point. *(Moderate: a new sentinel and a new resolver; this hook does not exist for reals today.)*
+1. **PSG coeffect computed pre-emission.** Interval analysis runs once per graph before transfer; the result is carried as a coeffect. Numeric selection adds a peer `RepresentationSelection` coeffect beside the width-inference coeffect, computed in the same coeffect pass: range propagation runs in Elaboration wherever no platform fact is needed and is closed, together with selection, at Saturation against the platform description of the section ([NTU Dimensional Architecture §4.3](ntu-dimensional-architecture.md)).
+2. **Abstract sentinel at type-lowering.** Just as platform-word integers lower to an abstract width sentinel resolved at narrowing, reals lower to an abstract real/float sentinel resolved by a single `selectRepresentation` choke point into `posit<n, es, bias>`, IEEE `f32`/`f64`, or fixed-point.
 3. **Single resolver choke point**, analogous to integer narrowing.
 4. **Hard error on unobservability**, inherited and split on dimensionedness (§6).
 5. **Check-time diagnostics**, emitted in the same shape as the existing width-inference and FPGA diagnostics (§10).
 6. **Platform capability facts**, the natural seat for "does this target have native posit hardware, an extended posit instruction, or quire support?" (§7), and for the **boundary semantics** of each offered representation: what an operation does when its result leaves the representation's dynamic range (wrap on a two's-complement integer unit, saturation on a posit unit or a saturating DSP block, exact on fabric where the width is the range's). The range coeffect checks whether the operation's interval image fits the declared boundary. A possible crossing is the hard coverage error of §2.1, resolved by a tighter established bound, a covering boundary declaration, or arithmetic that explicitly expresses the intended loss. Hardware wrap or saturation behavior is used only to realize the program's declared arithmetic semantics; it never supplies an implicit conversion or licenses a non-covering representation.
 
-### 9.1 The real interval domain is a new abstract domain, not a port
+### 9.1 Real Interval Analysis
 
-**[Design decision.]** The integer interval domain is the five-case lattice of `ValueRange` (empty, bounded, a half-line above or below, unbounded) with exact transfer functions that saturate an endpoint to its infinity, and a width derived from the range by [Width Inference §3](width-inference.md) on read. A real/dimensional interval domain reuses the PSG **traversal skeleton, the coeffect-carriage discipline, the sentinel/resolver pattern, and the diagnostic plumbing** — but it does **not** reuse the transfer functions, which must be written from scratch over a continuous interval domain. Minimally it requires:
+The integer interval domain is the five-case lattice of `ValueRange` (empty, bounded, a half-line above or below, unbounded) with exact transfer functions that saturate an endpoint to its infinity, and a width derived from the range by [Width Inference §3](width-inference.md) on read. A real/dimensional interval domain reuses the PSG **traversal skeleton, the coeffect-carriage discipline, the sentinel/resolver pattern, and the diagnostic plumbing** — but it does **not** reuse the transfer functions, which operate over a continuous interval domain. It requires:
 
 - **Outward-rounded floating-point interval arithmetic** (sound interval endpoints round outward to remain a superset).
 - **Reciprocal/division with sign-crossing**: `1/[lo, hi]` where the interval contains zero splits into two unbounded pieces — the `r²`-in-denominator case requires an established positive lower bound to avoid an unbounded result (§3.1). This is one instance of the general rule that a nonlinear interval operation is a sign-case analysis (interval multiplication is the bounded case; see [Rounding §4.3](rounding.md)); reciprocal is the case whose pieces are unbounded.
 - **Transcendentals** (`sqrt`, `log`, `exp`, `sin`) — the physics use cases need them.
-- **A terminating widening over a continuous lattice** — the integer monotone-widening fixpoint does not transfer; real interval widening needs an explicit **widening-with-thresholds** operator (`∇`) to guarantee termination. The thresholds SHALL be the dynamic-range boundaries `±dynrange(r)` of the target's concrete format set: when an interval loop variable expands past a threshold, the widening snaps it to that format boundary, so the analysis terminates in a number of steps bounded by the (finite) count of format boundaries rather than ascending a continuous chain. For integers the thresholds are the declared representations' range boundaries of the sign-selected family, then the program's settled constants, then the infinity (clef `Dimensional_Range_Design.md` §1.2a, corrected 2026-09-05); for reals they are the dynamic-range boundaries `±dynrange(r)` of the target's concrete format set.
+- **A terminating widening over a continuous lattice** — the integer monotone-widening fixpoint does not transfer; real interval widening needs an explicit **widening-with-thresholds** operator (`∇`) to guarantee termination. The thresholds SHALL be the dynamic-range boundaries `±dynrange(r)` of the target's concrete format set: when an interval loop variable expands past a threshold, the widening snaps it to that format boundary, so the analysis terminates in a number of steps bounded by the (finite) count of format boundaries rather than ascending a continuous chain. For integers the thresholds are the declared representations' range boundaries of the sign-selected family, then the program's settled constants, then the infinity; for reals they are the dynamic-range boundaries `±dynrange(r)` of the target's concrete format set.
 
-This is a new abstract interpreter of research-grade weight, materially harder than the integer one it rides. "Same traversal" means the same graph traversal and carriage, not the same transfer functions.
+The shared traversal supplies graph traversal and carriage; each abstract domain supplies its own transfer functions.
 
 ### 9.2 The third reading of one PSG traversal
 
@@ -272,12 +237,12 @@ Each step consumes the preceding inference's output; the chain is verified durin
 
 ### 10.2 The quire pass
 
-**[Design decision — placement.]** The quire pass is a Composer nanopass, **downstream of selection** (it depends on the selected posit width) and **before the target-lowering fork**. It identifies eligible accumulation, sizes the quire, records its obligations and coeffects, and defers lowering to target binding. It is one instance of arithmetic construction under §10.3.
+The quire pass is a Composer nanopass, **downstream of selection** (it depends on the selected posit width) and **before the target-lowering fork**. It identifies eligible accumulation, sizes the quire, records its obligations and coeffects, and defers lowering to target binding. It is one instance of arithmetic construction under §10.3.
 
 - **Recognition.** An active pattern over PSG nodes identifies `fma`/`fold`/`reduce`-of-products over a selected posit representation as candidates. Recognition alone SHALL NOT authorize fusion. A sequential fold whose contract specifies rounded multiplication and addition at each step SHALL retain those semantics unless equivalence is established for the admitted inputs. A contract permitting exact products and accumulation with one final rounding MAY be realized by a quire MAC once its obligations are established (§10.3).
 - **Sizing.** The quire width `Q` follows the selected format. A b-posit (arXiv:2603.01615) uses a fixed universal quire of 800 bits (25 32-bit integers) for any width `n > 12`, independent of `n`. A full-gamut posit (Posit Standard 2022) uses `16n` bits, precision-dependent — 512 bits for posit32.
 - **Coeffect carriage.** The construction records *allocation* (100 B of state for a b-posit quire; 64 B for a full-gamut posit32 quire, before alignment and implementation overhead), *lifetime*, *capability*, and *dimension*, together with the arithmetic contract and discharged obligations of §10.3. Storage residency and any private partial accumulators are properties of the selected realization. An accumulation of `newtons × meters` carries dimension `joules`; finalization SHALL preserve that dimension.
-- **Per-capability lowering at the fork.** A target realization SHALL establish the operation-specific requirements of §10.4. A common accumulator width does not establish common instruction semantics, resource availability, or cost. The following placements are illustrative, not declarations that every target in the named class implements them.
+- **Per-capability lowering at the fork.** A target realization SHALL establish the operation-specific requirements of §10.4. A common accumulator width does not establish common instruction semantics, resource availability, or cost. The following table illustrates possible placements under those requirements.
 
 | Target | b-posit 800-bit quire residency | Local cost character |
 |---|---|---|
@@ -304,7 +269,7 @@ A quire preserves exact sums of products of its represented inputs while the ade
 
 ### 10.3 Arithmetic construction contracts
 
-**[Design decision.]** An *arithmetic construction* realizes a source operation or computation region using a specified representation, intermediate state, primitive operations, and finalization. Representation selection alone SHALL NOT authorize a change to the operation's arithmetic semantics. A construction SHALL retain the committed input and output representations and satisfy the applicable source and boundary contracts.
+An *arithmetic construction* realizes a source operation or computation region using a specified representation, intermediate state, primitive operations, and finalization. Representation selection alone SHALL NOT authorize a change to the operation's arithmetic semantics. A construction SHALL retain the committed input and output representations and satisfy the applicable source and boundary contracts.
 
 Before committing a construction, the compiler SHALL establish:
 
@@ -314,7 +279,7 @@ Before committing a construction, the compiler SHALL establish:
 4. **Observable behavior.** The required treatment of signed zero, non-finite values, invalid values such as NaR, exceptional conditions, and any observable arithmetic status. An implementation MAY exclude a case only when the admitted input and intermediate-value contracts justify that exclusion.
 5. **Evidence.** The premises, capacity and error bounds, operation identities, and preservation evidence on which the construction depends. Unresolved premises MAY remain pending during elaboration but SHALL be diagnosed before the construction is committed.
 
-The source or library contract MAY permit an exact reduction, a particular rounded evaluation structure, or a stated error bound. Improved accuracy alone SHALL NOT establish equivalence to an operation with specified intermediate rounding. The binding mechanism for additional library-supplied construction contracts is **[Not yet specified]**; this section introduces no source syntax or implicit reassociation permission.
+The source or library contract MAY permit an exact reduction, a particular rounded evaluation structure, or a stated error bound. Improved accuracy alone SHALL NOT establish equivalence to an operation with specified intermediate rounding.
 
 #### 10.3.1 Compensated, reproducible, and exact accumulation
 
@@ -339,7 +304,7 @@ These arithmetic obligations do not establish race freedom, safe publication of 
 
 ### 10.4 Target eligibility and realization cost
 
-**[Design decision.]** The target context supplied through the platform description SHALL provide the facts needed to validate each construction. A format's `native`, `emulated`, or `unavailable` classification (§7) SHALL NOT substitute for operation-specific evidence. Required facts include, where applicable:
+The target context supplied through the platform description SHALL provide the facts needed to validate each construction. A format's `native`, `emulated`, or `unavailable` classification (§7) SHALL NOT substitute for operation-specific evidence. Required facts include, where applicable:
 
 - primitive input, intermediate, and output precision; rounding and subnormal behavior; overflow and exceptional behavior; and permitted contraction or reassociation;
 - accumulator capacities, supported vector or matrix operations, and carry or normalization requirements;
@@ -348,15 +313,13 @@ These arithmetic obligations do not establish race freedom, safe publication of 
 
 Lowering SHALL preserve the construction's requirements through the emitted operations and their arithmetic modes. Unsupported requirements SHALL exclude that realization; they SHALL NOT authorize weaker arithmetic. An operation that requires a construction for which no permitted realization is available SHALL produce a capability diagnostic before commitment.
 
-The implementation MAY compare execution cost among realizations that preserve the selected representation and required numerical contract. This comparison SHALL NOT alter the representation-selection objective of §2 and §7, admit a non-covering representation, or weaken the numerical contract. A policy trading numerical results or guarantees against cost is **[Not yet specified]**.
+The implementation MAY compare execution cost among realizations that preserve the selected representation and required numerical contract. This comparison SHALL NOT alter the representation-selection objective of §2 and §7, admit a non-covering representation, or weaken the numerical contract.
 
 Cost analysis SHALL apply to each candidate realization's operations, dependency structure, storage, data movement, and coordination. Changing the construction can change work, span, and storage requirements. Estimates, measured results, and established bounds SHALL be distinguished and associated with the target configuration to which they apply. No cost estimate SHALL serve as proof of arithmetic eligibility or numerical accuracy.
 
-The platform fact schema, construction registry, and automatic realization-selection procedure are **[Not yet specified]**. The requirements above specify admissibility and preservation; they do not assert that a compiler pass or target implementation is available.
-
 ### 10.5 Capacity, error, and decomposition obligations
 
-**[Design decision.]** Representation coverage, numerical error, and reproducibility SHALL be established as separate properties. The selection score of §2 characterizes representation error over a range; it SHALL NOT be reported as an error bound for a computation composed of operations. A covering representation SHALL NOT, by itself, establish exactness, a sound enclosure, or permission to regroup the computation.
+Representation coverage, numerical error, and reproducibility SHALL be established as separate properties. The selection score of §2 characterizes representation error over a range; it SHALL NOT be reported as an error bound for a computation composed of operations. A covering representation SHALL NOT, by itself, establish exactness, a sound enclosure, or permission to regroup the computation.
 
 #### 10.5.1 Obligations by arithmetic family
 
@@ -379,11 +342,9 @@ A runtime check MAY establish a fact on a successful path only where the source 
 
 Arithmetic eligibility SHALL remain separate from memory ownership, publication, lifetime, and progress requirements (§10.3.2). Parallel realization requires both sets of obligations. Cost analysis MAY choose among eligible realizations (§10.4); it SHALL NOT waive either set.
 
-The abstract domains, solver dispatch, error-composition algorithms, and evidence encoding used to implement this section are **[Not yet specified]**. These requirements establish a conformance contract, not a claim that general fixed-point or floating-point verification is implemented.
-
 ## 11. Design-Time Surfacing and Accuracy Preservation
 
-The selection objective is computable at design time, so the compiler can show — *before anything runs* — **how much relative accuracy each candidate representation preserves across the value's actual range.** This is the capability with the most direct leverage for users, and the clearest demonstration that the compiler is materially different from an IEEE-only framework: the **tapered-versus-uniform tradeoff is made visible and quantitative at authoring time**, not discovered empirically after a long run drifts. IEEE-754 spends precision uniformly because it makes no bet on where values cluster; a posit concentrates precision where the values are. Where a domain's values live near magnitude `1.0` — true after natural-unit normalization for most physics, and for normalized ML activations — a posit preserves materially more accuracy than IEEE-754 *at equal width*, and the developer sees exactly that, per target, at the point of writing the code. Surfacing that bet and its payoff at design time is the showcase capability of numeric selection.
+The compiler can display each candidate representation's worst-case error over the value's analyzed range before execution. The comparison is computed per target using the coverage constraint and error metric of §2.
 
 Numeric selection emits **check-time diagnostics** in the same shape as the existing width-inference and FPGA diagnostics (severity, source range, related nodes, reachability), from a pass inside program checking, surfaced as squiggles and hovers. "Design time" here is continuous Lattice elaboration, distinct from ML "compile time." Canonical readouts (taper figures are illustrative continuous-taper anchors, not a fixed two-point model; see §2.2):
 
@@ -402,7 +363,7 @@ Error CCS8012: the declared posit<32, es=2> does not cover
   or establish a valid tighter range before this boundary.
 ```
 
-A rescaling suggestion is valid only if the compiler establishes the transformed range and checks coverage again. Changing units to AU does not by itself make the illustrated range fit a posit. New diagnostic codes form a numeric-selection family (peers of the width-inference and FPGA codes) and SHALL include at least: **coverage-empty** (`R_cov = ∅`), **near-zero degeneracy** (a range straddling zero with no representation resolving it under the ULP floor), **bare-source-unbounded-at-the-dimensioning-seam** (§6.1), **inconsistent range evidence** and **unresolved range or coverage obligations** (§3.4), **suboptimal boundary representation** (§5), and **quire capability failure** (§10.2).
+A rescaling suggestion is valid only if the compiler establishes the transformed range and checks coverage again. Changing units to AU does not by itself make the illustrated range fit a posit. Numeric-selection diagnostics form a family (peers of the width-inference and FPGA codes) and SHALL include at least: **coverage-empty** (`R_cov = ∅`), **near-zero degeneracy** (a range straddling zero with no representation resolving it under the ULP floor), **bare-source-unbounded-at-the-dimensioning-seam** (§6.1), **inconsistent range evidence** and **unresolved range or coverage obligations** (§3.4), **suboptimal boundary representation** (§5), and **quire capability failure** (§10.2).
 
 ## 12. Relationship to Other Features
 
@@ -411,7 +372,6 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 - **Native Type Universe** — the source has one real kind, `float`; IEEE `f32` and `f64` are representation choices. The unobservable bare-float exception is specified in §6; see [NTU Types](ntu-types.md).
 - **Incremental Computation** — its inferred, bounded, and explicit levels describe developer involvement. They do not rank the truth of range evidence or determine verification tiers; see [Incremental Computation §12](incremental-computation.md).
 - **Parallel execution** — arithmetic construction specifies which decompositions preserve the numerical contract (§10.3). Memory safety, publication, lifetime, scheduling, and liveness obligations remain separate. Satisfying one group of obligations SHALL NOT discharge the other.
-- **Negative types and reversibility** *(non-normative)* — a typed reversibility contract (negative types) is **orthogonal** to representation selection: it checks *structurally* and is representation-agnostic, so IEEE and posit alike satisfy it. Representation selection makes no promise of numerical reversibility; it provisions the precision envelope within which a reversible computation's residual stays bounded, and the quire's exact accumulation extends that horizon. A symplectic integrator typed via negative types and lowered with the quire is a client of both disciplines; that composition lives in a `Fidelity.Numerics` library, not in this chapter.
 
 ## 13. Normative Requirements
 
@@ -433,26 +393,10 @@ A rescaling suggestion is valid only if the compiler establishes the transformed
 16. **Separate numeric guarantees.** Capacity, arithmetic error, exactness, and reproducibility SHALL be justified independently under §10.5.1. Fixed-point scale changes and floating-point rounding SHALL retain their own obligations; integer width inference SHALL NOT be treated as sufficient verification of either family.
 17. **Automatic obligation checking.** Applicable numeric obligations SHALL be generated and checked without opt-in wrappers and independently of build mode (§10.5.2). Unresolved required obligations SHALL be diagnosed before commitment; a runtime check, assumed bound, or changed arithmetic SHALL NOT silently replace a required proof.
 
-## 14. Genuinely-Open Items
-
-> **Not yet specified.** The following are open and SHALL be resolved before the corresponding capability is claimed shippable. None is invented here as settled.
-
-1. **Lossy-conversion discipline syntax.** Closed 2026-09-04: there is no conversion and no seal form, and an intended loss is arithmetic with an analysed range ([Width Inference §7](width-inference.md); `Dimensional_Range_Design.md`). Not open.
-2. **`Fidelity.Physics` binding contract.** The export interface that associates a quotation-symbolic law (§4) with its premises, justification, and derived enclosure is unspecified, and the library is planned, not built. Section 4 requires a total, terminating image computation in the interval domain (§9.1). The remaining details include the per-transcendental segment-splitting convention and the tightness target for bound evaluation, including when refinement is needed to avoid rejecting a covering representation because of an over-estimate. An optional regime classifier does not replace the enclosure or its justification; a finite classification result alone does not establish that downstream obligations are finite lattice operations.
-3. **Measurement and rounding uncertainty.** The provenance and per-domain specification of uncertainty allowances remain open. Any admitted allowance SHALL be reflected in sound bounds before consistency and coverage are checked; it SHALL NOT permit an observed value outside the committed representation's range ([Conformance §5](conformance.md#5-the-diagnostic-obligation)). No particular uncertainty model or inference algorithm is established here.
-4. **Profiling-evidence provenance.** Recording, versioning, and cross-build validity remain unspecified. A sampled range SHALL NOT become a hard bound merely because it was observed. Any admission mechanism must identify the contract, validation, or other justification that establishes its applicability to subsequent executions (§3.1).
-5. **Asymmetric/biased ML objective.** Section 4 retains the general worst-case objective over a justified enclosure. The optional distribution-weighted objective would require an explicit probability model and a separate expected-error contract. Neither a density model nor a configuration recommendation may weaken hard coverage requirements.
-6. **Quire sizing-pass obligation.** The fixed quire *width* per format is settled (800 bits for a b-posit; `16n` for a full-gamut posit); the product and partial-sum verification, allocation, and coeffect carriage (§10.2.1) is downstream and must be fully defined.
-7. **Type-directed posit hardware synthesis.** The FPGA parameterized-config search (§8, layer 3) is future work; the bias/asymmetry portion of the search is bounded-but-continuous, not enumerable, and the synthesis pipeline is not built.
-8. **Error precedence.** The ordering between `R_eff = ∅` (no native-policy-permitted format) and `R_cov = ∅` (no covering format) when a target both lacks native support and offers no covering format needs a stated precedence.
-9. **ULP-floor definition.** The exact `ulp_min(r)` per representation family (IEEE subnormal floor vs. posit smallest-regime magnitude vs. fixed-point LSB), and whether the ULP-floor form or the `[−δ, +δ]` exclusion form is canonical, must be pinned. Normative once chosen.
-10. **Arithmetic-construction integration.** The binding of additional source or library numerical contracts, construction registry and evidence format, and automatic realization-selection procedure remain unspecified (§10.3–§10.4). The requirements for preserving an existing contract do not create new source syntax or establish that the corresponding passes are implemented.
-11. **Operation-specific platform facts.** The shared fact schema, target-specific declarations, and validation of arithmetic modes, capacities, resources, and memory or transport requirements remain unspecified (§10.4). A format-level capability flag is insufficient to establish construction eligibility.
-
-## Non-normative companions
+## Informative References
 
 - [Arithmetic Construction and Placement](https://clef-lang.com/docs/internals/numerics/arithmetic-construction-and-placement/) elaborates implementation boundaries, hardware facts, and validation strategies.
-- [Pondering Fearless Parallelism](https://clef-lang.com/blog/pondering-fearless-parallelism/) develops the motivation and proposed experiments.
+- [Pondering Fearless Parallelism](https://clef-lang.com/blog/pondering-fearless-parallelism/) explains the motivation for arithmetic construction and parallel execution.
 
 These companions provide explanation and examples; they do not add or weaken the requirements of this chapter.
 

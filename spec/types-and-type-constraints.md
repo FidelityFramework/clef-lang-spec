@@ -758,7 +758,7 @@ let maybeString : string = null
 let maybeString : string option = None
 ```
 
-The `option<'T>` type in Clef has `None` and `Some` cases. Case discrimination, payload layout and allocation residence follow the [native union contract](discriminated-union-representation.md); no CLR representation or null pointer is implied.
+The `option<'T>` type in Clef has `None` and `Some` cases. Case discrimination, payload layout and allocation residence follow the [native union contract](discriminated-union-representation.md); absence is represented by the `None` case, not a null sentinel or an inherited managed representation.
 
 **API Implications (Null-Freedom Cascades)**:
 

@@ -457,8 +457,7 @@ do expr
 ```
 
 The expression `expr` is checked with an arbitrary initial type `ty`. After checking `expr`, `ty` is asserted to
-be equal to `unit`. If the assertion fails, a warning rather than an error is reported. This warning is
-suppressed for plain expressions without `do` in interactive (`.clefx`) files.
+be equal to `unit`. If the assertion fails, a warning rather than an error is reported.
 
 A `do` statement may have attributes:
 
@@ -575,8 +574,7 @@ Non-public entities are not accessible from outside their defining scope.
 
 > **Clef Note**: Accessibility is enforced at compile time. Non-public symbols are not exported in the native binary's symbol table.
 
-> Note: The `family` and `protected` specifications are not supported in this version of the F#
-language.
+The `family` and `protected` accessibility modifiers are not supported.
 
 Accessibility modifiers can appear only in the locations summarized in the following table.
 

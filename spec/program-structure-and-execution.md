@@ -5,9 +5,9 @@ category: Semantics
 status: normative
 ---
 
-> **Clef Note**: Clef programs do not use CLI assemblies. Programs are compiled directly to native binaries from source files, with dependencies resolved at compile time from source packages or pre-compiled native libraries.
+> **Clef Note**: Clef programs do not use CLI assemblies. The native AOT pathway compiles source to native binaries, with dependencies resolved at compile time from source packages or pre-compiled native libraries. Native interactive execution follows the same semantic and lowering contracts before LLVM JIT invocation; see [Interactive Development](interactive-development.md).
 
-A Clef program comprises a set of implementation files (`.clef`), library dependencies specified in the project file (`.fidproj`), and optionally interactive files (`.clefx`) for the Clef Interactive REPL. Implementation files MAY be presented to the compiler in any order; CCS computes the compilation order from a syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). There are no separate signature files; module signatures, when present, are declared inline (see [§](namespace-and-module-signatures.md)).
+A Clef project comprises implementation files (`.clef`) and library dependencies specified in the project file (`.fidproj`). Implementation files MAY be presented to the compiler in any order; CCS computes the compilation order from a syntactic dependency analysis (see [§](program-structure.md#compilation-pipeline)). There are no separate signature files, including F# `.fsi` files; module signatures, when present, are declared inline (see [§](namespace-and-module-signatures.md)).
 
 ```fsgrammar
 implementation-file :=
@@ -15,16 +15,11 @@ implementation-file :=
     named-module
     anonymous-module
 
-script-file := implementation-file       -- interactive (.clefx) file, additional directives allowed
-
 named-module :=
     module long-ident module-elems
 
 anonymous-module :=
     module-elems
-
-script-fragment :=
-    module-elems                          -- interactively entered code fragment
 ```
 
 Module signatures may appear inline using the form:
@@ -93,12 +88,12 @@ module MyModule =
 The final identifier in the `long-ident` that follows the `module` keyword is interpreted as the module
 name, and the preceding identifiers are interpreted as the namespace.
 
-_Anonymous implementation files_ do not have either a leading `module` or `namespace` declaration. Only
-the scripts and the last file within an implementation group for an executable image (.exe) may be
-anonymous. An anonymous implementation file contains module definitions that are implicitly
+_Anonymous implementation files_ do not have either a leading `module` or `namespace` declaration.
+Within an implementation group for an executable image, only the last file may
+be anonymous. An anonymous implementation file contains module definitions that are implicitly
 placed in a module. The name of the module is generated from the name of the source file by
-capitalizing the first letter and removing the filename extensionIf the filename contains characters
-that are not valid in an F# identifier, the resulting module name is unusable and a warning occurs.
+capitalizing the first letter and removing the filename extension. If the filename contains characters
+that are not valid in a Clef identifier, the resulting module name is unusable and a warning occurs.
 
 Given an initial environment `env0`, an implementation file is checked as follows:
 
@@ -138,13 +133,8 @@ exposed with its representation reveals that representation (see
 
 ## Script Files
 
-Script files have the `.clefx` filename extension. They are used by the Clef Interactive REPL for development scenarios and are not directly compiled to native binaries by the Composer compiler. For native compilation, use implementation files (`.clef`) organized via a `.fidproj` project file.
-
-Script files have the following characteristics:
-
-- Side effects in the script are executed immediately in the interactive environment.
-- Script files may add other implementation files and script files to the list of sources by using the `#load` directive. Files are processed in the dependency order computed by CCS (see [§](program-structure.md#compilation-pipeline)); the textual position of `#load` directives does not determine compilation order. If a filename appears in more than one `#load` directive, the file is loaded only once.
-- Script files may have `#nowarn` directives, which disable a warning for the entire compilation.
+Clef script files use the `.clefx` extension and are processed by `clefx`, as
+specified in [Interactive Development](interactive-development.md#script-files).
 
 The Composer compiler defines the `FIDELITY` compilation symbol for native compilation. The `COMPILED` symbol is also defined for compatibility.
 
@@ -158,24 +148,17 @@ _Compiler directives_ are declarations in non-nested modules or namespace declar
 
 The lexical preprocessor directives `#if`, `#else`, `#endif` are similar to compiler directives. For details, see [§](lexical-analysis.md#conditional-compilation).
 
-The following directives are valid in all files:
+The following directive applies to implementation files:
 
 | Directive | Example | Short Description |
 | --- | --- | --- |
-| `#nowarn` | `#nowarn "54"` | For implementation (`.clef`) files, turns off warnings within this lexical scope. For interactive (`.clefx`) files, turns off warnings globally. |
+| `#nowarn` | `#nowarn "54"` | Turns off the specified warning within this lexical scope. |
 
-> **Clef Note**: The `#r` directive for referencing assemblies is not applicable to native compilation. Dependencies are specified in the `.fidproj` project file. The following directives are supported only in the Clef Interactive REPL, not in native compilation:
-
-| Directive | Example | Short Description |
-| --- | --- | --- |
-| `#load` | `#load "core.clef"` | Loads one or more implementation files into the interactive execution engine. |
-| `#time` | `#time "on"` | Enables or disables the display of performance information. |
-| `#help` | `#help` | Asks the script execution environment for help. |
-| `#quit` | `#quit` | Requests the script execution environment to halt execution and exit. |
+> **Clef Note**: The F# `#r` directive references assemblies and is not a Clef dependency mechanism. Project dependencies are specified in `.fidproj`.
 
 ## Program Execution
 
-> **Clef Note**: On the native target pathways, execution of Clef code occurs as a standalone native binary, not within a CLI runtime. There is no assembly loading, no JIT compilation, and no garbage collector. Memory management is deterministic and controlled by the compiler: each value's storage is chosen at compile time by its lifetime class under the four-point lifetime lattice (scope-bounded to the stack, region-bounded to a region, program-lifetime to static storage, genuinely-dynamic to the heap), specified in [Closure Representation §3.3](closure-representation.md) and given its region-storage form in [Memory Regions](memory-regions.md). On a target without a heap, only the scope-bounded and program-lifetime classes have a home, and a value that classifies as dynamic is a compile-time lifetime error rather than a silent allocation.
+> **Clef Note**: The native AOT pathway executes Clef as a standalone native binary. Native interactive execution uses LLVM JIT code through the same semantic and lowering contracts; neither pathway executes Clef as CLI assemblies or gives its values CLR garbage-collection semantics. The compiler host may itself run on .NET. Memory management is deterministic and controlled by the compiler: each value's storage is chosen at compile time by its lifetime class under the four-point lifetime lattice (scope-bounded to the stack, region-bounded to a region, program-lifetime to static storage, genuinely-dynamic to the heap), specified in [Closure Representation §3.3](closure-representation.md) and given its region-storage form in [Memory Regions](memory-regions.md). On a target without a heap, only the scope-bounded and program-lifetime classes have a home, and a value that classifies as dynamic is a compile-time lifetime error rather than a silent allocation.
 >
 > On the JSIR pathway ([Backend Lowering Architecture](backend-lowering-architecture.md)), the artifact is a JavaScript module executed by a host runtime that supplies JIT compilation and garbage collection. The lifetime lattice still classifies every value at design time; the host collector realizes reclamation. The clauses of this chapter that presume a native binary are scoped to the native pathways; the JSIR-pathway entry contract is the module-export mode below.
 
@@ -291,7 +274,7 @@ Freestanding builds (`output_kind = "freestanding"`) run without libc, so the co
 
 **Hosted ELF (Linux/ELF freestanding).** On a hosted OS that loads an ELF image without libc, the compiler generates a `_start` wrapper function that:
 
-1. Creates an empty `string array` (F# convention; full argc/argv conversion is future work)
+1. Creates an empty `string array`
 2. Calls the user's `main` function with this argument
 3. Calls `Sys.exit` with the return value
 
@@ -327,8 +310,6 @@ reset : unit -> unit                  // reset-vector entry; address recorded in
 The JSIR pathway's artifact is a module, and its entry contract is the export convention of the host environment named by the managed-substrate descriptor ([Platform Bindings](platform-bindings.md)). The pathway SHALL emit the export glue, the analog of `_start` on this pathway: exported handler functions and exported classes derived from the program's declared entry surface. Control arrives when the host invokes an export, and each invocation is an entry; there is no single entry function, no `argc`/`argv`, and no exit code, since termination belongs to the host.
 
 The `EntryPoint` attribute's `array<string> -> int` shape does not apply on this pathway. A program compiled for this pathway declares its entry surface through the platform bindings of its host environment ([JavaScript Boundary Semantics §7](javascript-boundary.md)); values crossing inward at an entry invocation are foreign and are narrowed as at any boundary.
-
-> **Not yet specified.** The declaration form by which a program names its exported entry surface.
 
 #### Console Mode (libc)
 

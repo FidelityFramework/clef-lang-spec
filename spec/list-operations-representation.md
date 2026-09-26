@@ -5,8 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-09-04
 > **Depends On**: [Native Type Universe § 5.3 List](native-type-universe.md#53-list), [Closure Representation §3.3](closure-representation.md#33-escape-analysis), [Program Hypergraph §6](program-hypergraph.md)
 
 ## 1. Overview

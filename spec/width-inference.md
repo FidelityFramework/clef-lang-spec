@@ -127,7 +127,7 @@ For example, LLVM `nsw` and `nuw` are assertions whose violation produces poison
 
 - **Dimensional Type System**: the dimensional range of a value is the principal input to representation selection (§4); width inference is the value-level realization of the dimensional discipline.
 - **[Native Type Universe](native-type-universe.md)**: inferred widths and representations are NTU representation choices carried through lowering.
-- **Intended loss and boundaries**: range analysis of arithmetic and declared boundaries (§7) specifies representation changes; the `Convert` and `NTU Conversion` chapters are not part of this specification.
+- **Intended loss and boundaries**: range analysis of arithmetic and declared boundaries (§7) specifies representation changes.
 
 ## 10. Normative Requirements
 

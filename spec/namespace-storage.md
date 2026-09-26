@@ -5,8 +5,8 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Draft (captured design; not yet ratified). This chapter defines **Namespace Storage (NSS)**, the layer that gives [Modular Blob Storage](modular-blob-storage.md) names, history, and growth — the first rungs of the filesystem ladder MBS §1 describes. A target's instantiation is documented with that target.
->
+This chapter defines **Namespace Storage (NSS)**, the layer that gives [Modular Blob Storage](modular-blob-storage.md) names, history, and growth — the first rungs of the filesystem ladder MBS §1 describes. A target's instantiation is documented with that target.
+
 > **Profile**: This chapter belongs to the **Freestanding Substrate** profile ([Conformance §7](conformance.md)). Its requirements bind an implementation that claims that profile; an implementation that delegates namespace persistence to a hosting environment does not claim the profile, and these requirements do not apply to it.
 
 ## 1. Overview
@@ -17,7 +17,7 @@ The central decision is that **the namespace has no mutable tree**. Namespace st
 
 Two consequences follow. First, the filesystem's own metadata needs no second storage substrate: cold namespace state rounds back into MBS, so the fixed-slot floor and any larger target share one persistence mechanism. Second, crash consistency, wear behavior, point-in-time recovery, and replication all reduce to properties of one structure — the ledger — rather than to separate machinery.
 
-*Prior art (informative).* The two-tier separation of nameless blob storage from a namespace layer follows the Haystack lineage. The demotion of cold namespace metadata into compressed chunks stored as ordinary blob data is the move SeaweedFS ships as sealed directories, at cluster scale; NSS adopts it as the *default* representation rather than an optimization, because a constrained target cannot afford the mutable-tree representation in the first place. The ledger-first, replay-derived posture is the event-sourcing discipline, and the framework's duality proposal gives it a typed justification (§6). Log-structured wear behavior at the flash layer is familiar from embedded filesystems such as littlefs; NSS obtains it at the namespace layer by construction.
+*Prior art (informative).* The two-tier separation of nameless blob storage from a namespace layer follows the Haystack lineage. The demotion of cold namespace metadata into compressed chunks stored as ordinary blob data is the move SeaweedFS ships as sealed directories, at cluster scale; NSS adopts it as the *default* representation rather than an optimization, because a constrained target cannot afford the mutable-tree representation in the first place. The ledger-first, replay-derived posture is the event-sourcing discipline. Log-structured wear behavior at the flash layer is familiar from embedded filesystems such as littlefs; NSS obtains it at the namespace layer by construction.
 
 ## 2. The Ledger
 
@@ -73,15 +73,9 @@ NSS extends the durability coeffect of MBS §7 with two components carried the s
 
 Like the substrate's components, these are analyzed in the middle end and committed at target binding, which selects the digest primitive, the codec, and the checkpoint policy. Point-in-time recovery, replication, and audit all consume the same two components rather than adding mechanisms.
 
-## 6. Recorded and Computed Reversibility (informative)
-
-The framework's duality proposal distinguishes computed reversal — an inverse re-run live against an η/ε pairing carried in the graph — from recorded reversal, a durable log replayed. The boundary is decidable from the types: an effect whose inverse depends on state outside the program is log work. A write to persistent media is the canonical such effect, which places the storage layer's reversibility on the recorded side *by type discipline*, not by convention. The ledger is that record, in the minimal form the discipline requires: (old, new) pairs, chained, sealed.
-
-On targets past the constrained floor, the two mechanisms compose: in-graph structures reverse computationally where the pairing certifies completeness, and the ledger holds exactly the sites whose inverses cross the durability boundary. The fractional discipline sketches the sharing account — read-shares of sealed segments as `1/T` obligations, with checkpoint compaction demanding the unified whole — and is a research direction of the duality proposal, not a requirement of this chapter.
-
 ## 7. Server-Scale Continuity (informative)
 
-Nothing in §§2–5 names a scale. At cluster scale the same structures reappear: the ledger becomes the metadata event stream peers subscribe to and replay from a position; segments become compressed metadata chunks resident in bulk blob storage; the root record becomes the store's superblock; custody generalizes from the device sequester to a metadata-store keyring over media that may run anywhere. An S3-compatible object service over this design — resolution, sharding, and sealing in one sealed image, in the tradition this framework's unikernel direction describes — is a target instantiation, documented with that target when specified.
+At cluster scale the ledger is the metadata event stream peers subscribe to and replay from a position; segments are compressed metadata chunks resident in bulk blob storage; the root record is the store's superblock; custody uses a metadata-store keyring. A target's storage-service instantiation is documented with that target.
 
 ## 8. Relationship to Other Features
 

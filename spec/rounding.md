@@ -18,10 +18,6 @@ Rounding enters the framework in **two distinct cases**, and the distinction is 
 
 Neither location makes rounding inherently harmless. Capacity, error, exactness, and reproducibility remain separate obligations under [Numeric Selection §10.5](numeric-selection.md#105-capacity-error-and-decomposition-obligations). These requirements introduce no source conversion or seal syntax (§6).
 
-### 1.1 Status discipline
-
-As in [Numeric Selection §1.1](numeric-selection.md), requirements that follow from prior art or external standards are stated normatively without qualification; requirements this specification *adopts* as a design construction are marked **[Design decision]**; genuinely unresolved items are marked **[Not yet specified]**.
-
 ## 2. The Rounding Modes
 
 The available rounding modes are a property of the representation family, and the families differ sharply in what they offer. This asymmetry is the reason rounding cannot be assumed.
@@ -30,11 +26,11 @@ The available rounding modes are a property of the representation family, and th
 - **Posit** (per the Posit Standard 2022) defines one format-specific rounding algorithm, including its encoding thresholds and extreme-value behavior, rather than selectable directed modes. A construction SHALL follow the complete declared rule; a nearest-even summary SHALL NOT replace that rule at tapered boundaries. Sound outward rounding over posit endpoints requires an additional construction (§4.2).
 - **Fixed-point** uses a declared scale. Discarding fractional information requires a specified rule, such as toward `+∞`, toward `−∞`, toward zero, or nearest with a stated tie rule. Floor and truncation toward zero differ for negative values. Capacity, rescaling, and error are separate obligations (§6.1); neither wrapping nor saturation is an automatic fallback (§5).
 
-> **[Not yet specified] — selection error floor.** The canonical floor in the selection metric remains open in [Numeric Selection §14](numeric-selection.md#14-genuinely-open-items). This does not make a declared format's spacing unknown: for binary IEEE precision `p` and minimum normal exponent `emin`, gradual-underflow spacing is `2^(emin-(p-1))`; binary fixed-point spacing is `2^(-f)`. A metric floor SHALL NOT substitute for the local spacing or error bound needed by an outward-rounding construction.
+For binary IEEE precision `p` and minimum normal exponent `emin`, gradual-underflow spacing is `2^(emin-(p-1))`; binary fixed-point spacing is `2^(-f)`. A metric floor SHALL NOT substitute for the local spacing or error bound needed by an outward-rounding construction.
 
 ## 3. Carriage: Identity for Soundness, Coeffect for Loss
 
-**[Design decision.]** Sound enclosure requirements constrain the admitted representation and construction; rounding and error evidence travel with the operation or boundary. These obligations can apply together at either location described in §1.
+Sound enclosure requirements constrain the admitted representation and construction; rounding and error evidence travel with the operation or boundary. These obligations can apply together at either location described in §1.
 
 ### 3.1 Sound-critical directed rounding is part of representation identity
 
@@ -74,7 +70,7 @@ If the exact result exceeds finite endpoint capacity, the construction SHALL pro
 
 ### 4.3 Directed rounding threads through a multi-step operation
 
-**[Design decision.]** A nonlinear interval operation does not compute each output endpoint from one fixed input endpoint the way addition does; it is a **sign-case analysis** whose output corner depends on the signs of the operands. Interval multiplication is the canonical case: each endpoint is a reduction over the four corner products,
+A nonlinear interval operation does not compute each output endpoint from one fixed input endpoint the way addition does; it is a **sign-case analysis** whose output corner depends on the signs of the operands. Interval multiplication is the canonical case: each endpoint is a reduction over the four corner products,
 
 ```
 lo = min(aLo·bLo, aLo·bHi, aHi·bLo, aHi·bHi)
@@ -89,7 +85,7 @@ A construction using rounded corner products SHALL establish a downward bound fo
 
 ## 5. Saturation and Wrap
 
-**[Design decision.]** Overflow handling at a representation boundary is a separate axis from rounding direction and SHALL be specified independently of it. Two disciplines are defined:
+Overflow handling at a representation boundary is a separate axis from rounding direction and SHALL be specified independently of it. Two disciplines are defined:
 
 - **Saturation** — a value exceeding the target's representable range is clamped to the nearest representable extreme.
 - **Wrap** — an `n`-bit integer carrier uses reduction modulo `2^n`, with the resulting bits interpreted under its signed or unsigned encoding. Fixed-point interpretation additionally uses the declared scale.
@@ -116,7 +112,7 @@ Same-scale additions MAY be regrouped as exact integer additions when every perm
 
 ## 7. Capability and Design-Time Surfacing
 
-**[Design decision.]** A target's support for a required rounding mode is **three-valued** — *native*, *emulated*, or *unavailable* — the same capability gate [Numeric Selection §7](numeric-selection.md) applies to representations, applied here to rounding modes. The per-target support facts require their own declaration and consumer; the implemented static MMIO fragment of [Platform Predicates](platform-predicates.md) does not supply a rounding-capability resolver. The rule, not the per-target realization, is normative here:
+A target's support for a required rounding mode is **three-valued** — *native*, *emulated*, or *unavailable* — the same capability gate [Numeric Selection §7](numeric-selection.md) applies to representations, applied here to rounding modes. The per-target support facts require their own declaration and consumer:
 
 - A required operation whose rounding is supported by the selected hardware instruction or circuit is *native*. Control-state setup can still have a cost.
 - A required operation synthesized from other operations, such as the posit enclosure construction of §4.2, is *emulated*. Its cost MAY raise a diagnostic under the applicable emulation policy.
@@ -157,16 +153,6 @@ Numeric selection's diagnostic family (per [Numeric Selection §11](numeric-sele
 8. **No default discipline.** The compiler SHALL NOT default to saturation or to wrap; a boundary a range does not cover is a diagnosed finding, and the program's own `clamp` or `%` is the only source of either behaviour.
 9. **Fixed-point fidelity.** Scale alignment, product capacity, rescaling exactness or permitted rounding, and error propagation SHALL be established separately (§6.1). Integer capacity alone SHALL NOT discharge these obligations.
 10. **Default checking and preservation.** Applicable rounding obligations SHALL be checked independently of build mode and without opt-in wrappers, under [Numeric Selection §10.5.2](numeric-selection.md#1052-automatic-analysis-and-commitment). Lowering SHALL preserve required rounding points, arithmetic modes, and execution-context state. Optimization permissions SHALL NOT supply their own justification.
-
-## 11. Genuinely-Open Items
-
-> **[Not yet specified].** None invented here as settled.
-
-1. **Conversion and seal surface syntax (§6).** Closed 2026-09-04: there is none ([Width Inference §7](width-inference.md)).
-2. **Selection error floor (§2).** The canonical metric-floor definition is shared with [Numeric Selection §14](numeric-selection.md#14-genuinely-open-items). It does not replace a declared format's spacing or a construction's outward-bound proof.
-3. **Overflow-discipline default (§5).** Closed 2026-09-04: the compiler defaults to nothing; the program's arithmetic states its intent and the platform declares what its hardware does.
-4. **Composed error analysis.** The algorithms and evidence encoding for error propagation across operations, rescaling, and transfers remain unspecified. The requirement to justify a claimed bound and preserve its assumptions is normative (§3.2; Numeric Selection §10.5).
-5. **Quire-to-enclosure construction.** The concrete construction for producing outward interval endpoints from a quire remains unspecified (§4.2). It must satisfy enclosure independently of ordinary scalar finalization; this does not introduce a new rounding mode into the Posit Standard.
 
 ## References
 

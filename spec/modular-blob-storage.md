@@ -5,8 +5,8 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Draft (captured design; not yet ratified). This chapter defines **Modular Blob Storage (MBS)**, the abstraction. A target's instantiation — for the EK-RA6M5, the *Credential Store* — is documented with that target.
->
+This chapter defines **Modular Blob Storage (MBS)**. A target's instantiation — for the EK-RA6M5, the *Credential Store* — is documented with that target.
+
 > **Profile**: This chapter belongs to the **Freestanding Substrate** profile ([Conformance §7](conformance.md)). Its requirements bind an implementation that claims that profile; an implementation that delegates persistence to a hosting environment does not claim the profile, and these requirements do not apply to it.
 
 ## 1. Overview
@@ -64,9 +64,7 @@ Mbs.evict : MBS<'R> -> Handle<'R> -> unit     // remove the blob and its index e
 
 ### 5.1 Symmetric authenticated encryption
 
-The seal SHALL use authenticated encryption with a 256-bit symmetric key. AES-256 is the baseline algorithm direction. Its quantum-security assessment depends on current cryptanalysis and attack-resource assumptions, rather than an unconditional conversion from key length to security bits. [NIST's PQC FAQ](https://csrc.nist.gov/projects/post-quantum-cryptography/faqs) supports continued use of AES-256 under current understanding.
-
-Fidelity.Cryptography's [MBS sealing design](../../Fidelity.Cryptography/docs/mbs-sealing.md) proposes AES-256-GCM, conditional on a durable nonce-allocation and recovery contract. The selected suite fixes nonce and tag lengths, associated-data encoding and usage limits. Plaintext is released to the caller only after authentication succeeds.
+The seal SHALL use authenticated encryption with a 256-bit symmetric key. The selected suite fixes nonce and tag lengths, associated-data encoding and usage limits, and requires a durable nonce-allocation and recovery contract. Plaintext is released to the caller only after authentication succeeds.
 
 Post-quantum KEMs and signatures serve key establishment and credential authentication. They complement the symmetric seal even when an accelerator supports them. The [Credential Authority](credential-authority.md) owns their use in issuance and delegation.
 
@@ -74,7 +72,7 @@ Post-quantum KEMs and signatures serve key establishment and credential authenti
 
 The root of sealing-key custody is device-bound and non-exportable. The selected provider may operate through a protected key handle, or the target may authorize a documented derivation route to a software-accessible working key. A software cipher cannot directly consume a hardware key that the CPU cannot read. Export and derivation permissions must therefore be stated separately from AES availability.
 
-Fidelity.Cryptography owns the sealing operation contract and first-party software direction. Fidelity.Platform supplies hardware capabilities and bindings. Hardware acceleration is an admitted implementation choice with explicit device assumptions, conformance evidence and resource constraints. Software implementations carry their own arithmetic, secret-handling and lowering obligations. The target selects a provider satisfying the same suite and custody policy, as described in the [provider contract](../../Fidelity.Cryptography/docs/platform-providers.md).
+Fidelity.Cryptography owns the sealing operation contract. Fidelity.Platform supplies hardware capabilities and bindings. Hardware acceleration is an admitted implementation choice with explicit device assumptions, conformance evidence and resource constraints. Software implementations carry their own arithmetic, secret-handling and lowering obligations. The target selects a provider satisfying the same suite and custody policy, as described in the [provider contract](../../Fidelity.Cryptography/docs/platform-providers.md).
 
 MBS owns persistent nonce reservations and record commits. Provider substitution preserves the record format and does not reset nonce state. Unsupported custody or operations produce a capability failure rather than a silent key export or suite downgrade.
 
@@ -99,7 +97,7 @@ Like the region, width, and representation coeffects, the durability coeffect is
 - [Memory Regions](memory-regions.md) — the sealed medium, the index, and the secure working region are distinct regions with distinct access kinds; MBS storage is placed by region and lifetime.
 - [Closure Representation](closure-representation.md) — the lifetime lattice's program-lifetime point places the store's own structure; MBS extends persistence one rung further, to lifetimes that outlive the process.
 - [Credential Authority](credential-authority.md) — the layer that mints, derives, and delegates the credentials MBS persists.
-- [Fidelity.Cryptography](../../Fidelity.Cryptography/README.md) supplies the planned sealing operations, provider contracts and verification requirements.
+- [Fidelity.Cryptography](../../Fidelity.Cryptography/README.md) defines sealing operations, provider contracts and verification requirements.
 - [Namespace Storage](namespace-storage.md) — the layer above: names, history, and growth as an append-only ledger checkpointed into sealed segments, all stored as MBS records. Its §7 carries the server-scale generalization; MBS is the closed, fixed-slot floor beneath both.
 
 ## 9. Normative Requirements

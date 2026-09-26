@@ -5,8 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-09-04
 > **Depends On**: [Native Type Universe § 5.4 Map](native-type-universe.md#54-map)
 
 ## 1. Overview

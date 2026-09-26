@@ -5,8 +5,6 @@ category: Representation
 status: normative
 ---
 
-> **Status**: Normative
-> **Last Updated**: 2026-09-04
 > **Depends On**: [Native Type Universe § 5.5 Set](native-type-universe.md#55-set), [Closure Representation §3.3](closure-representation.md#33-escape-analysis), [Access Kinds](access-kinds.md)
 
 ## 1. Overview

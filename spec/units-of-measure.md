@@ -7,8 +7,6 @@ status: normative
 
 F# supports static checking of _units of measure_. Units of measure, or _measures_ for short, are like types in that they can appear as parameters to other types and values (as in `float<kg>`, `vector<m/s>`, `add<m>`), can be represented by variables (as in `float<'U>`), and are checked for consistency by the type-checker.
 
-> **Normative Scope**: This chapter states the formal measure algebra used by Clef. It is the authoritative definition for measures, measure equality, and dimensioned arithmetic. Historical notes, blog posts, and draft design material outside this specification are non-normative and are not a source of conformance obligations.
-
 However, measures differ from types in several important ways:
 
 - Measures play no role at runtime. The checker never erases them: they ride the program graph as annotations through every lowering pass and are dropped only at native emission, where they become debug metadata ([DTS/DMM §2.3](https://arxiv.org/abs/2603.16437)).
@@ -276,7 +274,9 @@ type uint64<[<Measure>] 'U>
 type unativeint<[<Measure>] 'U>
 ```
 
-> Note: These definitions are called measure-annotated base types and are marked with the `MeasureAnnotatedAbbreviation` attribute in the implementation of the library. The `MeasureAnnotatedAbbreviation` attribute is not for use in user code and in future revisions of the language may result in a warning or error.
+These definitions are called measure-annotated base types and are marked with the
+`MeasureAnnotatedAbbreviation` attribute in the library. This attribute is reserved
+for library use.
 
 These type definitions have the following special properties:
 

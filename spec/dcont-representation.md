@@ -14,7 +14,7 @@ status: normative
 
 Delimited continuations are the substrate under `async { }`, actor `receive`, and every synchronous suspension point. This chapter specifies them as **graph structure**: a computation-expression region is elaborated by the suspension recipe (§2) into segments and a frame, its delimiter is the boundary of the subgraph the builder's extent defines, and the whole is settled at saturation before any code exists. What the witness emits is standard dialects only — a discriminant, a byte frame with static views, function values, and `scf.index_switch` (§5). There is no continuation operation surface, and no continuation dialect, above the witness boundary ([Backend Lowering Architecture §2.1](backend-lowering-architecture.md)).
 
-This position supersedes an earlier framing of this chapter in which a target-neutral operation surface (`cont.new` / `cont.suspend` / `cont.resume`) was the normative object and each target supplied a lowering pass over it. That framing followed the dialect-level encoding of the WAMI work (§References). It is retired for the reason the [Program Hypergraph](program-hypergraph.md) states generally: the semantics ride in the graph, the judgments discharge over its literals, and what reaches MLIR is the settled decomposition. A `cont`-style vocabulary may still exist **below** the boundary as transliteration for a target that natively hosts continuations (§5.2); the front end does not emit it.
+The semantics reside in the [Program Hypergraph](program-hypergraph.md), judgments discharge over its literals, and MLIR receives the settled decomposition. A `cont`-style vocabulary may exist **below** the boundary as transliteration for a target that natively hosts continuations (§5.2); the front end does not emit it.
 
 The delimited continuation is one instance of the general environment object of [Closure Representation](closure-representation.md): the closure environment, the continuation frame, and the actor state cell are three instances of one node, placed by one fold-in rule. Everything the flat-closure chapter establishes — the finiteness lemma, the enumerated capture set, deterministic layout, the lifetime lattice — is inherited here, and the frame's obligations quantify over enumerated structure for the same reason a closure's do ([Closure Representation §11](closure-representation.md)).
 
@@ -95,7 +95,7 @@ This is the first realization to build, and it is the `seq` state machine genera
 
 ### 5.2 Stack switching
 
-A target that exposes suspend/resume as a first-class primitive (the WebAssembly stack-switching proposal, when its runtime support matures) may receive the saturated frame and discriminant transliterated into that primitive by a **backend leg**, below the boundary, in the target's own vocabulary. That vocabulary expresses the target upward ([Backend Lowering Architecture §3.2](backend-lowering-architecture.md)); it never expresses Clef downward, and the front end never emits it. The witnessed form of §5 is unchanged; only the leg differs.
+A target that exposes suspend/resume as a first-class primitive may receive the saturated frame and discriminant transliterated into that primitive by a **backend leg**, below the boundary, in the target's own vocabulary. That vocabulary expresses the target upward ([Backend Lowering Architecture §3.2](backend-lowering-architecture.md)); it never expresses Clef downward, and the front end never emits it. The witnessed form of §5 is unchanged; only the leg differs.
 
 ### 5.3 Host coroutines (JSIR pathway)
 
@@ -182,5 +182,5 @@ On the §5.1 leg the resume state machine has the `seq` SSA cost profile ([seq �
 
 - Danvy, O., Filinski, A. *Abstracting Control* (1990) — shift/reset, the control operators whose semantics the recipe of §2 carries as graph structure.
 - Dybvig, R. K., Peyton Jones, S., Sabry, A. *A Monadic Framework for Delimited Continuations* (JFP 2007).
-- Kang, B., Desai, H., Jia, L., Lucia, B. *WAMI: Compilation to WebAssembly through MLIR without Losing Abstraction* (2025), arXiv:2506.16048 — prior art for a dialect-level encoding of delimited continuations. An earlier revision of this chapter followed that structure; this revision does not, for the reason stated in §1, and notes that the WAMI authors themselves retired their continuation dialect in favour of a coroutine dialect (2026-02).
+- Kang, B., Desai, H., Jia, L., Lucia, B. *WAMI: Compilation to WebAssembly through MLIR without Losing Abstraction* (2025), arXiv:2506.16048 — prior art for a dialect-level encoding of delimited continuations.
 - Appel, A. W. *SSA is Functional Programming* (1998) — the state-machine/CFG equivalence the resume form rests on.

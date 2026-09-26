@@ -119,7 +119,8 @@ let computeDerivative f x =
     (p2 - p1) / 0.1
 ```
 
-The use of lightweight syntax is the default for all Clef code in files with the extension `.clef` or `.clefx`.
+Lightweight syntax is the default for Clef implementation files (`.clef`) and
+script files (`.clefx`); see [Interactive Development](interactive-development.md).
 
 ### Making Data Simple
 

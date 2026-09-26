@@ -28,9 +28,8 @@ illustrated by example.
 #### ;; delimiter
 
 When the lightweight syntax option is enabled, top level expressions do not require the `;;` delimiter
-because every construct that starts in the first column is implicitly a new declaration. The `;;`
-delimiter is still required to terminate interactive entries to fsi.exe, but not when using F# Interactive
-from Visual Studio.
+because every construct that starts in the first column is implicitly a new declaration.
+The token remains part of explicit source syntax.
 
 Lightweight Syntax
 
@@ -161,11 +160,6 @@ token $app      // Note: also called HIGH_PRECEDENCE_APP
 token $tyapp    // Note: also called HIGH_PRECEDENCE_TYAPP
  
 ```
-
-> Note: The following tokens are also used in the Microsoft F# implementation. They are
-translations of the corresponding input tokens and help provide better error messages
-for lightweight syntax code:
-`tokens $let $use $let! $use! $do $do! $then $else $with $function $fun`
 
 ### Grammar Rules Including Inserted Tokens
 

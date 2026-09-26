@@ -5,9 +5,7 @@ category: Semantics
 status: normative
 ---
 
-> **Status**: Revised
-> **Normative**: This chapter normatively specifies the **surface API** and its **desugaring**. The underlying reactive semantics are normative in [Observable Computation](observable-computation.md) and [Incremental Computation](incremental-computation.md); this chapter does not restate them.
-> **Last Updated**: 2026-09-24
+This chapter specifies the **surface API** and its **desugaring**. The underlying reactive semantics are specified in [Observable Computation](observable-computation.md) and [Incremental Computation](incremental-computation.md).
 
 ## 1. Overview
 
@@ -19,9 +17,9 @@ Signals are a **thin surface layer**, not a separate reactive engine. Each const
 - `Memo<'T>` is a derived, cached, cutoff-bearing value, an `Incremental<'T>`.
 - `Effect` is a side-effecting computation that re-runs on change, a demanded sink on the graph.
 
-Two consequences follow from being a surface over the intrinsics, and they are the substance of this revision:
+Two consequences follow from being a surface over the intrinsics:
 
-1. **Reactive callbacks are flat closures.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). Captures describe its environment; tracked reads determine its reactive dependencies. These sets are not generally identical. This preserves closure ergonomics without the top-level-function restriction of the earlier formulation.
+1. **Reactive callbacks are flat closures.** A `Memo` or `Effect` body is an ordinary closure that may capture signals and local state ([Closure Representation](closure-representation.md)). Captures describe its environment; tracked reads determine its reactive dependencies. These sets are not generally identical.
 2. **The reactive plan is compiler-visible in the [Program Semantic Graph](program-semantic-graph.md).** Read and effect analysis determines static dependencies and the operations that select dynamic dependencies. Target lowering specializes proven static structure and realizes the remaining state and dynamic graph instances. No mandatory global `CurrentTracking` mechanism or generic runtime signal table is prescribed.
 
 ## 2. Mapping to the Intrinsics
@@ -33,7 +31,7 @@ Two consequences follow from being a surface over the intrinsics, and they are t
 | | `Effect` | Always-demanded `Incremental` sink (an observer that performs effects) | [Incremental §6.3](incremental-computation.md) |
 | | `Batch` | Stabilization-boundary control (coalesce to one stabilization) | [Incremental §6.2](incremental-computation.md) |
 | | `Store<'T>` | Per-field signals (sugar over `Signal`) | this chapter |
-| | Automatic dependency tracking | Read/effect analysis over the typed graph, including closure environments and called computations | [§8](#8-dependency-tracking-by-capture) |
+| | Automatic dependency tracking | Read/effect analysis over the typed graph, including closure environments and called computations | [§8](#8-dependency-tracking-by-reads-and-effects) |
 
 Because both ends are intrinsic, a `Signal` driving a `Memo` can lower directly through the shared reactive plan without a mandatory separate library bridge ([Incremental + Observable](incremental-computation.md#incremental--observable)). The selected target still realizes the dependency notifications and runtime state the program requires.
 
@@ -52,7 +50,7 @@ val update : Signal<'T> -> ('T -> 'T) -> unit
 
 **Desugaring.** A `Signal<'T>` is a settable source leaf. `set` performs an `Observable`-style emission (invalidation) to the dependent `Incremental` nodes; a tracked read within a `Memo`/`Effect` computation establishes a dependency represented by the PSG's reactive plan. Capturing a signal handle without reading it does not establish that dependency. Change detection on `set` uses the same `'T : equality` cutoff as `Incremental`.
 
-**Read API.** The tracked read is expressed explicitly by the developer, either as a property access or a function call. A property access (e.g. `.Value` or `.current`) is zero-cost at runtime and is a common pattern in fine-grained reactive systems; a function call is semantically identical. Either form registers the dependency in a reactive scope. The spec uses a function call in its examples, but a property access is equally valid at the implementation level and avoids the allocation of a closure wrapper in some targets.
+**Read API.** The tracked read is expressed explicitly by the developer, either as a property access or a function call. A property access (e.g. `.Value` or `.current`) is zero-cost at runtime and is a common pattern in fine-grained reactive systems; a function call is semantically identical. Either form registers the dependency in a reactive scope.
 
 ```fsharp
 let count = Signal.create 0
@@ -96,7 +94,7 @@ val detach            : Effect -> unit    // detaches the effect from its reacti
 
 **Lifetime.** An effect's lifetime is bounded by its enclosing actor or region. In a scoped region, the runtime (or compiler for JSIR) automatically generates the teardown code that detaches every registered effect and runs its cleanup handlers. The developer does not call cleanup at every scope boundary. In an actor context, Prospero retiring the actor performs this teardown for all remaining effects. `detach` is available for the rare case where manual early teardown is needed (for example, canceling an effect before its enclosing scope ends), but the default path is automatic scoped cleanup. Native captured storage follows the region lifetime; the JavaScript target uses host-managed storage while preserving deterministic logical cleanup through compiler-generated teardown at scope boundaries. A separate `onCleanup` registration is available for cleanup callbacks that are not tied to a specific effect's re-execution.
 
-> **[Not yet specified]** The detailed ownership and reclamation rules for repeatedly replaced dynamic subgraphs, ordering among multiple cleanups, cleanup failure, and pending asynchronous work remain open. An actor-lifetime arena alone does not establish early reclamation of a removed child scope. The lifetime ordering obligations in [Memory Regions](memory-regions.md#lifetime-constraints) must also be satisfied.
+Reclamation of a removed child scope must satisfy the lifetime ordering obligations in [Memory Regions](memory-regions.md#lifetime-constraints). Allocation in an actor-lifetime arena does not establish early reclamation.
 
 ```fsharp
 let logger =
@@ -142,7 +140,7 @@ A selector reads a single field through `state` and establishes a reactive depen
 
 ## 8. Dependency Tracking by Reads and Effects
 
-Capture analysis supplies environment and lifetime information; dependency analysis additionally examines tracked reads and effects. The earlier formulation's generic runtime table and `CurrentTracking` global are not the required mechanism:
+Capture analysis supplies environment and lifetime information; dependency analysis additionally examines tracked reads and effects:
 
 - A closure may capture a signal only to install a later callback, capture an aggregate containing several signals, or call a helper that performs tracked reads. Captures and active read dependencies SHALL NOT be equated without establishing that relationship.
 - **Applicative tracking** of a proven fixed set of read dependencies yields static edges. Analysis includes the relevant behavior of called computations and access through captured values.
@@ -154,15 +152,13 @@ This retains compiler visibility for fusion, cutoff reasoning and target-specifi
 
 **Dependency reconciliation.** During recomputation, reads are matched against the node's existing source list in order; only the diverged tail is reconciled. When a recomputation succeeds and the dependency set is unchanged, no edge is mutated. A stable graph is a zero-allocation path. A throwing evaluation must not touch the graph at all, so the tracking state is fully restored even on failure. This preserves edge stability across repeated successful evaluations.
 
-> **[Not yet specified]** The admitted interprocedural read/effect analysis, representation of dynamic dependency selection and diagnostic boundary require further specification and conformance cases. This chapter does not claim that arbitrary closures can be resolved by lexical capture enumeration alone.
-
 ## 9. UI Scaffolding: Front End ↔ Core
 
-Signals are the scaffolding between the application core and a front end, and the surface API is identical across targets. This is the point.
+Signals connect the application core and a front end, with the same surface API across targets.
 
 - **Native renderer.** Flat closures lower through the native target pathway (the LLVM pathway off the portable middle end, see [Closure Representation §6.3](closure-representation.md) and [Backend Lowering §4.2](backend-lowering-architecture.md)) to region-allocated closure records plus a function address. Signal writes drive re-render through the same stabilization model that governs any `Incremental` graph; a render function is an `Effect` demanded by the frame boundary.
 - **WebView / JavaScript front end.** Through JSIR, Composer's JavaScript-as-MLIR backend, flat closures lower to native JavaScript closures (captured scope is exactly what a JS function object carries). The *same* `Signal`/`Memo`/`Effect` source therefore compiles to JavaScript, enabling interop with JS-side reactive libraries and genuine frontend/backend consistency. This target-polymorphism is the reason the reactive primitive is a closure rather than an `FnPtr`: a closure rides JSIR's bidirectional MLIR↔JavaScript mapping idiomatically, whereas a raw function pointer has no natural JavaScript form.
-- **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire and can update a local signal mirror. Encoding alone does not give the two sides one synchronous stabilization boundary. Ordering, resynchronization and failure behavior belong to the transport/application contract and are **[Not yet specified]** here.
+- **Core ↔ front-end transport.** State crossing the native-core/WebView boundary is carried by BAREWire and can update a local signal mirror. Encoding alone does not give the two sides one synchronous stabilization boundary. Ordering, resynchronization and failure behavior belong to the transport/application contract.
 
 ## 10. Example: Counter Application
 
@@ -199,7 +195,7 @@ Effect.create (fun () ->
     Console.writeLine (sprintf "Count: %d, Name: %s" c n))
 ```
 
-The effect runs on each model update, but only the changed projections trigger front-end bindings. This is the core of the spec: domain transitions drive reactive signals, and signals drive updates to whatever front end (native, WebView, CLI, or TUI) subscribes to them.
+The effect runs on each model update, but only the changed projections trigger front-end bindings. Domain transitions drive reactive signals, and signals drive updates to the subscribed front end (native, WebView, CLI, or TUI).
 
 ## 11. Normative Requirements
 

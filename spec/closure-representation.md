@@ -38,7 +38,7 @@ Field Indices:
   [0..m-1] = captured values
 ```
 
-This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by traversing a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end the environment is a `memref` carried alongside the function value as two SSA values, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer. An earlier revision of this chapter placed a `code_ptr` word at `[0]` of the environment; that slot is retired with the cast that populated it ([Backend Lowering Architecture §4](backend-lowering-architecture.md)). The function value is never data in the interior, so it is never a field.
+This is the meaning of *flat*: a closure holds its captures in a single environment, so a capture is reached directly rather than by traversing a chain of enclosing environments. The alternative, the linked environment chain of Cardelli-style closures, is prohibited (§10); the reason is developed in §5. In the middle end the environment is a `memref` carried alongside the function value as two SSA values, in portable dialects (§6.3); "flat" constrains the *shape* of the environment, a single block rather than a chain, not whether it is reached through a pointer. The function value is never data in the interior, so it is never a field.
 
 ### 2.2 Capture Semantics
 
@@ -164,7 +164,7 @@ A closure value in the middle end is two SSA values: the function symbol and the
 | capture at `offset_i` | `memref.view %env[%c_off_i][] : memref<Exi8> to memref<1xT_i>`, then `memref.load` |
 | `call fn(env, args)` | `func.call_indirect %fn(%env, args...)` |
 
-The pair is never packed into one value and never cast. The earlier `memref<2xindex>` index-pair encoding, carried through `builtin.unrealized_conversion_cast` and resolved by a target pass, is retired: `unrealized_conversion_cast` SHALL NOT appear in the witnessed form for any closure construct ([Backend Lowering Architecture §4](backend-lowering-architecture.md)). Each target pathway consumes `func.constant`, `func.call_indirect`, and `memref` with its standard lowerings.
+The pair is never packed into one value and never cast. `unrealized_conversion_cast` SHALL NOT appear in the witnessed form for any closure construct ([Backend Lowering Architecture §4](backend-lowering-architecture.md)). Each target pathway consumes `func.constant`, `func.call_indirect`, and `memref` with its standard lowerings.
 
 ### 6.4 JSIR-Pathway Realization
 
@@ -280,7 +280,7 @@ The closure representation is produced across three phases, consistent with the 
 
 A closure's finite capture set determines a finite set of slot-layout and direct lifetime obligations. These can be derived from the typed graph without requiring an annotation at each closure site. The compiler SHALL derive them during elaboration and retain unresolved premises until the relevant commitment boundary. A slot containing a reference can denote storage beyond the flat environment. The finiteness of the capture list does not establish finiteness of arbitrary transitive heap reachability or discharge that storage's ownership and lifetime obligations.
 
-For a settled environment, bounds on slot offsets and extents can be expressed in the standing arithmetic fragment. Captured storage requires its own lifetime and sharing evidence. These judgments enter the joint PSG constraint mechanism and are preserved or rechecked at the relevant lowering edges. A temporary external ledger can compare obligations and discharge results across those edges while that mechanism is being validated. Recording a proposition in the ledger does not establish its proof.
+For a settled environment, bounds on slot offsets and extents can be expressed in the standing arithmetic fragment. Captured storage requires its own lifetime and sharing evidence. These judgments enter the joint PSG constraint mechanism and are preserved or rechecked at the relevant lowering edges. Recording a proposition does not establish its proof.
 
 The judgments survive lowering because the lowered form carries the same structure. The MLIR witnessed from the graph preserves the enumerated frontier: the zipper elides only what the graph has already saturated ([Program Semantic Graph](program-semantic-graph.md)), and every cast the closure representation requires ([Backend Lowering Architecture §4.2](backend-lowering-architecture.md)) corresponds to an obligation the graph records. Integrity is therefore substantiated through lowering, not re-derived after it; this is the [preservation obligation through lowering](conformance.md) in its closure-specific form. The proof shape is that of region soundness and safe-for-space closure conversion; see Tofte and Talpin, *Region-Based Memory Management* (Information and Computation, 1997), and Shao and Appel, *Space-Efficient Closure Representations* (LFP '94).
 
